@@ -1,18 +1,18 @@
 {
-  "name": "replane",
-  "version": "0.0.2",
-  "description": "A starter for creating a TypeScript package.",
+  "name": "replane-sdk",
+  "version": "0.0.3",
+  "description": "Replane core TypeScript SDK.",
   "type": "module",
   "license": "MIT",
-  "homepage": "https://github.com/author/library#readme",
+  "homepage": "https://github.com/tilyupo/replane-javascript#readme",
   "bugs": {
-    "url": "https://github.com/author/library/issues"
+    "url": "https://github.com/tilyupo/replane-javascript/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/author/library.git"
+    "url": "git+https://github.com/tilyupo/replane-javascript.git"
   },
-  "author": "Author Name <author.name@mail.com>",
+  "author": "tilyupo <npm@tilyupo.dev>",
   "files": [
     "dist"
   ],
@@ -26,6 +26,14 @@
   "publishConfig": {
     "access": "public"
   },
+  "keywords": [
+    "replane",
+    "config",
+    "configuration",
+    "sdk",
+    "feature-flags"
+  ],
+  "sideEffects": false,
   "scripts": {
     "build": "tsdown",
     "dev": "tsdown --watch",
