@@ -1,6 +1,6 @@
 {
   "name": "replane-sdk",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Replane TypeScript SDK.",
   "type": "module",
   "license": "MIT",
@@ -23,8 +23,7 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs",
-      "default": "./dist/index.js"
+      "require": "./dist/index.cjs"
     },
     "./package.json": "./package.json"
   },
