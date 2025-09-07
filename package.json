@@ -1,6 +1,6 @@
 {
   "name": "replane-sdk",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Replane TypeScript SDK.",
   "type": "module",
   "license": "MIT",
@@ -44,7 +44,7 @@
     "build:esm": "tsdown",
     "build:cjs": "esbuild src/index.ts --platform=node --format=cjs --outfile=dist/index.cjs",
     "dev": "tsdown --watch",
-    "test": "vitest",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "release": "pnpm run build && bumpp && npm publish"
   },
