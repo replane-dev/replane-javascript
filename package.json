@@ -1,7 +1,7 @@
 {
   "name": "replane-sdk",
-  "version": "0.0.3",
-  "description": "Replane core TypeScript SDK.",
+  "version": "0.0.4",
+  "description": "Replane TypeScript SDK.",
   "type": "module",
   "license": "MIT",
   "homepage": "https://github.com/tilyupo/replane-javascript#readme",
@@ -12,15 +12,20 @@
     "type": "git",
     "url": "git+https://github.com/tilyupo/replane-javascript.git"
   },
-  "author": "tilyupo <npm@tilyupo.dev>",
+  "author": "tilyupo <tilyupo@gmail.com>",
   "files": [
     "dist"
   ],
-  "main": "./dist/index.js",
+  "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    },
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -35,13 +40,16 @@
   ],
   "sideEffects": false,
   "scripts": {
-    "build": "tsdown",
+    "build": "pnpm run build:esm && pnpm run build:cjs",
+    "build:esm": "tsdown",
+    "build:cjs": "esbuild src/index.ts --platform=node --format=cjs --outfile=dist/index.cjs",
     "dev": "tsdown --watch",
     "test": "vitest",
     "typecheck": "tsc --noEmit",
-    "release": "bumpp && npm publish"
+    "release": "pnpm run build && bumpp && npm publish"
   },
   "devDependencies": {
+    "esbuild": "^0.23.1",
     "@types/node": "^22.15.17",
     "bumpp": "^10.1.0",
     "tsdown": "^0.11.9",
