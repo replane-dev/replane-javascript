@@ -12,7 +12,7 @@
     "type": "git",
     "url": "git+https://github.com/tilyupo/replane-javascript.git"
   },
-  "author": "tilyupo <tilyupo@gmail.com>",
+  "author": "Dmitry Tilyupo <tilyupo@gmail.com>",
   "files": [
     "dist"
   ],
