@@ -2,6 +2,8 @@
 
 Small TypeScript client for fetching configuration values from a Replane API.
 
+Part of the Replane project: [tilyupo/replane](https://github.com/tilyupo/replane).
+
 > Status: early. Minimal surface area on purpose. Expect small breaking tweaks until 0.1.x.
 
 ## Why it exists
