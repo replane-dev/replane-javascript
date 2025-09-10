@@ -10,11 +10,11 @@ Part of the Replane project: [tilyupo/replane](https://github.com/tilyupo/replan
 
 You just need: given a token + config name -> get the value. This package does only that, well:
 
-- Single focused call: `getConfig(name)`
 - Works in ESM and CJS (dual build)
 - Zero runtime deps (uses native `fetch` — bring a polyfill if your runtime lacks it)
 - Tiny bundle footprint
-- Strong TypeScript types + custom error with status/body
+- Strong TypeScript types
+- Resilient to server errors (returns your fallback and logs)
 
 ## Installation
 
@@ -36,7 +36,10 @@ const client = createReplaneClient({
   baseUrl: "https://api.my-replane-host.com",
 });
 
-const featureFlag = await client.getConfig<boolean>("new-onboarding");
+const featureFlag = await client.getConfig<boolean>({
+  name: "new-onboarding",
+  fallback: false,
+});
 
 // or a more complex example
 
@@ -45,40 +48,41 @@ interface PasswordRequirements {
   requireSymbol: boolean;
 }
 
-const passwordRequirements = await client.getConfig<PasswordRequirements>(
-  "password-requirements"
-);
+const passwordRequirements = await client.getConfig<PasswordRequirements>({
+  name: "password-requirements",
+  fallback: { minLength: 8, requireSymbol: false },
+});
 ```
 
 ## API
 
-### `createReplaneClient(token, options?)`
+### `createReplaneClient(options)`
 
 Returns an object: `{ getConfig }`.
 
 #### Options
 
-- `baseUrl` (string) – API origin.
-- `apiKey` (string) - API key for authorization.
+- `baseUrl` (string) – API origin (no trailing slash needed).
+- `apiKey` (string) – API key for authorization. Required.
 - `fetchFn` (function) – custom fetch (e.g. `undici.fetch` or mocked fetch in tests).
-- `timeoutMs` (number) – abort the request after N ms.
+- `timeoutMs` (number) – abort the request after N ms. Default: 1000.
+- `logger` (`{ info(...), error(...) }`) – optional logger (defaults to `console`).
 
-### `client.getConfig(name, perCallOptions?)`
+### `client.getConfig({ name, fallback, ...overrides })`
 
-Per‑call options accept the same keys (`baseUrl`, `apiKey`, `fetchFn`, `timeoutMs`) and override client defaults.
+Parameters:
 
-Returns: the config value parsed as JSON.
+- `name` (string) – config name to fetch.
+- `fallback` (any) – value returned when request fails or response is invalid.
+- Overrides: `baseUrl`, `apiKey`, `fetchFn`, `timeoutMs`, `logger` – same semantics as in `createReplaneClient`.
 
-### Errors: `ReplaneError`
+Returns: the config value.
 
-Thrown when the HTTP status is not 2xx. Shape:
+Failures (non-2xx, network error, or invalid JSON) do not throw; the function logs via `logger.error(...)` and returns your `fallback`.
 
-```ts
-class ReplaneError extends Error {
-  status: number;
-  body: unknown; // parsed JSON or text when possible
-}
-```
+### Errors
+
+This SDK doesn't throw on request/response errors during `getConfig`. Instead, it logs (using the provided or default logger) and returns the provided `fallback`.
 
 ## Environment notes
 
@@ -94,47 +98,36 @@ interface LayoutConfig {
   variant: "a" | "b";
   ttl: number;
 }
-const layout = await client.getConfig<LayoutConfig>("layout");
+const layout = await client.getConfig<LayoutConfig>({
+  name: "layout",
+  fallback: { variant: "a", ttl: 0 },
+});
 ```
 
 Timeout override:
 
 ```ts
-await client.getConfig("slow-config", { timeoutMs: 1500 });
+await client.getConfig({
+  name: "slow-config",
+  fallback: null,
+  timeoutMs: 1500,
+});
 ```
 
 Custom fetch (tests):
 
 ```ts
-const client = createReplaneClient("TKN", { fetchFn: mockFetch });
+const client = createReplaneClient({
+  apiKey: "TKN",
+  baseUrl: "https://api",
+  fetchFn: mockFetch,
+});
 ```
 
-## Testing
+## Roadmap
 
-```bash
-pnpm test
-```
-
-## Building / Publishing
-
-```bash
-pnpm run build        # esm + cjs
-pnpm run release      # bump version & publish (uses bumpp)
-```
-
-Artifacts:
-
-```
-dist/index.js   (ESM)
-dist/index.cjs  (CJS)
-dist/index.d.ts (types)
-```
-
-## Roadmap (short)
-
-- Optional batch fetch
-- ETag / conditional requests
-- Minimal caching utilities (opt‑in)
+- Config caching
+- Config invalidation
 
 ## License
 

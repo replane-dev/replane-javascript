@@ -3,58 +3,65 @@ export interface ReplaneClientOptions {
   baseUrl: string;
   /** Custom fetch implementation (useful for tests / polyfills). */
   fetchFn?: typeof fetch;
-  /** Optional timeout in ms for the request. */
+  /**
+   * Optional timeout in ms for the request.
+   * @default 1000
+   */
   timeoutMs?: number;
-  /** API key for authorization. */
+  /** Project API key for authorization. */
   apiKey: string;
+  /** Optional logger (defaults to console). */
+  logger?: ReplaneLogger;
 }
 
-export class ReplaneError extends Error {
-  status: number;
-  body: unknown;
-  constructor(message: string, status: number, body: unknown) {
-    super(message);
-    this.name = "ReplaneError";
-    this.status = status;
-    this.body = body;
-  }
+interface ReplaneFinalOptions {
+  baseUrl: string;
+  fetchFn: typeof fetch;
+  timeoutMs: number;
+  apiKey: string;
+  logger: ReplaneLogger;
 }
+
+export interface ReplaneLogger {
+  debug(...args: any[]): void;
+  info(...args: any[]): void;
+  warn(...args: any[]): void;
+  error(...args: any[]): void;
+}
+
+const defaultLogger: ReplaneLogger = console;
 
 /** Internal helper adding timeout support around fetch. */
 // Use a looser 'any' for input to avoid depending on DOM lib types.
 async function fetchWithTimeout(
   input: any,
   init: RequestInit,
-  timeoutMs?: number,
-  fetchFn?: typeof fetch
+  timeoutMs: number,
+  fetchFn: typeof fetch
 ) {
-  const fn = fetchFn ?? (globalThis.fetch as typeof fetch | undefined);
-  if (!fn) {
+  if (!fetchFn) {
     throw new Error("Global fetch is not available. Provide options.fetchFn.");
   }
-  if (!timeoutMs) return fn(input, init);
+  if (!timeoutMs) return fetchFn(input, init);
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fn(input, { ...init, signal: controller.signal });
+    return await fetchFn(input, { ...init, signal: controller.signal });
   } finally {
     clearTimeout(t);
   }
 }
 
-export interface GetConfigOptions extends Partial<ReplaneClientOptions> {}
-
-/** Shape of a successful config value response.
- * The API might just return the raw value. We accept unknown to stay flexible.
- */
-export type ConfigValue<T = unknown> = T;
+export interface GetConfigRequest<T> extends Partial<ReplaneClientOptions> {
+  /** Config name to fetch. */
+  name: string;
+  /** Fallback value if config is not found. */
+  fallback: T;
+}
 
 export interface ReplaneClient {
   /** Fetch a config value by name. */
-  getConfig<T = unknown>(
-    name: string,
-    options?: GetConfigOptions
-  ): Promise<ConfigValue<T>>;
+  getConfig<T = unknown>(req: GetConfigRequest<T>): Promise<T | undefined>;
 }
 
 /**
@@ -64,52 +71,90 @@ export interface ReplaneClient {
  *   const value = await client.getConfig('my-config')
  */
 export function createReplaneClient(
-  options: ReplaneClientOptions
+  sdkOptions: ReplaneClientOptions
 ): ReplaneClient {
-  if (!options.apiKey) throw new Error("API key is required");
+  if (!sdkOptions.apiKey) throw new Error("API key is required");
 
   return {
-    async getConfig<T = unknown>(
-      name: string,
-      perCallOptions: GetConfigOptions = {}
-    ): Promise<ConfigValue<T>> {
-      if (!name) throw new Error("config name is required");
-      const finalOptions = { ...options, ...perCallOptions };
-      const finalBase = finalOptions.baseUrl.replace(/\/$/, "");
-      const url = `${finalBase}/api/v1/configs/${encodeURIComponent(
-        name
-      )}/value`;
-      const res = await fetchWithTimeout(
-        url,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${finalOptions.apiKey}`,
-            Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
-          },
-        },
-        perCallOptions.timeoutMs ?? finalOptions.timeoutMs,
-        perCallOptions.fetchFn ?? finalOptions.fetchFn
-      );
-
-      let body: unknown = null;
-      const contentType = res.headers.get("content-type") || "";
+    async getConfig<T = unknown>(req: GetConfigRequest<T>): Promise<T> {
+      if (!req.name) throw new Error("config name is required");
+      const finalOptions = combineOptions(sdkOptions, req);
       try {
-        if (contentType.includes("application/json")) body = await res.json();
-        else body = await res.text();
-      } catch (e) {
-        // ignore body parse errors; body stays null
+        return await _getConfig<T>({
+          configName: req.name,
+          fallback: req.fallback,
+          options: finalOptions,
+        });
+      } catch (err: unknown) {
+        finalOptions.logger.error("ReplaneClient.getConfig error", err);
+        return req.fallback;
       }
-
-      if (!res.ok) {
-        throw new ReplaneError(
-          `Failed to fetch config "${name}" (status ${res.status})`,
-          res.status,
-          body
-        );
-      }
-
-      return body as T;
     },
+  };
+}
+
+async function _getConfig<T>(params: {
+  configName: string;
+  fallback: T;
+  options: ReplaneFinalOptions;
+}): Promise<T> {
+  const url = `${params.options.baseUrl}/api/v1/configs/${encodeURIComponent(
+    params.configName
+  )}/value`;
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${params.options.apiKey}`,
+        Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
+      },
+    },
+    params.options.timeoutMs,
+    params.options.fetchFn
+  );
+
+  let body: unknown = null;
+  const contentType = res.headers.get("content-type") || "";
+  try {
+    if (contentType.includes("application/json")) {
+      body = await res.json();
+    } else {
+      body = await res.text();
+    }
+  } catch (e) {
+    if (res.ok) {
+      params.options.logger.error("ReplaneClient.getConfig invalid response", {
+        name: params.configName,
+        status: res.status,
+        contentType,
+      });
+      return params.fallback;
+    }
+  }
+
+  if (!res.ok) {
+    params.options.logger.error("ReplaneClient.getConfig error", {
+      name: params.configName,
+      status: res.status,
+      body,
+    });
+
+    return params.fallback;
+  }
+
+  return body as T;
+}
+
+function combineOptions(
+  defaults: ReplaneClientOptions,
+  overrides: Partial<ReplaneClientOptions>
+): ReplaneFinalOptions {
+  return {
+    apiKey: overrides.apiKey ?? defaults.apiKey,
+    baseUrl: (overrides.baseUrl ?? defaults.baseUrl).replace(/\/+$/, ""),
+    fetchFn: overrides.fetchFn ?? defaults.fetchFn ?? globalThis.fetch,
+    timeoutMs: overrides.timeoutMs ?? defaults.timeoutMs ?? 5000,
+    logger: overrides.logger ?? defaults.logger ?? defaultLogger,
   };
 }
