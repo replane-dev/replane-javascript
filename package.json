@@ -4,13 +4,13 @@
   "description": "Replane TypeScript SDK.",
   "type": "module",
   "license": "MIT",
-  "homepage": "https://github.com/tilyupo/replane-javascript#readme",
+  "homepage": "https://github.com/replane-dev/replane-javascript#readme",
   "bugs": {
-    "url": "https://github.com/tilyupo/replane-javascript/issues"
+    "url": "https://github.com/replane-dev/replane-javascript/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tilyupo/replane-javascript.git"
+    "url": "git+https://github.com/replane-dev/replane-javascript.git"
   },
   "author": "Dmitry Tilyupo <tilyupo@gmail.com>",
   "files": [
