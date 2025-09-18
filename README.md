@@ -79,7 +79,7 @@ Returns an object: `{ getConfigValue, watchConfigValue, close }`.
 - `apiKey` (string) – API key for authorization. Required.
 - `fetchFn` (function) – custom fetch (e.g. `undici.fetch` or mocked fetch in tests).
 - `timeoutMs` (number) – abort the request after N ms. Default: 1000.
-- `logger` (`{ info(...), error(...) }`) – optional logger (defaults to `console`).
+- `logger` (`{ debug(...), info(...), warn(...), error(...) }`) – optional logger (defaults to `console`).
 
 ### `client.getConfigValue({ name, fallback, ...overrides })`
 
