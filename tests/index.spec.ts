@@ -1,7 +1,7 @@
-import { expect, it, vi } from "vitest";
+import { expect, it, vi, describe } from "vitest";
 import { createReplaneClient } from "../src";
 
-it("createReplaneClient.getConfig encodes name and handles text response", async () => {
+it("createReplaneClient.getConfigValue encodes name and handles text response", async () => {
   const fetchMock = vi.fn(
     async () =>
       new Response("raw-value", {
@@ -15,7 +15,10 @@ it("createReplaneClient.getConfig encodes name and handles text response", async
     baseUrl: "https://api.local",
     fetchFn: fetchMock,
   });
-  const value = await client.getConfig({ name: "space key", fallback: "FB" });
+  const value = await client.getConfigValue({
+    name: "space key",
+    fallback: "FB",
+  });
   expect(value).toBe("raw-value");
   const callUrl = fetchMock.mock.calls[0][0];
   expect(callUrl).toBe("https://api.local/api/v1/configs/space%20key/value");
@@ -41,7 +44,10 @@ it("non-OK responses return fallback and log error with status & body", async ()
     fetchFn: fetchMock,
     logger,
   });
-  const res = await client.getConfig({ name: "missing", fallback: "DEFAULT" });
+  const res = await client.getConfigValue({
+    name: "missing",
+    fallback: "DEFAULT",
+  });
   expect(res).toBe("DEFAULT");
   expect(logger.error).toHaveBeenCalledWith(
     "ReplaneClient.getConfig error",
@@ -68,7 +74,7 @@ it("parses JSON response body on 200 application/json", async () => {
     baseUrl: "https://api.local",
     fetchFn: fetchMock,
   });
-  const res = await client.getConfig<typeof body>({
+  const res = await client.getConfigValue<typeof body>({
     name: "json-config",
     fallback: { value: 0, nested: { ok: false } },
   });
@@ -96,7 +102,7 @@ it("invalid JSON on 200 returns fallback and logs invalid response", async () =>
     logger,
   });
   const fb = { v: 1 };
-  const res = await client.getConfig<typeof fb>({
+  const res = await client.getConfigValue<typeof fb>({
     name: "bad-json",
     fallback: fb,
   });
@@ -129,7 +135,7 @@ it("uses per-call overrides for baseUrl/apiKey and sets headers", async () => {
     fetchFn: fetchMock,
   });
 
-  const res = await client.getConfig({
+  const res = await client.getConfigValue({
     name: "x/y",
     fallback: "FB",
     baseUrl: "https://override",
@@ -162,7 +168,7 @@ it("aborts on timeout and returns fallback with error logged", async () => {
     fetchFn: fetchMock,
     logger,
   });
-  const res = await client.getConfig({
+  const res = await client.getConfigValue({
     name: "slow",
     fallback: "FB",
     timeoutMs: 10,
@@ -186,6 +192,122 @@ it("treats missing content-type as text and returns body", async () => {
     baseUrl: "https://api.local",
     fetchFn: fetchMock,
   });
-  const res = await client.getConfig({ name: "no-ct", fallback: "FB" });
+  const res = await client.getConfigValue({ name: "no-ct", fallback: "FB" });
   expect(res).toBe("hello");
+});
+
+it("throws when config name missing", async () => {
+  const client = createReplaneClient({
+    apiKey: "TKN",
+    baseUrl: "https://api.local",
+    fetchFn: vi.fn(async () => new Response("ok", { status: 200 })),
+  });
+  // @ts-expect-error intentionally missing name
+  await expect(client.getConfigValue({ fallback: "FB" })).rejects.toThrow(
+    /config name is required/
+  );
+});
+
+describe("watchConfigValue", () => {
+  it("initially returns first fetched value and updates on interval", async () => {
+    vi.useFakeTimers();
+    const values = ["v1", "v2", "v3"];
+    let i = 0;
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(values[i++], {
+          status: 200,
+          headers: { "content-type": "text/plain" },
+        })
+    );
+    const client = createReplaneClient({
+      apiKey: "TKN",
+      baseUrl: "https://api.local",
+      fetchFn: fetchMock as any,
+    });
+    const watcher = await client.watchConfigValue<string>({
+      name: "watched",
+      fallback: "FB",
+    });
+    expect(watcher.get()).toBe("v1");
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(watcher.get()).toBe("v2");
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(watcher.get()).toBe("v3");
+
+    watcher.close();
+    vi.useRealTimers();
+  });
+
+  it("watcher.get throws after close and close is idempotent", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(
+      async () =>
+        new Response("v1", {
+          status: 200,
+          headers: { "content-type": "text/plain" },
+        })
+    );
+    const client = createReplaneClient({
+      apiKey: "TKN",
+      baseUrl: "https://api.local",
+      fetchFn: fetchMock as any,
+    });
+    const watcher = await client.watchConfigValue<string>({
+      name: "watched",
+      fallback: "FB",
+    });
+    expect(watcher.get()).toBe("v1");
+    watcher.close();
+    watcher.close(); // idempotent
+    expect(() => watcher.get()).toThrow(/watcher is closed/);
+    vi.useRealTimers();
+  });
+
+  it("client.close closes all watchers and prevents further calls", async () => {
+    vi.useFakeTimers();
+    let call = 0;
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(`val-${++call}`, {
+          status: 200,
+          headers: { "content-type": "text/plain" },
+        })
+    );
+    const client = createReplaneClient({
+      apiKey: "TKN",
+      baseUrl: "https://api.local",
+      fetchFn: fetchMock as any,
+    });
+    const w1 = await client.watchConfigValue<string>({
+      name: "a",
+      fallback: "FA",
+    });
+    const w2 = await client.watchConfigValue<string>({
+      name: "b",
+      fallback: "FB",
+    });
+    expect(w1.get()).toMatch(/val-\d+/);
+    expect(w2.get()).toMatch(/val-\d+/);
+
+    client.close();
+    expect(() => w1.get()).toThrow(/closed/);
+    expect(() => w2.get()).toThrow(/closed/);
+    await expect(
+      client.getConfigValue({ name: "x", fallback: "F" })
+    ).rejects.toThrow(/client is closed/);
+    await expect(
+      client.watchConfigValue({ name: "y", fallback: "F" })
+    ).rejects.toThrow(/client is closed/);
+
+    const callCountBefore = fetchMock.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(120_000);
+    // No further polling after close
+    expect(fetchMock.mock.calls.length).toBe(callCountBefore);
+    // Idempotent close
+    client.close();
+    vi.useRealTimers();
+  });
 });
