@@ -59,9 +59,17 @@ export interface GetConfigRequest<T> extends Partial<ReplaneClientOptions> {
   fallback: T;
 }
 
+export interface ConfigValueWatcher<T> {
+  /** Current config value (or fallback if not found). */
+  get(): T;
+}
+
 export interface ReplaneClient {
   /** Fetch a config value by name. */
-  getConfig<T = unknown>(req: GetConfigRequest<T>): Promise<T | undefined>;
+  getConfigValue<T = unknown>(req: GetConfigRequest<T>): Promise<T | undefined>;
+  watchConfigValue<T = unknown>(
+    req: GetConfigRequest<T>
+  ): Promise<ConfigValueWatcher<T>>;
 }
 
 /**
@@ -75,21 +83,46 @@ export function createReplaneClient(
 ): ReplaneClient {
   if (!sdkOptions.apiKey) throw new Error("API key is required");
 
+  async function getConfigValue<T = unknown>(
+    req: GetConfigRequest<T>
+  ): Promise<T> {
+    if (!req.name) throw new Error("config name is required");
+    const finalOptions = combineOptions(sdkOptions, req);
+    try {
+      return await _getConfig<T>({
+        configName: req.name,
+        fallback: req.fallback,
+        options: finalOptions,
+      });
+    } catch (err: unknown) {
+      finalOptions.logger.error("ReplaneClient.getConfig error", err);
+      return req.fallback;
+    }
+  }
+
+  async function watchConfigValue<T = unknown>(
+    originalReq: GetConfigRequest<T>
+  ): Promise<ConfigValueWatcher<T>> {
+    const req = { ...originalReq };
+    let currentValue: T = await getConfigValue<T>(req);
+
+    setInterval(async () => {
+      currentValue = await getConfigValue<T>({
+        ...req,
+        fallback: currentValue,
+      });
+    }, 60_000);
+
+    return {
+      get() {
+        return currentValue;
+      },
+    };
+  }
+
   return {
-    async getConfig<T = unknown>(req: GetConfigRequest<T>): Promise<T> {
-      if (!req.name) throw new Error("config name is required");
-      const finalOptions = combineOptions(sdkOptions, req);
-      try {
-        return await _getConfig<T>({
-          configName: req.name,
-          fallback: req.fallback,
-          options: finalOptions,
-        });
-      } catch (err: unknown) {
-        finalOptions.logger.error("ReplaneClient.getConfig error", err);
-        return req.fallback;
-      }
-    },
+    getConfigValue,
+    watchConfigValue,
   };
 }
 

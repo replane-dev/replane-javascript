@@ -36,29 +36,40 @@ const client = createReplaneClient({
   baseUrl: "https://api.my-replane-host.com",
 });
 
-const featureFlag = await client.getConfig<boolean>({
+// One-off fetch
+const featureFlag = await client.getConfigValue<boolean>({
   name: "new-onboarding",
   fallback: false,
 });
 
-// or a more complex example
-
+// Typed example
 interface PasswordRequirements {
   minLength: number;
   requireSymbol: boolean;
 }
 
-const passwordRequirements = await client.getConfig<PasswordRequirements>({
+const passwordRequirements = await client.getConfigValue<PasswordRequirements>({
   name: "password-requirements",
   fallback: { minLength: 8, requireSymbol: false },
 });
+
+// Watching a config
+const billingEnabled = await client.watchConfigValue<boolean>({
+  name: "billing-enabled",
+  fallback: false,
+});
+
+// Later, read the latest value
+if (billingEnabled.get()) {
+  console.log("Billing enabled!");
+}
 ```
 
 ## API
 
 ### `createReplaneClient(options)`
 
-Returns an object: `{ getConfig }`.
+Returns an object: `{ getConfigValue, watchConfigValue }`.
 
 #### Options
 
@@ -68,7 +79,7 @@ Returns an object: `{ getConfig }`.
 - `timeoutMs` (number) – abort the request after N ms. Default: 1000.
 - `logger` (`{ info(...), error(...) }`) – optional logger (defaults to `console`).
 
-### `client.getConfig({ name, fallback, ...overrides })`
+### `client.getConfigValue({ name, fallback, ...overrides })`
 
 Parameters:
 
@@ -76,13 +87,19 @@ Parameters:
 - `fallback` (any) – value returned when request fails or response is invalid.
 - Overrides: `baseUrl`, `apiKey`, `fetchFn`, `timeoutMs`, `logger` – same semantics as in `createReplaneClient`.
 
-Returns: the config value.
+Returns: the config value (or the provided fallback on failure).
 
 Failures (non-2xx, network error, or invalid JSON) do not throw; the function logs via `logger.error(...)` and returns your `fallback`.
 
+### `client.watchConfigValue({ name, fallback, ...overrides })`
+
+Creates a lightweight watcher that refreshes the config value in the background. Useful for long‑lived processes wanting near‑real‑time updates without manually refetching.
+
+Returns a promise resolving to `{ get(): T }` where `get()` returns the current value. Until the first successful fetch it returns the provided fallback. Errors during refresh reuse the last known value.
+
 ### Errors
 
-This SDK doesn't throw on request/response errors during `getConfig`. Instead, it logs (using the provided or default logger) and returns the provided `fallback`.
+This SDK doesn't throw on request/response errors during `getConfigValue` or background refreshes in `watchConfigValue`. Instead, it logs (using the provided or default logger) and returns the provided `fallback` (or previous value for watchers).
 
 ## Environment notes
 
@@ -98,7 +115,7 @@ interface LayoutConfig {
   variant: "a" | "b";
   ttl: number;
 }
-const layout = await client.getConfig<LayoutConfig>({
+const layout = await client.getConfigValue<LayoutConfig>({
   name: "layout",
   fallback: { variant: "a", ttl: 0 },
 });
@@ -107,7 +124,7 @@ const layout = await client.getConfig<LayoutConfig>({
 Timeout override:
 
 ```ts
-await client.getConfig({
+await client.getConfigValue({
   name: "slow-config",
   fallback: null,
   timeoutMs: 1500,
