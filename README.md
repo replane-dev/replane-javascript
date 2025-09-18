@@ -63,6 +63,12 @@ const billingEnabled = await client.watchConfigValue<boolean>({
 if (billingEnabled.get()) {
   console.log("Billing enabled!");
 }
+
+// When done, clean up resources
+billingEnabled.close();
+
+// Or, if you don't need the client anymore
+client.close();
 ```
 
 ## API
