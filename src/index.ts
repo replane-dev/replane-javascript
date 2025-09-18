@@ -62,14 +62,19 @@ export interface GetConfigRequest<T> extends Partial<ReplaneClientOptions> {
 export interface ConfigValueWatcher<T> {
   /** Current config value (or fallback if not found). */
   get(): T;
+  /** Stop watching for changes. */
+  close(): void;
 }
 
 export interface ReplaneClient {
   /** Fetch a config value by name. */
   getConfigValue<T = unknown>(req: GetConfigRequest<T>): Promise<T | undefined>;
+  /** Watch a config value by name. */
   watchConfigValue<T = unknown>(
     req: GetConfigRequest<T>
   ): Promise<ConfigValueWatcher<T>>;
+  /** Close the client and clean up resources. */
+  close(): void;
 }
 
 /**
@@ -100,29 +105,66 @@ export function createReplaneClient(
     }
   }
 
+  const watchers = new Set<ConfigValueWatcher<any>>();
+
   async function watchConfigValue<T = unknown>(
     originalReq: GetConfigRequest<T>
   ): Promise<ConfigValueWatcher<T>> {
     const req = { ...originalReq };
-    let currentValue: T = await getConfigValue<T>(req);
+    let currentWatcherValue: T = await getConfigValue<T>(req);
+    let isWatcherClosed = false;
 
-    setInterval(async () => {
-      currentValue = await getConfigValue<T>({
+    const intervalId = setInterval(async () => {
+      currentWatcherValue = await getConfigValue<T>({
         ...req,
-        fallback: currentValue,
+        fallback: currentWatcherValue,
       });
     }, 60_000);
 
-    return {
+    const watcher: ConfigValueWatcher<T> = {
       get() {
-        return currentValue;
+        if (isWatcherClosed) {
+          throw new Error("Config value watcher is closed");
+        }
+        return currentWatcherValue;
+      },
+      close() {
+        if (isWatcherClosed) return;
+        isWatcherClosed = true;
+
+        clearInterval(intervalId);
+        watchers.delete(watcher);
       },
     };
+
+    watchers.add(watcher);
+
+    return watcher;
+  }
+
+  let isClientClosed = false;
+
+  function close() {
+    if (isClientClosed) return;
+    isClientClosed = true;
+
+    watchers.forEach((w) => w.close());
   }
 
   return {
-    getConfigValue,
-    watchConfigValue,
+    getConfigValue: async (req) => {
+      if (isClientClosed) {
+        throw new Error("Replane client is closed");
+      }
+      return await getConfigValue(req);
+    },
+    watchConfigValue: async (req) => {
+      if (isClientClosed) {
+        throw new Error("Replane client is closed");
+      }
+      return await watchConfigValue(req);
+    },
+    close,
   };
 }
 

@@ -69,7 +69,9 @@ if (billingEnabled.get()) {
 
 ### `createReplaneClient(options)`
 
-Returns an object: `{ getConfigValue, watchConfigValue }`.
+Returns an object: `{ getConfigValue, watchConfigValue, close }`.
+
+`close()` stops all active watchers created by this client and marks the client as closed. After calling it, any subsequent call to `getConfigValue` or `watchConfigValue` will throw. It is safe to call multiple times (no‑op after the first call).
 
 #### Options
 
@@ -93,9 +95,43 @@ Failures (non-2xx, network error, or invalid JSON) do not throw; the function lo
 
 ### `client.watchConfigValue({ name, fallback, ...overrides })`
 
-Creates a lightweight watcher that refreshes the config value in the background. Useful for long‑lived processes wanting near‑real‑time updates without manually refetching.
+Creates a lightweight watcher that refreshes the config value in the background (currently every 60 seconds). Useful for long‑lived processes wanting near‑real‑time updates without manually refetching.
 
-Returns a promise resolving to `{ get(): T }` where `get()` returns the current value. Until the first successful fetch it returns the provided fallback. Errors during refresh reuse the last known value.
+Returns a promise resolving to an object: `{ get(): T, close(): void }`.
+
+- `get()` – returns the most recent value (initially the provided fallback until the first successful fetch).
+- `close()` – stops the periodic refresh for just this watcher. Further calls to `get()` after `close()` throw.
+
+Errors during refresh reuse the last known value.
+
+#### Watcher lifecycle
+
+- All watchers created by a client are automatically closed when you call `client.close()`.
+- You can individually stop watching a value by calling `watcher.close()`.
+- Closing an already closed watcher is a no‑op.
+
+Example:
+
+```ts
+const billingEnabled = await client.watchConfigValue({
+  name: "billing-enabled",
+  fallback: false,
+});
+if (billingEnabled.get()) {
+  // ...
+}
+// Later, when you no longer need updates:
+billingEnabled.close();
+```
+
+### `client.close()`
+
+Gracefully shuts down the client, closing all active config watchers. Subsequent method calls will throw. Use this in environments where you manage resource lifecycles explicitly (e.g. shutting down a server or worker).
+
+```ts
+// During shutdown
+client.close();
+```
 
 ### Errors
 
