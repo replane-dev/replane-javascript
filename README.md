@@ -8,13 +8,12 @@ Part of the Replane project: [replane-dev/replane](https://github.com/replane-de
 
 ## Why it exists
 
-You just need: given a token + config name -> get the value. This package does only that, well:
+You just need: given a token + config name -> get the value. This package does only that:
 
 - Works in ESM and CJS (dual build)
 - Zero runtime deps (uses native `fetch` — bring a polyfill if your runtime lacks it)
 - Tiny bundle footprint
 - Strong TypeScript types
-- Resilient to server errors (returns your fallback and logs)
 
 ## Installation
 
@@ -37,10 +36,11 @@ const client = createReplaneClient({
 });
 
 // One-off fetch
-const featureFlag = await client.getConfigValue<boolean>({
-  name: "new-onboarding",
-  fallback: false,
-});
+
+const featureFlag = await client
+  .getConfigValue<boolean>("new-onboarding")
+  // Ignore errors and use `false` if config is missing or fetch fails
+  .catch(() => false);
 
 // Typed example
 interface PasswordRequirements {
@@ -48,16 +48,14 @@ interface PasswordRequirements {
   requireSymbol: boolean;
 }
 
-const passwordRequirements = await client.getConfigValue<PasswordRequirements>({
-  name: "password-requirements",
-  fallback: { minLength: 8, requireSymbol: false },
-});
+const passwordRequirements = await client
+  .getConfigValue<PasswordRequirements>("password-requirements")
+  .catch(() => ({ minLength: 8, requireSymbol: false }));
 
-// Watching a config
-const billingEnabled = await client.watchConfigValue<boolean>({
-  name: "billing-enabled",
-  fallback: false,
-});
+// Watching a config (initial fetch must succeed)
+const billingEnabled = await client.watchConfigValue<boolean>(
+  "billing-enabled"
+);
 
 // Later, read the latest value
 if (billingEnabled.get()) {
@@ -84,31 +82,32 @@ Returns an object: `{ getConfigValue, watchConfigValue, close }`.
 - `baseUrl` (string) – API origin (no trailing slash needed).
 - `apiKey` (string) – API key for authorization. Required.
 - `fetchFn` (function) – custom fetch (e.g. `undici.fetch` or mocked fetch in tests).
-- `timeoutMs` (number) – abort the request after N ms. Default: 1000.
-- `logger` (`{ debug(...), info(...), warn(...), error(...) }`) – optional logger (defaults to `console`).
+- `timeoutMs` (number) – abort the request after N ms. Default: 5000.
 
-### `client.getConfigValue({ name, fallback, ...overrides })`
+### `client.getConfigValue(name, overrides?)`
 
 Parameters:
 
 - `name` (string) – config name to fetch.
-- `fallback` (any) – value returned when request fails or response is invalid.
-- Overrides: `baseUrl`, `apiKey`, `fetchFn`, `timeoutMs`, `logger` – same semantics as in `createReplaneClient`.
+- Overrides: `baseUrl`, `apiKey`, `fetchFn`, `timeoutMs` – same semantics as in `createReplaneClient`.
 
-Returns: the config value (or the provided fallback on failure).
+Returns: a promise resolving to the parsed JSON value.
 
-Failures (non-2xx, network error, or invalid JSON) do not throw; the function logs via `logger.error(...)` and returns your `fallback`.
+Errors: throws on non-2xx responses (including 404 for missing configs), network errors, or invalid JSON. Catch `ReplaneError` to handle failures.
 
-### `client.watchConfigValue({ name, fallback, ...overrides })`
+### `client.watchConfigValue(name, overrides?)`
 
-Creates a lightweight watcher that refreshes the config value in the background (currently every 60 seconds). Useful for long‑lived processes wanting near‑real‑time updates without manually refetching.
+Creates a lightweight watcher that refreshes the config value in the background (every 60 seconds). Useful for long‑lived processes wanting near‑real‑time updates without manually refetching.
 
 Returns a promise resolving to an object: `{ get(): T, close(): void }`.
 
-- `get()` – returns the most recent value (initially the provided fallback until the first successful fetch).
+- `get()` – returns the most recent value.
 - `close()` – stops the periodic refresh for just this watcher. Further calls to `get()` after `close()` throw.
 
-Errors during refresh reuse the last known value.
+Notes:
+
+- The initial fetch must succeed (it will throw on errors).
+- Subsequent periodic refreshes update the stored value on success.
 
 #### Watcher lifecycle
 
@@ -119,10 +118,7 @@ Errors during refresh reuse the last known value.
 Example:
 
 ```ts
-const billingEnabled = await client.watchConfigValue({
-  name: "billing-enabled",
-  fallback: false,
-});
+const billingEnabled = await client.watchConfigValue("billing-enabled");
 if (billingEnabled.get()) {
   // ...
 }
@@ -141,7 +137,7 @@ client.close();
 
 ### Errors
 
-This SDK doesn't throw on request/response errors during `getConfigValue` or background refreshes in `watchConfigValue`. Instead, it logs (using the provided or default logger) and returns the provided `fallback` (or previous value for watchers).
+`getConfigValue` throws on non‑2xx HTTP responses (including 404), network errors, and invalid JSON. `watchConfigValue` uses `getConfigValue` for its initial fetch; handle errors accordingly with try/catch when creating a watcher. A `ReplaneError` is thrown for HTTP failures; other errors may be thrown for network/parse issues.
 
 ## Environment notes
 
@@ -157,20 +153,13 @@ interface LayoutConfig {
   variant: "a" | "b";
   ttl: number;
 }
-const layout = await client.getConfigValue<LayoutConfig>({
-  name: "layout",
-  fallback: { variant: "a", ttl: 0 },
-});
+const layout = await client.getConfigValue<LayoutConfig>("layout");
 ```
 
 Timeout override:
 
 ```ts
-await client.getConfigValue({
-  name: "slow-config",
-  fallback: null,
-  timeoutMs: 1500,
-});
+await client.getConfigValue("slow-config", { timeoutMs: 1500 });
 ```
 
 Custom fetch (tests):

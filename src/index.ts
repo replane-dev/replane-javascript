@@ -52,11 +52,9 @@ async function fetchWithTimeout(
   }
 }
 
-export interface GetConfigRequest<T> extends Partial<ReplaneClientOptions> {
-  /** Config name to fetch. */
-  name: string;
+export interface GetConfigOptions<T> extends Partial<ReplaneClientOptions> {
   /** Fallback value if config is not found. */
-  fallback: T;
+  fallback?: T;
 }
 
 export interface ConfigValueWatcher<T> {
@@ -68,13 +66,24 @@ export interface ConfigValueWatcher<T> {
 
 export interface ReplaneClient {
   /** Fetch a config value by name. */
-  getConfigValue<T = unknown>(req: GetConfigRequest<T>): Promise<T | undefined>;
+  getConfigValue<T = unknown>(
+    configName: string,
+    options?: GetConfigOptions<T>
+  ): Promise<T | undefined>;
   /** Watch a config value by name. */
   watchConfigValue<T = unknown>(
-    req: GetConfigRequest<T>
+    configName: string,
+    options?: GetConfigOptions<T>
   ): Promise<ConfigValueWatcher<T>>;
   /** Close the client and clean up resources. */
   close(): void;
+}
+
+export class ReplaneError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ReplaneError";
+  }
 }
 
 /**
@@ -89,36 +98,55 @@ export function createReplaneClient(
   if (!sdkOptions.apiKey) throw new Error("API key is required");
 
   async function getConfigValue<T = unknown>(
-    req: GetConfigRequest<T>
+    configName: string,
+    inputOptions: GetConfigOptions<T> = {}
   ): Promise<T> {
-    if (!req.name) throw new Error("config name is required");
-    const finalOptions = combineOptions(sdkOptions, req);
-    try {
-      return await _getConfig<T>({
-        configName: req.name,
-        fallback: req.fallback,
-        options: finalOptions,
-      });
-    } catch (err: unknown) {
-      finalOptions.logger.error("ReplaneClient.getConfig error", err);
-      return req.fallback;
+    const combinedOptions = combineOptions(sdkOptions, inputOptions);
+    const url = `${combinedOptions.baseUrl}/api/v1/configs/${encodeURIComponent(
+      configName
+    )}/value`;
+    const res = await fetchWithTimeout(
+      url,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${combinedOptions.apiKey}`,
+          Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
+        },
+      },
+      combinedOptions.timeoutMs,
+      combinedOptions.fetchFn
+    );
+
+    if (res.status === 404) {
+      throw new ReplaneError(`Config not found: ${configName}`);
     }
+
+    let body: unknown = await res.json();
+
+    if (!res.ok) {
+      throw new ReplaneError(
+        `Error fetching config "${configName}": ${res.status} ${
+          res.statusText
+        }${typeof body === "string" ? ` - ${body}` : ""}`
+      );
+    }
+
+    return body as T;
   }
 
   const watchers = new Set<ConfigValueWatcher<any>>();
 
   async function watchConfigValue<T = unknown>(
-    originalReq: GetConfigRequest<T>
+    configName: string,
+    originalOptions: GetConfigOptions<T> = {}
   ): Promise<ConfigValueWatcher<T>> {
-    const req = { ...originalReq };
-    let currentWatcherValue: T = await getConfigValue<T>(req);
+    const options = { ...originalOptions };
+    let currentWatcherValue: T = await getConfigValue<T>(configName, options);
     let isWatcherClosed = false;
 
     const intervalId = setInterval(async () => {
-      currentWatcherValue = await getConfigValue<T>({
-        ...req,
-        fallback: currentWatcherValue,
-      });
+      currentWatcherValue = await getConfigValue<T>(configName, options);
     }, 60_000);
 
     const watcher: ConfigValueWatcher<T> = {
@@ -152,73 +180,20 @@ export function createReplaneClient(
   }
 
   return {
-    getConfigValue: async (req) => {
+    getConfigValue: async (name, req) => {
       if (isClientClosed) {
         throw new Error("Replane client is closed");
       }
-      return await getConfigValue(req);
+      return await getConfigValue(name, req);
     },
-    watchConfigValue: async (req) => {
+    watchConfigValue: async (name, options) => {
       if (isClientClosed) {
         throw new Error("Replane client is closed");
       }
-      return await watchConfigValue(req);
+      return await watchConfigValue(name, options);
     },
     close,
   };
-}
-
-async function _getConfig<T>(params: {
-  configName: string;
-  fallback: T;
-  options: ReplaneFinalOptions;
-}): Promise<T> {
-  const url = `${params.options.baseUrl}/api/v1/configs/${encodeURIComponent(
-    params.configName
-  )}/value`;
-  const res = await fetchWithTimeout(
-    url,
-    {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${params.options.apiKey}`,
-        Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
-      },
-    },
-    params.options.timeoutMs,
-    params.options.fetchFn
-  );
-
-  let body: unknown = null;
-  const contentType = res.headers.get("content-type") || "";
-  try {
-    if (contentType.includes("application/json")) {
-      body = await res.json();
-    } else {
-      body = await res.text();
-    }
-  } catch (e) {
-    if (res.ok) {
-      params.options.logger.error("ReplaneClient.getConfig invalid response", {
-        name: params.configName,
-        status: res.status,
-        contentType,
-      });
-      return params.fallback;
-    }
-  }
-
-  if (!res.ok) {
-    params.options.logger.error("ReplaneClient.getConfig error", {
-      name: params.configName,
-      status: res.status,
-      body,
-    });
-
-    return params.fallback;
-  }
-
-  return body as T;
 }
 
 function combineOptions(
