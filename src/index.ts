@@ -36,13 +36,17 @@ async function retry<T>(
     delayMs: number;
     logger: ReplaneLogger;
     name: string;
+    isRetryable: (e: any) => boolean;
   }
 ): Promise<T> {
   for (let attempt = 0; attempt <= options.retries; attempt++) {
     try {
       return await fn();
     } catch (e) {
-      if (attempt < options.retries) {
+      if (
+        attempt < options.retries &&
+        (!options.isRetryable || options.isRetryable(e))
+      ) {
         const jitter = options.delayMs / 5;
         const delayMs = options.delayMs + Math.random() * jitter - jitter / 2;
         options.logger.warn(
@@ -84,7 +88,24 @@ class ReplaneRemoteStorage implements ReplaneStorage {
           );
 
           if (response.status === 404) {
-            throw new ReplaneError(`Config not found: ${configName}`);
+            throw new ReplaneError({
+              message: `Config not found: ${configName}`,
+              code: ReplaneErrorCode.NotFound,
+            });
+          }
+
+          if (response.status === 401) {
+            throw new ReplaneError({
+              message: `Unauthorized access: ${configName}`,
+              code: ReplaneErrorCode.AuthError,
+            });
+          }
+
+          if (response.status === 403) {
+            throw new ReplaneError({
+              message: `Forbidden access: ${configName}`,
+              code: ReplaneErrorCode.Forbidden,
+            });
           }
 
           if (!response.ok) {
@@ -95,9 +116,10 @@ class ReplaneRemoteStorage implements ReplaneStorage {
               body = "<unable to read response body>";
             }
 
-            throw new ReplaneError(
-              `Error fetching config "${configName}": ${response.status} ${response.statusText} - ${body}`
-            );
+            throw new ReplaneError({
+              message: `Error fetching config "${configName}": ${response.status} ${response.statusText} - ${body}`,
+              code: ReplaneErrorCode.Unknown,
+            });
           }
 
           return (await response.json()) as T;
@@ -105,9 +127,10 @@ class ReplaneRemoteStorage implements ReplaneStorage {
           if (e instanceof ReplaneError) {
             throw e;
           }
-          throw new ReplaneError(
-            `Network error fetching config "${configName}": ${e}`
-          );
+          throw new ReplaneError({
+            message: `Network error fetching config "${configName}": ${e}`,
+            code: ReplaneErrorCode.NetworkError,
+          });
         }
       },
       {
@@ -115,6 +138,16 @@ class ReplaneRemoteStorage implements ReplaneStorage {
         retries: options.retries,
         logger: options.logger,
         name: `fetch ${configName}`,
+        isRetryable: (e) => {
+          if (e instanceof ReplaneError) {
+            return (
+              e.code !== ReplaneErrorCode.NotFound &&
+              e.code !== ReplaneErrorCode.AuthError &&
+              e.code !== ReplaneErrorCode.Forbidden
+            );
+          }
+          return true;
+        },
       }
     );
   }
@@ -133,7 +166,10 @@ class ReplaneInMemoryStorage implements ReplaneStorage {
 
   async getConfigValue<T>(configName: string): Promise<T> {
     if (!this.store.has(configName)) {
-      throw new ReplaneError(`Config not found: ${configName}`);
+      throw new ReplaneError({
+        message: `Config not found: ${configName}`,
+        code: ReplaneErrorCode.NotFound,
+      });
     }
     return this.store.get(configName) as T;
   }
@@ -218,10 +254,20 @@ export interface ReplaneClient {
   close(): void;
 }
 
+enum ReplaneErrorCode {
+  NotFound = "not_found",
+  NetworkError = "network_error",
+  AuthError = "auth_error",
+  Forbidden = "forbidden",
+  Unknown = "unknown",
+}
+
 export class ReplaneError extends Error {
-  constructor(message: string) {
-    super(message);
+  code: string;
+  constructor(params: { message: string; code: string }) {
+    super(params.message);
     this.name = "ReplaneError";
+    this.code = params.code;
   }
 }
 
@@ -245,7 +291,7 @@ export function createReplaneClient(
  *   const value = await client.getConfigValue('my-config') // 123
  */
 export function createInMemoryReplaneClient(
-  initialData?: Record<string, any>
+  initialData: Record<string, any>
 ): ReplaneClient {
   const storage = new ReplaneInMemoryStorage(initialData);
   return _createReplaneClient(

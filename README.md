@@ -91,7 +91,7 @@ Returns an object: `{ getConfigValue, watchConfigValue, close }`.
 Parameters:
 
 - `name` (string) – config name to fetch.
-- Overrides: `baseUrl`, `apiKey`, `fetchFn`, `timeoutMs` – same semantics as in `createReplaneClient`.
+- Overrides: same semantics as in `createReplaneClient`.
 
 Returns: a promise resolving to the parsed JSON value.
 
@@ -99,7 +99,7 @@ Errors: throws on non-2xx responses (including 404 for missing configs), network
 
 Retry behavior:
 
-- By default, transient failures (5xx responses or network errors) are retried up to `retries` times with a base delay of `retryDelayMs` between attempts.
+- Transient failures (5xx responses or network errors) are retried up to `retries` times with a base delay of `retryDelayMs` between attempts.
 - You can override these per call via the `overrides` argument.
 
 ### `client.watchConfigValue(name, overrides?)`
