@@ -1,38 +1,11 @@
-export interface ReplaneClientOptions {
-  /** Base URL of the Replane API (no trailing slash). */
-  baseUrl: string;
-  /** Custom fetch implementation (useful for tests / polyfills). */
-  fetchFn?: typeof fetch;
-  /**
-   * Optional timeout in ms for the request.
-   * @default 1000
-   */
-  timeoutMs?: number;
-  /** Project API key for authorization. */
-  apiKey: string;
-  /** Optional logger (defaults to console). */
-  logger?: ReplaneLogger;
+interface ReplaneStorage {
+  getConfigValue<T>(
+    configName: string,
+    options: ReplaneFinalOptions
+  ): Promise<T>;
+  close(): void;
 }
 
-interface ReplaneFinalOptions {
-  baseUrl: string;
-  fetchFn: typeof fetch;
-  timeoutMs: number;
-  apiKey: string;
-  logger: ReplaneLogger;
-}
-
-export interface ReplaneLogger {
-  debug(...args: any[]): void;
-  info(...args: any[]): void;
-  warn(...args: any[]): void;
-  error(...args: any[]): void;
-}
-
-const defaultLogger: ReplaneLogger = console;
-
-/** Internal helper adding timeout support around fetch. */
-// Use a looser 'any' for input to avoid depending on DOM lib types.
 async function fetchWithTimeout(
   input: any,
   init: RequestInit,
@@ -52,10 +25,176 @@ async function fetchWithTimeout(
   }
 }
 
-export interface GetConfigOptions<T> extends Partial<ReplaneClientOptions> {
-  /** Fallback value if config is not found. */
-  fallback?: T;
+async function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+async function retry<T>(
+  fn: () => Promise<T>,
+  options: {
+    retries: number;
+    delayMs: number;
+    logger: ReplaneLogger;
+    name: string;
+  }
+): Promise<T> {
+  for (let attempt = 0; attempt <= options.retries; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (attempt < options.retries) {
+        const jitter = options.delayMs / 5;
+        const delayMs = options.delayMs + Math.random() * jitter - jitter / 2;
+        options.logger.warn(
+          `${options.name}: attempt ${
+            attempt + 1
+          } failed: ${e}. Retrying in ${delayMs}ms...`
+        );
+        await delay(delayMs);
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw new Error("Unreachable");
+}
+
+class ReplaneRemoteStorage implements ReplaneStorage {
+  async getConfigValue<T>(
+    configName: string,
+    options: ReplaneFinalOptions
+  ): Promise<T> {
+    return await retry(
+      async () => {
+        try {
+          const url = `${options.baseUrl}/api/v1/configs/${encodeURIComponent(
+            configName
+          )}/value`;
+          const response = await fetchWithTimeout(
+            url,
+            {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${options.apiKey}`,
+                Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
+              },
+            },
+            options.timeoutMs,
+            options.fetchFn
+          );
+
+          if (response.status === 404) {
+            throw new ReplaneError(`Config not found: ${configName}`);
+          }
+
+          if (!response.ok) {
+            let body: unknown;
+            try {
+              body = await response.text();
+            } catch {
+              body = "<unable to read response body>";
+            }
+
+            throw new ReplaneError(
+              `Error fetching config "${configName}": ${response.status} ${response.statusText} - ${body}`
+            );
+          }
+
+          return (await response.json()) as T;
+        } catch (e) {
+          if (e instanceof ReplaneError) {
+            throw e;
+          }
+          throw new ReplaneError(
+            `Network error fetching config "${configName}": ${e}`
+          );
+        }
+      },
+      {
+        delayMs: options.retryDelayMs,
+        retries: options.retries,
+        logger: options.logger,
+        name: `fetch ${configName}`,
+      }
+    );
+  }
+
+  close() {
+    // No resources to clean up
+  }
+}
+
+class ReplaneInMemoryStorage implements ReplaneStorage {
+  private store: Map<string, any>;
+
+  constructor(initialData?: Record<string, any>) {
+    this.store = new Map(Object.entries(initialData ?? {}));
+  }
+
+  async getConfigValue<T>(configName: string): Promise<T> {
+    if (!this.store.has(configName)) {
+      throw new ReplaneError(`Config not found: ${configName}`);
+    }
+    return this.store.get(configName) as T;
+  }
+
+  close() {
+    // No resources to clean up
+  }
+}
+
+export interface ReplaneClientOptions {
+  /**
+   * Base URL of the Replane API (no trailing slash).
+   */
+  baseUrl: string;
+  /**
+   * Project API key for authorization.
+   */
+  apiKey: string;
+  /**
+   * Custom fetch implementation (useful for tests / polyfills).
+   */
+  fetchFn?: typeof fetch;
+  /**
+   * Optional timeout in ms for the request.
+   * @default 1000
+   */
+  timeoutMs?: number;
+  /**
+   * Number of retries for failed requests.
+   * @default 2
+   */
+  retries?: number;
+  /**
+   * Delay between retries in ms.
+   * @default 100
+   */
+  retryDelayMs?: number;
+  /**
+   * Optional logger (defaults to console).
+   */
+  logger?: ReplaneLogger;
+}
+
+interface ReplaneFinalOptions {
+  baseUrl: string;
+  fetchFn: typeof fetch;
+  timeoutMs: number;
+  apiKey: string;
+  logger: ReplaneLogger;
+  retries: number;
+  retryDelayMs: number;
+}
+
+export interface ReplaneLogger {
+  debug(...args: any[]): void;
+  info(...args: any[]): void;
+  warn(...args: any[]): void;
+  error(...args: any[]): void;
+}
+
+export interface GetConfigOptions<T> extends Partial<ReplaneClientOptions> {}
 
 export interface ConfigValueWatcher<T> {
   /** Current config value (or fallback if not found). */
@@ -95,44 +234,40 @@ export class ReplaneError extends Error {
 export function createReplaneClient(
   sdkOptions: ReplaneClientOptions
 ): ReplaneClient {
+  const storage = new ReplaneRemoteStorage();
+  return _createReplaneClient(sdkOptions, storage);
+}
+
+/**
+ * Create a Replane client that uses in-memory storage.
+ * Usage:
+ *   const client = createInMemoryReplaneClient({ 'my-config': 123 })
+ *   const value = await client.getConfigValue('my-config') // 123
+ */
+export function createInMemoryReplaneClient(
+  initialData?: Record<string, any>
+): ReplaneClient {
+  const storage = new ReplaneInMemoryStorage(initialData);
+  return _createReplaneClient(
+    { apiKey: "test-api-key", baseUrl: "https://app.replane.dev" },
+    storage
+  );
+}
+
+function _createReplaneClient(
+  sdkOptions: ReplaneClientOptions,
+  storage: ReplaneStorage
+): ReplaneClient {
   if (!sdkOptions.apiKey) throw new Error("API key is required");
 
   async function getConfigValue<T = unknown>(
     configName: string,
     inputOptions: GetConfigOptions<T> = {}
   ): Promise<T> {
-    const combinedOptions = combineOptions(sdkOptions, inputOptions);
-    const url = `${combinedOptions.baseUrl}/api/v1/configs/${encodeURIComponent(
-      configName
-    )}/value`;
-    const res = await fetchWithTimeout(
-      url,
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${combinedOptions.apiKey}`,
-          Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
-        },
-      },
-      combinedOptions.timeoutMs,
-      combinedOptions.fetchFn
+    return await storage.getConfigValue<T>(
+      configName,
+      combineOptions(sdkOptions, inputOptions as Partial<ReplaneClientOptions>)
     );
-
-    if (res.status === 404) {
-      throw new ReplaneError(`Config not found: ${configName}`);
-    }
-
-    let body: unknown = await res.json();
-
-    if (!res.ok) {
-      throw new ReplaneError(
-        `Error fetching config "${configName}": ${res.status} ${
-          res.statusText
-        }${typeof body === "string" ? ` - ${body}` : ""}`
-      );
-    }
-
-    return body as T;
   }
 
   const watchers = new Set<ConfigValueWatcher<any>>();
@@ -141,12 +276,18 @@ export function createReplaneClient(
     configName: string,
     originalOptions: GetConfigOptions<T> = {}
   ): Promise<ConfigValueWatcher<T>> {
-    const options = { ...originalOptions };
-    let currentWatcherValue: T = await getConfigValue<T>(configName, options);
+    const options = combineOptions(sdkOptions, originalOptions);
+    let currentWatcherValue: T = await storage.getConfigValue<T>(
+      configName,
+      options
+    );
     let isWatcherClosed = false;
 
     const intervalId = setInterval(async () => {
-      currentWatcherValue = await getConfigValue<T>(configName, options);
+      currentWatcherValue = await storage.getConfigValue<T>(
+        configName,
+        options
+      );
     }, 60_000);
 
     const watcher: ConfigValueWatcher<T> = {
@@ -205,6 +346,8 @@ function combineOptions(
     baseUrl: (overrides.baseUrl ?? defaults.baseUrl).replace(/\/+$/, ""),
     fetchFn: overrides.fetchFn ?? defaults.fetchFn ?? globalThis.fetch,
     timeoutMs: overrides.timeoutMs ?? defaults.timeoutMs ?? 5000,
-    logger: overrides.logger ?? defaults.logger ?? defaultLogger,
+    logger: overrides.logger ?? defaults.logger ?? console,
+    retries: overrides.retries ?? defaults.retries ?? 2,
+    retryDelayMs: overrides.retryDelayMs ?? defaults.retryDelayMs ?? 100,
   };
 }
