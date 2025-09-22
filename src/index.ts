@@ -127,8 +127,8 @@ class ReplaneRemoteStorage implements ReplaneStorage {
 class ReplaneInMemoryStorage implements ReplaneStorage {
   private store: Map<string, any>;
 
-  constructor(initialData?: Record<string, any>) {
-    this.store = new Map(Object.entries(initialData ?? {}));
+  constructor(initialData: Record<string, any>) {
+    this.store = new Map(Object.entries(initialData));
   }
 
   async getConfigValue<T>(configName: string): Promise<T> {

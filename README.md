@@ -83,6 +83,8 @@ Returns an object: `{ getConfigValue, watchConfigValue, close }`.
 - `apiKey` (string) – API key for authorization. Required.
 - `fetchFn` (function) – custom fetch (e.g. `undici.fetch` or mocked fetch in tests).
 - `timeoutMs` (number) – abort the request after N ms. Default: 5000.
+- `retries` (number) – number of retry attempts on failures (5xx or network errors). Default: 2.
+- `retryDelayMs` (number) – base delay between retries in ms (a small jitter is applied). Default: 100.
 
 ### `client.getConfigValue(name, overrides?)`
 
@@ -94,6 +96,11 @@ Parameters:
 Returns: a promise resolving to the parsed JSON value.
 
 Errors: throws on non-2xx responses (including 404 for missing configs), network errors, or invalid JSON. Catch `ReplaneError` to handle failures.
+
+Retry behavior:
+
+- By default, transient failures (5xx responses or network errors) are retried up to `retries` times with a base delay of `retryDelayMs` between attempts.
+- You can override these per call via the `overrides` argument.
 
 ### `client.watchConfigValue(name, overrides?)`
 
@@ -124,6 +131,38 @@ if (billingEnabled.get()) {
 }
 // Later, when you no longer need updates:
 billingEnabled.close();
+```
+
+### `createInMemoryReplaneClient(initialData)`
+
+Creates a client backed by an in-memory store instead of making HTTP requests. Handy for unit tests or local development where you want deterministic config values without a server.
+
+Parameters:
+
+- `initialData` (object) – map of config name to value.
+
+Returns the same client shape as `createReplaneClient` (`{ getConfigValue, watchConfigValue, close }`).
+
+Notes:
+
+- `getConfigValue(name)` resolves to the value from `initialData`.
+- If a name is missing, it throws a `ReplaneError` (`Config not found: <name>`).
+- `watchConfigValue` works as usual, refreshing every 60s (values remain whatever is in-memory).
+
+Example:
+
+```ts
+import { createInMemoryReplaneClient } from "replane-sdk";
+
+const client = createInMemoryReplaneClient({
+  "feature-a": true,
+  "max-items": { value: 10, updatedAt: Date.now() },
+});
+
+const enabled = await client.getConfigValue<boolean>("feature-a"); // true
+const watcher = await client.watchConfigValue<number>("max-items");
+watcher.get(); // { value: 10, updatedAt: ... }
+watcher.close();
 ```
 
 ### `client.close()`
