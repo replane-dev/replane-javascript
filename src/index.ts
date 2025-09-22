@@ -116,9 +116,16 @@ class ReplaneRemoteStorage implements ReplaneStorage {
               body = "<unable to read response body>";
             }
 
+            const code =
+              response.status >= 500
+                ? ReplaneErrorCode.ServerError
+                : response.status >= 400
+                ? ReplaneErrorCode.ClientError
+                : ReplaneErrorCode.Unknown;
+
             throw new ReplaneError({
               message: `Error fetching config "${configName}": ${response.status} ${response.statusText} - ${body}`,
-              code: ReplaneErrorCode.Unknown,
+              code,
             });
           }
 
@@ -143,7 +150,8 @@ class ReplaneRemoteStorage implements ReplaneStorage {
             return (
               e.code !== ReplaneErrorCode.NotFound &&
               e.code !== ReplaneErrorCode.AuthError &&
-              e.code !== ReplaneErrorCode.Forbidden
+              e.code !== ReplaneErrorCode.Forbidden &&
+              e.code !== ReplaneErrorCode.ClientError
             );
           }
           return true;
@@ -259,6 +267,8 @@ enum ReplaneErrorCode {
   NetworkError = "network_error",
   AuthError = "auth_error",
   Forbidden = "forbidden",
+  ServerError = "server_error",
+  ClientError = "client_error",
   Unknown = "unknown",
 }
 
