@@ -71,9 +71,10 @@ function makeLogger() {
 
 describe("ReplaneError", () => {
   it("has correct name", () => {
-    const err = new ReplaneError("boom");
+    const err = new ReplaneError({ message: "boom", code: "unknown" });
     expect(err.name).toBe("ReplaneError");
     expect(err.message).toBe("boom");
+    expect(err.code).toBe("unknown");
   });
 });
 
