@@ -82,7 +82,7 @@ Returns an object: `{ getConfigValue, watchConfigValue, close }`.
 - `baseUrl` (string) – API origin (no trailing slash needed).
 - `apiKey` (string) – API key for authorization. Required.
 - `fetchFn` (function) – custom fetch (e.g. `undici.fetch` or mocked fetch in tests).
-- `timeoutMs` (number) – abort the request after N ms. Default: 5000.
+- `timeoutMs` (number) – abort the request after N ms. Default: 2000.
 - `retries` (number) – number of retry attempts on failures (5xx or network errors). Default: 2.
 - `retryDelayMs` (number) – base delay between retries in ms (a small jitter is applied). Default: 100.
 
@@ -198,7 +198,7 @@ const layout = await client.getConfigValue<LayoutConfig>("layout");
 Timeout override:
 
 ```ts
-await client.getConfigValue("slow-config", { timeoutMs: 1500 });
+await client.getConfigValue("slow-config", { timeoutMs: 3000 });
 ```
 
 Custom fetch (tests):

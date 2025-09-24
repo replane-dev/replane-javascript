@@ -202,7 +202,7 @@ export interface ReplaneClientOptions {
   fetchFn?: typeof fetch;
   /**
    * Optional timeout in ms for the request.
-   * @default 1000
+   * @default 2000
    */
   timeoutMs?: number;
   /**
@@ -401,7 +401,7 @@ function combineOptions(
     apiKey: overrides.apiKey ?? defaults.apiKey,
     baseUrl: (overrides.baseUrl ?? defaults.baseUrl).replace(/\/+$/, ""),
     fetchFn: overrides.fetchFn ?? defaults.fetchFn ?? globalThis.fetch,
-    timeoutMs: overrides.timeoutMs ?? defaults.timeoutMs ?? 5000,
+    timeoutMs: overrides.timeoutMs ?? defaults.timeoutMs ?? 2000,
     logger: overrides.logger ?? defaults.logger ?? console,
     retries: overrides.retries ?? defaults.retries ?? 2,
     retryDelayMs: overrides.retryDelayMs ?? defaults.retryDelayMs ?? 100,
