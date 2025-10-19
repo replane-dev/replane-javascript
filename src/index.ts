@@ -1,8 +1,24 @@
+const PROJECT_EVENT_TYPES = ["created", "updated", "deleted"] as const;
+
+export interface ProjectEvent {
+  type: (typeof PROJECT_EVENT_TYPES)[number];
+  configId: string;
+}
+
+interface GetProjectEventsReplaneStorageOptions extends ReplaneFinalOptions {
+  signal?: AbortSignal;
+}
+
+interface GetConfigValueReplaneStorageOptions extends ReplaneFinalOptions {
+  configName: string;
+  signal?: AbortSignal;
+}
+
 interface ReplaneStorage {
-  getConfigValue<T>(
-    configName: string,
-    options: ReplaneFinalOptions
-  ): Promise<T>;
+  getProjectEvents(
+    options: GetProjectEventsReplaneStorageOptions
+  ): AsyncIterable<ProjectEvent>;
+  getConfigValue<T>(options: GetConfigValueReplaneStorageOptions): Promise<T>;
   close(): void;
 }
 
@@ -29,6 +45,13 @@ async function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function retryDelay(averageDelay: number) {
+  const jitter = averageDelay / 5;
+  const delayMs = averageDelay + Math.random() * jitter - jitter / 2;
+
+  await delay(delayMs);
+}
+
 async function retry<T>(
   fn: () => Promise<T>,
   options: {
@@ -47,14 +70,12 @@ async function retry<T>(
         attempt < options.retries &&
         (!options.isRetryable || options.isRetryable(e))
       ) {
-        const jitter = options.delayMs / 5;
-        const delayMs = options.delayMs + Math.random() * jitter - jitter / 2;
+        await retryDelay(options.delayMs);
         options.logger.warn(
-          `${options.name}: attempt ${
-            attempt + 1
-          } failed: ${e}. Retrying in ${delayMs}ms...`
+          `${options.name}: attempt ${attempt + 1} failed: ${e}. Retrying in ~${
+            options.delayMs
+          }ms...`
         );
-        await delay(delayMs);
         continue;
       }
       throw e;
@@ -64,70 +85,97 @@ async function retry<T>(
 }
 
 class ReplaneRemoteStorage implements ReplaneStorage {
+  private closeController = new AbortController();
+
+  async *getProjectEvents(
+    options: GetProjectEventsReplaneStorageOptions
+  ): AsyncIterable<ProjectEvent> {
+    const signal = combineAbortSignals([
+      this.closeController.signal,
+      options.signal,
+    ]);
+    while (!signal.aborted) {
+      try {
+        for await (const event of this.getProjectEventsInternal({
+          ...options,
+          signal,
+        })) {
+          yield event;
+        }
+      } catch (error: unknown) {
+        if (!signal.aborted) {
+          options.logger.error(
+            `Failed to fetch project events, retrying in ${options.retryDelayMs}:`,
+            error
+          );
+
+          await retryDelay(options.retryDelayMs);
+        }
+      }
+    }
+  }
+
+  private async *getProjectEventsInternal(
+    options: GetProjectEventsReplaneStorageOptions
+  ): AsyncIterable<ProjectEvent> {
+    const signal = combineAbortSignals([
+      this.closeController.signal,
+      options.signal,
+    ]);
+    const events = fetchSse({
+      fetchFn: options.fetchFn,
+      headers: {
+        Authorization: this.getAuthHeader(options),
+        Accept: "todo",
+      },
+      method: "GET",
+      signal,
+      url: this.getApiEndpoint("/v1/events", options),
+    });
+
+    for await (const event of events) {
+      if (
+        typeof event === "object" &&
+        event !== null &&
+        "type" in event &&
+        typeof event.type === "string" &&
+        (PROJECT_EVENT_TYPES as unknown as string[]).includes(event.type)
+      ) {
+        yield event as ProjectEvent;
+      }
+    }
+  }
+
   async getConfigValue<T>(
-    configName: string,
-    options: ReplaneFinalOptions
+    options: GetConfigValueReplaneStorageOptions
   ): Promise<T> {
     return await retry(
       async () => {
         try {
-          const url = `${options.baseUrl}/api/v1/configs/${encodeURIComponent(
-            configName
-          )}/value`;
+          const url = this.getApiEndpoint(
+            `/v1/configs/${encodeURIComponent(options.configName)}/value`,
+            options
+          );
           const response = await fetchWithTimeout(
             url,
             {
               method: "GET",
               headers: {
-                Authorization: `Bearer ${options.apiKey}`,
+                Authorization: this.getAuthHeader(options),
                 Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
               },
+              // we don't combine the signal with this.closeController,
+              // because we expect it to finish shortly
+              signal: options.signal,
             },
             options.timeoutMs,
             options.fetchFn
           );
 
-          if (response.status === 404) {
-            throw new ReplaneError({
-              message: `Config not found: ${configName}`,
-              code: ReplaneErrorCode.NotFound,
-            });
-          }
-
-          if (response.status === 401) {
-            throw new ReplaneError({
-              message: `Unauthorized access: ${configName}`,
-              code: ReplaneErrorCode.AuthError,
-            });
-          }
-
-          if (response.status === 403) {
-            throw new ReplaneError({
-              message: `Forbidden access: ${configName}`,
-              code: ReplaneErrorCode.Forbidden,
-            });
-          }
-
-          if (!response.ok) {
-            let body: unknown;
-            try {
-              body = await response.text();
-            } catch {
-              body = "<unable to read response body>";
-            }
-
-            const code =
-              response.status >= 500
-                ? ReplaneErrorCode.ServerError
-                : response.status >= 400
-                ? ReplaneErrorCode.ClientError
-                : ReplaneErrorCode.Unknown;
-
-            throw new ReplaneError({
-              message: `Error fetching config "${configName}": ${response.status} ${response.statusText} - ${body}`,
-              code,
-            });
-          }
+          await ensureSuccessfulResponse(
+            response,
+            `Config ${options.configName}`
+          );
 
           return (await response.json()) as T;
         } catch (e) {
@@ -135,7 +183,7 @@ class ReplaneRemoteStorage implements ReplaneStorage {
             throw e;
           }
           throw new ReplaneError({
-            message: `Network error fetching config "${configName}": ${e}`,
+            message: `Network error fetching config "${options.configName}": ${e}`,
             code: ReplaneErrorCode.NetworkError,
           });
         }
@@ -144,7 +192,7 @@ class ReplaneRemoteStorage implements ReplaneStorage {
         delayMs: options.retryDelayMs,
         retries: options.retries,
         logger: options.logger,
-        name: `fetch ${configName}`,
+        name: `fetch ${options.configName}`,
         isRetryable: (e) => {
           if (e instanceof ReplaneError) {
             return (
@@ -161,25 +209,54 @@ class ReplaneRemoteStorage implements ReplaneStorage {
   }
 
   close() {
-    // No resources to clean up
+    this.closeController.abort();
+  }
+
+  private getAuthHeader(options: ReplaneFinalOptions): string {
+    return `Bearer ${options.apiKey}`;
+  }
+
+  private getApiEndpoint(path: string, options: ReplaneFinalOptions) {
+    return `${options.baseUrl}/api${path}`;
   }
 }
 
 class ReplaneInMemoryStorage implements ReplaneStorage {
   private store: Map<string, any>;
+  private closeController = new AbortController();
 
   constructor(initialData: Record<string, any>) {
     this.store = new Map(Object.entries(initialData));
   }
 
-  async getConfigValue<T>(configName: string): Promise<T> {
-    if (!this.store.has(configName)) {
+  async *getProjectEvents(options: GetProjectEventsReplaneStorageOptions) {
+    const signal = combineAbortSignals([
+      options.signal,
+      this.closeController.signal,
+    ]);
+
+    signal.onabort = () => {
+      reject(new Error("getProjectEvents abort requested"));
+    };
+
+    let reject: (err: unknown) => void;
+
+    // nothing ever happens in the in memory storage
+    await new Promise((_resolve, promiseReject) => {
+      reject = promiseReject;
+    });
+  }
+
+  async getConfigValue<T>(
+    options: GetConfigValueReplaneStorageOptions
+  ): Promise<T> {
+    if (!this.store.has(options.configName)) {
       throw new ReplaneError({
-        message: `Config not found: ${configName}`,
+        message: `Config not found: ${options.configName}`,
         code: ReplaneErrorCode.NotFound,
       });
     }
-    return this.store.get(configName) as T;
+    return this.store.get(options.configName) as T;
   }
 
   close() {
@@ -316,14 +393,21 @@ function _createReplaneClient(
 ): ReplaneClient {
   if (!sdkOptions.apiKey) throw new Error("API key is required");
 
+  const events = Subject.fromAsyncIterable(
+    storage.getProjectEvents(combineOptions(sdkOptions, {}))
+  );
+
   async function getConfigValue<T = unknown>(
     configName: string,
     inputOptions: GetConfigOptions<T> = {}
   ): Promise<T> {
-    return await storage.getConfigValue<T>(
+    return await storage.getConfigValue<T>({
       configName,
-      combineOptions(sdkOptions, inputOptions as Partial<ReplaneClientOptions>)
-    );
+      ...combineOptions(
+        sdkOptions,
+        inputOptions as Partial<ReplaneClientOptions>
+      ),
+    });
   }
 
   const watchers = new Set<ConfigValueWatcher<any>>();
@@ -333,18 +417,42 @@ function _createReplaneClient(
     originalOptions: GetConfigOptions<T> = {}
   ): Promise<ConfigValueWatcher<T>> {
     const options = combineOptions(sdkOptions, originalOptions);
-    let currentWatcherValue: T = await storage.getConfigValue<T>(
+    let currentWatcherValue: T = await storage.getConfigValue<T>({
+      ...options,
       configName,
-      options
-    );
+    });
     let isWatcherClosed = false;
 
-    const intervalId = setInterval(async () => {
-      currentWatcherValue = await storage.getConfigValue<T>(
-        configName,
-        options
-      );
-    }, 60_000);
+    const intervalId = setInterval(async () => worker.wakeup(), 60_000);
+    const unsubscribeFromEvents = events.subscribe({
+      next: (event) => {
+        if (event.configId !== configName) return;
+        worker.wakeup();
+      },
+      complete: () => {
+        // nothing to do
+      },
+      throw: (err) => {
+        options.logger.error(
+          `ReplaneConfigWatcherWorker event stream error: ${err}`
+        );
+      },
+    });
+
+    // we use the worker to avoid overlapping fetches and to conflate rapid events
+    const worker = new Debouncer({
+      name: "ReplaneConfigWatcherDebouncer",
+      onError: (err) => {
+        options.logger.error(`ReplaneConfigWatcherWorker error: ${err}`);
+      },
+      task: async () => {
+        const newValue = await storage.getConfigValue<T>({
+          ...options,
+          configName,
+        });
+        currentWatcherValue = newValue;
+      },
+    });
 
     const watcher: ConfigValueWatcher<T> = {
       get() {
@@ -359,6 +467,7 @@ function _createReplaneClient(
 
         clearInterval(intervalId);
         watchers.delete(watcher);
+        unsubscribeFromEvents();
       },
     };
 
@@ -374,6 +483,7 @@ function _createReplaneClient(
     isClientClosed = true;
 
     watchers.forEach((w) => w.close());
+    storage.close();
   }
 
   return {
@@ -406,4 +516,266 @@ function combineOptions(
     retries: overrides.retries ?? defaults.retries ?? 2,
     retryDelayMs: overrides.retryDelayMs ?? defaults.retryDelayMs ?? 100,
   };
+}
+
+async function* fetchSse(params: {
+  fetchFn: typeof fetch;
+  url: string;
+  headers: Record<string, string>;
+  method: string;
+  signal: AbortSignal;
+}) {
+  const abortController = new AbortController();
+
+  const signal = combineAbortSignals([params.signal, abortController.signal]);
+
+  const response = await fetch(params.url, {
+    method: params.method,
+    headers: params.headers,
+    signal,
+  });
+
+  if (response.status !== 200) {
+    throw new Error("Failed to fetch SSE endpoint: " + response.statusText);
+  }
+
+  await ensureSuccessfulResponse(response, `Fetch SSE ${params.url}`);
+
+  if (response.body === null) {
+    throw new ReplaneError({
+      message: `Failed to fetch SSE ${params.url}: body is empty`,
+      code: ReplaneErrorCode.Unknown,
+    });
+  }
+
+  const decodedResponse = new TextDecoderStream();
+  await response.body.pipeTo(decodedResponse.writable, {
+    signal,
+  });
+
+  let leftover: string = "";
+
+  try {
+    for await (const responsePart of decodedResponse.readable) {
+      leftover += responsePart;
+
+      let messages = leftover.split("\n\n");
+      leftover = messages.at(-1) ?? "";
+
+      for (const message of messages.slice(0, -1)) {
+        if (!message.startsWith(SSE_DATA_MESSAGE_PREFIX)) continue;
+
+        yield JSON.parse(
+          message.slice(SSE_DATA_MESSAGE_PREFIX.length)
+        ) as unknown;
+      }
+    }
+  } finally {
+    abortController.abort();
+  }
+}
+
+const SSE_DATA_MESSAGE_PREFIX = "data: ";
+
+async function ensureSuccessfulResponse(response: Response, message: string) {
+  if (response.status === 404) {
+    throw new ReplaneError({
+      message: `Not found: ${message}`,
+      code: ReplaneErrorCode.NotFound,
+    });
+  }
+
+  if (response.status === 401) {
+    throw new ReplaneError({
+      message: `Unauthorized access: ${message}`,
+      code: ReplaneErrorCode.AuthError,
+    });
+  }
+
+  if (response.status === 403) {
+    throw new ReplaneError({
+      message: `Forbidden access: ${message}`,
+      code: ReplaneErrorCode.Forbidden,
+    });
+  }
+
+  if (!response.ok) {
+    let body: unknown;
+    try {
+      body = await response.text();
+    } catch {
+      body = "<unable to read response body>";
+    }
+
+    const code =
+      response.status >= 500
+        ? ReplaneErrorCode.ServerError
+        : response.status >= 400
+        ? ReplaneErrorCode.ClientError
+        : ReplaneErrorCode.Unknown;
+
+    throw new ReplaneError({
+      message: `Fetch response isn't successful (${message}): ${response.status} ${response.statusText} - ${body}`,
+      code,
+    });
+  }
+}
+
+function combineAbortSignals(signals: Array<AbortSignal | undefined>) {
+  const controller = new AbortController();
+
+  const onAbort = () => {
+    controller.abort();
+
+    for (const signal of signals) {
+      if (!signal) continue;
+
+      signal.removeEventListener("abort", onAbort);
+    }
+  };
+
+  for (const signal of signals) {
+    if (!signal) continue;
+
+    signal.addEventListener("abort", onAbort);
+  }
+
+  return controller.signal;
+}
+
+interface Observer<T> {
+  next: (value: T) => void;
+  throw: (error: unknown) => void;
+  complete: () => void;
+}
+
+type Unsubscribe = () => void;
+
+interface Observable<T> {
+  subscribe(observer: Observer<T>): Unsubscribe;
+}
+
+class Subject<T> implements Observable<T>, Observer<T> {
+  static fromAsyncIterable<T>(asyncIterable: AsyncIterable<T>): Subject<T> {
+    const subject = new Subject<T>();
+
+    (async () => {
+      try {
+        for await (const item of asyncIterable) {
+          subject.next(item);
+        }
+        subject.complete();
+      } catch (err) {
+        subject.throw(err);
+      }
+    })();
+
+    return subject;
+  }
+
+  private observers: Set<Observer<T>> = new Set();
+  private isComplete = false;
+
+  subscribe(observer: Observer<T>): Unsubscribe {
+    this.ensureActive();
+
+    // wrap the observer to have a unique reference
+    const observerWrapper: Observer<T> = {
+      next: (value) => observer.next(value),
+      throw: (error) => observer.throw(error),
+      complete: () => observer.complete(),
+    };
+
+    this.observers.add(observerWrapper);
+
+    return () => {
+      this.observers.delete(observerWrapper);
+    };
+  }
+
+  next(value: T): void {
+    this.ensureActive();
+
+    for (const observer of this.observers) {
+      observer.next(value);
+    }
+  }
+
+  throw(error: unknown): void {
+    this.ensureActive();
+
+    for (const observer of this.observers) {
+      observer.throw(error);
+    }
+  }
+
+  complete() {
+    if (this.isComplete) return;
+
+    for (const observer of this.observers) {
+      observer.complete();
+    }
+
+    this.observers.clear();
+  }
+
+  private ensureActive() {
+    if (this.isComplete) {
+      throw new Error("Subject already completed");
+    }
+  }
+}
+
+export interface DebouncerOptions {
+  name: string;
+  task: () => Promise<void>;
+  onError: (err: unknown) => void;
+}
+
+export class Debouncer {
+  private stopped = false;
+  private running = false;
+  private rescheduleRequested = false;
+
+  readonly name: string;
+
+  constructor(private readonly options: DebouncerOptions) {
+    this.name = options.name;
+  }
+
+  stop() {
+    this.stopped = true;
+  }
+
+  wakeup() {
+    if (this.stopped) {
+      throw new Error(`Debouncer ${this.options.name} is stopped`);
+    }
+    if (this.running) {
+      this.rescheduleRequested = true;
+      return;
+    }
+    this.run();
+  }
+
+  private async run() {
+    if (this.running || this.stopped) {
+      return;
+    }
+
+    this.running = true;
+    this.rescheduleRequested = false;
+
+    try {
+      await this.options.task();
+    } catch (err) {
+      this.options.onError(err);
+    } finally {
+      this.running = false;
+    }
+
+    if (this.rescheduleRequested) {
+      this.run();
+    }
+  }
 }
