@@ -32,10 +32,13 @@ async function fetchWithTimeout(
     throw new Error("Global fetch is not available. Provide options.fetchFn.");
   }
   if (!timeoutMs) return fetchFn(input, init);
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), timeoutMs);
+  const timeoutController = new AbortController();
+  const t = setTimeout(() => timeoutController.abort(), timeoutMs);
   try {
-    return await fetchFn(input, { ...init, signal: controller.signal });
+    return await fetchFn(input, {
+      ...init,
+      signal: combineAbortSignals([init.signal, timeoutController.signal]),
+    });
   } finally {
     clearTimeout(t);
   }
@@ -66,10 +69,7 @@ async function retry<T>(
     try {
       return await fn();
     } catch (e) {
-      if (
-        attempt < options.retries &&
-        (!options.isRetryable || options.isRetryable(e))
-      ) {
+      if (attempt < options.retries && options.isRetryable(e)) {
         await retryDelay(options.delayMs);
         options.logger.warn(
           `${options.name}: attempt ${attempt + 1} failed: ${e}. Retrying in ~${
@@ -126,7 +126,6 @@ class ReplaneRemoteStorage implements ReplaneStorage {
       fetchFn: options.fetchFn,
       headers: {
         Authorization: this.getAuthHeader(options),
-        Accept: "todo",
       },
       method: "GET",
       signal,
@@ -424,24 +423,7 @@ function _createReplaneClient(
     });
     let isWatcherClosed = false;
 
-    const intervalId = setInterval(async () => worker.wakeup(), 60_000);
-    const unsubscribeFromEvents = events.subscribe({
-      next: (event) => {
-        if (event.configId !== configName) return;
-        worker.wakeup();
-      },
-      complete: () => {
-        // nothing to do
-      },
-      throw: (err) => {
-        options.logger.error(
-          `ReplaneConfigWatcherWorker event stream error: ${err}`
-        );
-      },
-    });
-
-    // we use the worker to avoid overlapping fetches and to conflate rapid events
-    const worker = new Debouncer({
+    const updater = new Debouncer({
       name: "ReplaneConfigWatcherDebouncer",
       onError: (err) => {
         options.logger.error(`ReplaneConfigWatcherWorker error: ${err}`);
@@ -452,6 +434,22 @@ function _createReplaneClient(
           configName,
         });
         currentWatcherValue = newValue;
+      },
+    });
+
+    const intervalId = setInterval(async () => updater.run(), 60_000);
+    const unsubscribeFromEvents = events.subscribe({
+      next: (event) => {
+        if (event.configId !== configName) return;
+        updater.run();
+      },
+      complete: () => {
+        // nothing to do
+      },
+      throw: (err) => {
+        options.logger.error(
+          `ReplaneConfigWatcherWorker event stream error: ${err}`
+        );
       },
     });
 
@@ -540,6 +538,14 @@ async function* fetchSse(params: {
   });
 
   await ensureSuccessfulResponse(res, `SSE ${params.url}`);
+  const responseContentType = res.headers.get("content-type") ?? "";
+
+  if (!responseContentType.includes("text/event-stream")) {
+    throw new ReplaneError({
+      message: `Expected text/event-stream, got "${responseContentType}"`,
+      code: ReplaneErrorCode.ServerError,
+    });
+  }
 
   if (!res.body) {
     throw new ReplaneError({
@@ -639,23 +645,20 @@ async function ensureSuccessfulResponse(response: Response, message: string) {
   }
 }
 
-function combineAbortSignals(signals: Array<AbortSignal | undefined>) {
+function combineAbortSignals(signals: Array<AbortSignal | undefined | null>) {
   const controller = new AbortController();
-
   const onAbort = () => {
     controller.abort();
-
-    for (const signal of signals) {
-      if (!signal) continue;
-
-      signal.removeEventListener("abort", onAbort);
+    for (const s of signals) {
+      s?.removeEventListener("abort", onAbort);
     }
   };
+  for (const s of signals) {
+    s?.addEventListener("abort", onAbort);
+  }
 
-  for (const signal of signals) {
-    if (!signal) continue;
-
-    signal.addEventListener("abort", onAbort);
+  if (signals.some((s) => s?.aborted)) {
+    onAbort();
   }
 
   return controller.signal;
@@ -729,6 +732,7 @@ class Subject<T> implements Observable<T>, Observer<T> {
 
   complete() {
     if (this.isComplete) return;
+    this.isComplete = true;
 
     for (const observer of this.observers) {
       observer.complete();
@@ -765,7 +769,7 @@ class Debouncer {
     this.stopped = true;
   }
 
-  wakeup() {
+  run() {
     if (this.stopped) {
       throw new Error(`Debouncer ${this.options.name} is stopped`);
     }
@@ -773,10 +777,10 @@ class Debouncer {
       this.rescheduleRequested = true;
       return;
     }
-    this.run();
+    this.runInternal();
   }
 
-  private async run() {
+  private async runInternal() {
     if (this.running || this.stopped) {
       return;
     }
@@ -793,7 +797,7 @@ class Debouncer {
     }
 
     if (this.rescheduleRequested) {
-      this.run();
+      this.runInternal();
     }
   }
 }
