@@ -34,13 +34,18 @@ async function fetchWithTimeout(
   if (!timeoutMs) return fetchFn(input, init);
   const timeoutController = new AbortController();
   const t = setTimeout(() => timeoutController.abort(), timeoutMs);
+  const { signal, cleanUpSignals } = combineAbortSignals([
+    init.signal,
+    timeoutController.signal,
+  ]);
   try {
     return await fetchFn(input, {
       ...init,
-      signal: combineAbortSignals([init.signal, timeoutController.signal]),
+      signal,
     });
   } finally {
     clearTimeout(t);
+    cleanUpSignals();
   }
 }
 
@@ -90,45 +95,45 @@ class ReplaneRemoteStorage implements ReplaneStorage {
   async *getProjectEvents(
     options: GetProjectEventsReplaneStorageOptions
   ): AsyncIterable<ProjectEvent> {
-    const signal = combineAbortSignals([
+    const { signal, cleanUpSignals } = combineAbortSignals([
       this.closeController.signal,
       options.signal,
     ]);
-    while (!signal.aborted) {
-      try {
-        for await (const event of this.getProjectEventsInternal({
-          ...options,
-          signal,
-        })) {
-          yield event;
-        }
-      } catch (error: unknown) {
-        if (!signal.aborted) {
-          options.logger.error(
-            `Failed to fetch project events, retrying in ${options.retryDelayMs}:`,
-            error
-          );
+    try {
+      while (!signal.aborted) {
+        try {
+          for await (const event of this.getProjectEventsInternal({
+            ...options,
+            signal,
+          })) {
+            yield event;
+          }
+        } catch (error: unknown) {
+          if (!signal.aborted) {
+            options.logger.error(
+              `Failed to fetch project events, retrying in ${options.retryDelayMs}:`,
+              error
+            );
 
-          await retryDelay(options.retryDelayMs);
+            await retryDelay(options.retryDelayMs);
+          }
         }
       }
+    } finally {
+      cleanUpSignals();
     }
   }
 
   private async *getProjectEventsInternal(
     options: GetProjectEventsReplaneStorageOptions
   ): AsyncIterable<ProjectEvent> {
-    const signal = combineAbortSignals([
-      this.closeController.signal,
-      options.signal,
-    ]);
     const rawEvents = fetchSse({
       fetchFn: options.fetchFn,
       headers: {
         Authorization: this.getAuthHeader(options),
       },
       method: "GET",
-      signal,
+      signal: options.signal,
       url: this.getApiEndpoint("/v1/events", options),
     });
 
@@ -185,6 +190,7 @@ class ReplaneRemoteStorage implements ReplaneStorage {
           throw new ReplaneError({
             message: `Network error fetching config "${options.configName}": ${e}`,
             code: ReplaneErrorCode.NetworkError,
+            cause: e,
           });
         }
       },
@@ -230,21 +236,27 @@ class ReplaneInMemoryStorage implements ReplaneStorage {
   }
 
   async *getProjectEvents(options: GetProjectEventsReplaneStorageOptions) {
-    const signal = combineAbortSignals([
+    const { signal, cleanUpSignals } = combineAbortSignals([
       options.signal,
       this.closeController.signal,
     ]);
 
-    signal.onabort = () => {
-      reject(new Error("getProjectEvents abort requested"));
-    };
+    try {
+      if (signal.aborted) return;
 
-    let reject: (err: unknown) => void;
+      signal.onabort = () => {
+        reject(new Error("getProjectEvents abort requested"));
+      };
 
-    // nothing ever happens in the in memory storage
-    await new Promise((_resolve, promiseReject) => {
-      reject = promiseReject;
-    });
+      let reject: (err: unknown) => void;
+
+      // nothing ever happens in the in memory storage
+      await new Promise((_resolve, promiseReject) => {
+        reject = promiseReject;
+      });
+    } finally {
+      cleanUpSignals();
+    }
   }
 
   async getConfigValue<T>(
@@ -329,7 +341,7 @@ export interface ReplaneClient {
   getConfigValue<T = unknown>(
     configName: string,
     options?: GetConfigOptions
-  ): Promise<T | undefined>;
+  ): Promise<T>;
   /** Watch a config value by name. */
   watchConfigValue<T = unknown>(
     configName: string,
@@ -351,8 +363,8 @@ enum ReplaneErrorCode {
 
 export class ReplaneError extends Error {
   code: string;
-  constructor(params: { message: string; code: string }) {
-    super(params.message);
+  constructor(params: { message: string; code: string; cause?: unknown }) {
+    super(params.message, { cause: params.cause });
     this.name = "ReplaneError";
     this.code = params.code;
   }
@@ -448,7 +460,8 @@ function _createReplaneClient(
       },
       throw: (err) => {
         options.logger.error(
-          `ReplaneConfigWatcherWorker event stream error: ${err}`
+          "ReplaneConfigWatcherWorker event stream error:",
+          err
         );
       },
     });
@@ -527,77 +540,80 @@ async function* fetchSse(params: {
   signal?: AbortSignal;
 }) {
   const abortController = new AbortController();
-  const signal = params.signal
+  const { signal, cleanUpSignals } = params.signal
     ? combineAbortSignals([params.signal, abortController.signal])
-    : abortController.signal;
-
-  const res = await params.fetchFn(params.url, {
-    method: params.method ?? "GET",
-    headers: { Accept: "text/event-stream", ...(params.headers ?? {}) },
-    signal,
-  });
-
-  await ensureSuccessfulResponse(res, `SSE ${params.url}`);
-  const responseContentType = res.headers.get("content-type") ?? "";
-
-  if (!responseContentType.includes("text/event-stream")) {
-    throw new ReplaneError({
-      message: `Expected text/event-stream, got "${responseContentType}"`,
-      code: ReplaneErrorCode.ServerError,
-    });
-  }
-
-  if (!res.body) {
-    throw new ReplaneError({
-      message: `Failed to fetch SSE ${params.url}: body is empty`,
-      code: ReplaneErrorCode.Unknown,
-    });
-  }
-
-  const decoded = res.body.pipeThrough(new TextDecoderStream());
-  const reader = decoded.getReader();
-
-  let buffer = "";
-
+    : { signal: abortController.signal, cleanUpSignals: () => {} };
   try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += value!;
+    const res = await params.fetchFn(params.url, {
+      method: params.method ?? "GET",
+      headers: { Accept: "text/event-stream", ...(params.headers ?? {}) },
+      signal,
+    });
 
-      // Split on blank line; handle both \n\n and \r\n\r\n
-      const frames = buffer.split(/\r?\n\r?\n/);
-      buffer = frames.pop() ?? "";
+    await ensureSuccessfulResponse(res, `SSE ${params.url}`);
+    const responseContentType = res.headers.get("content-type") ?? "";
 
-      for (const frame of frames) {
-        // Parse lines inside a single SSE event frame
-        let dataLines: string[] = [];
+    if (!responseContentType.includes("text/event-stream")) {
+      throw new ReplaneError({
+        message: `Expected text/event-stream, got "${responseContentType}"`,
+        code: ReplaneErrorCode.ServerError,
+      });
+    }
 
-        for (const rawLine of frame.split(/\r?\n/)) {
-          if (!rawLine) continue;
-          if (rawLine.startsWith(":")) continue; // comment/keepalive
+    if (!res.body) {
+      throw new ReplaneError({
+        message: `Failed to fetch SSE ${params.url}: body is empty`,
+        code: ReplaneErrorCode.Unknown,
+      });
+    }
 
-          if (rawLine.startsWith(SSE_DATA_PREFIX)) {
-            // Keep leading space after "data:" if present per spec
-            const line = rawLine
-              .slice(SSE_DATA_PREFIX.length)
-              .replace(/^\s/, "");
-            dataLines.push(line);
+    const decoded = res.body.pipeThrough(new TextDecoderStream());
+    const reader = decoded.getReader();
+
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += value!;
+
+        // Split on blank line; handle both \n\n and \r\n\r\n
+        const frames = buffer.split(/\r?\n\r?\n/);
+        buffer = frames.pop() ?? "";
+
+        for (const frame of frames) {
+          // Parse lines inside a single SSE event frame
+          let dataLines: string[] = [];
+
+          for (const rawLine of frame.split(/\r?\n/)) {
+            if (!rawLine) continue;
+            if (rawLine.startsWith(":")) continue; // comment/keepalive
+
+            if (rawLine.startsWith(SSE_DATA_PREFIX)) {
+              // Keep leading space after "data:" if present per spec
+              const line = rawLine
+                .slice(SSE_DATA_PREFIX.length)
+                .replace(/^\s/, "");
+              dataLines.push(line);
+            }
+            // Optionally handle event:, id:, retry: here if you need them
           }
-          // Optionally handle event:, id:, retry: here if you need them
-        }
 
-        if (dataLines.length) {
-          const payload = dataLines.join("\n");
-          yield payload;
+          if (dataLines.length) {
+            const payload = dataLines.join("\n");
+            yield payload;
+          }
         }
       }
+    } finally {
+      abortController.abort();
+      try {
+        await reader.cancel();
+      } catch {}
     }
   } finally {
-    abortController.abort();
-    try {
-      await reader.cancel();
-    } catch {}
+    cleanUpSignals();
   }
 }
 
@@ -649,10 +665,15 @@ function combineAbortSignals(signals: Array<AbortSignal | undefined | null>) {
   const controller = new AbortController();
   const onAbort = () => {
     controller.abort();
+    cleanUpSignals();
+  };
+
+  const cleanUpSignals = () => {
     for (const s of signals) {
       s?.removeEventListener("abort", onAbort);
     }
   };
+
   for (const s of signals) {
     s?.addEventListener("abort", onAbort);
   }
@@ -661,7 +682,7 @@ function combineAbortSignals(signals: Array<AbortSignal | undefined | null>) {
     onAbort();
   }
 
-  return controller.signal;
+  return { signal: controller.signal, cleanUpSignals };
 }
 
 interface Observer<T> {
