@@ -450,6 +450,7 @@ function _createReplaneClient(
       },
     });
 
+    // we periodically refresh the config value in case events are missed
     const intervalId = setInterval(async () => {
       updater.run();
     }, 60_000);

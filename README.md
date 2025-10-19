@@ -12,6 +12,7 @@ You just need: given a token + config name -> get the value. This package does o
 
 - Works in ESM and CJS (dual build)
 - Zero runtime deps (uses native `fetch` — bring a polyfill if your runtime lacks it)
+- Realtime updates via Server-Sent Events (SSE)
 - Tiny bundle footprint
 - Strong TypeScript types
 
@@ -104,17 +105,17 @@ Retry behavior:
 
 ### `client.watchConfigValue(name, overrides?)`
 
-Creates a lightweight watcher that refreshes the config value in the background (every 60 seconds). Useful for long‑lived processes wanting near‑real‑time updates without manually refetching.
+Creates a lightweight watcher that receives realtime updates for the config value via Server-Sent Events (SSE). Useful for long‑lived processes wanting instant updates without manually refetching.
 
 Returns a promise resolving to an object: `{ get(): T, close(): void }`.
 
 - `get()` – returns the most recent value.
-- `close()` – stops the periodic refresh for just this watcher. Further calls to `get()` after `close()` throw.
+- `close()` – stops watching for updates. Further calls to `get()` after `close()` throw.
 
 Notes:
 
 - The initial fetch must succeed (it will throw on errors).
-- Subsequent periodic refreshes update the stored value on success.
+- Subsequent updates are pushed from the server in realtime via SSE.
 
 #### Watcher lifecycle
 
@@ -147,7 +148,7 @@ Notes:
 
 - `getConfigValue(name)` resolves to the value from `initialData`.
 - If a name is missing, it throws a `ReplaneError` (`Config not found: <name>`).
-- `watchConfigValue` works as usual, refreshing every 60s (values remain whatever is in-memory).
+- `watchConfigValue` works as usual, but uses periodic refresh (every 60s) instead of SSE since there's no server connection (values remain whatever is in-memory).
 
 Example:
 
