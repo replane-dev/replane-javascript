@@ -75,12 +75,12 @@ async function retry<T>(
       return await fn();
     } catch (e) {
       if (attempt < options.retries && options.isRetryable(e)) {
-        await retryDelay(options.delayMs);
         options.logger.warn(
           `${options.name}: attempt ${attempt + 1} failed: ${e}. Retrying in ~${
             options.delayMs
           }ms...`
         );
+        await retryDelay(options.delayMs);
         continue;
       }
       throw e;
@@ -272,7 +272,7 @@ class ReplaneInMemoryStorage implements ReplaneStorage {
   }
 
   close() {
-    // No resources to clean up
+    this.closeController.abort();
   }
 }
 
@@ -480,6 +480,7 @@ function _createReplaneClient(
         clearInterval(intervalId);
         watchers.delete(watcher);
         unsubscribeFromEvents();
+        updater.stop();
       },
     };
 
@@ -522,7 +523,11 @@ function combineOptions(
   return {
     apiKey: overrides.apiKey ?? defaults.apiKey,
     baseUrl: (overrides.baseUrl ?? defaults.baseUrl).replace(/\/+$/, ""),
-    fetchFn: overrides.fetchFn ?? defaults.fetchFn ?? globalThis.fetch,
+    fetchFn:
+      overrides.fetchFn ??
+      defaults.fetchFn ??
+      // some browsers require binding the fetch function to window
+      globalThis.fetch.bind(globalThis),
     timeoutMs: overrides.timeoutMs ?? defaults.timeoutMs ?? 2000,
     logger: overrides.logger ?? defaults.logger ?? console,
     retries: overrides.retries ?? defaults.retries ?? 2,
@@ -607,10 +612,10 @@ async function* fetchSse(params: {
         }
       }
     } finally {
-      abortController.abort();
       try {
         await reader.cancel();
       } catch {}
+      abortController.abort();
     }
   } finally {
     cleanUpSignals();
@@ -675,7 +680,7 @@ function combineAbortSignals(signals: Array<AbortSignal | undefined | null>) {
   };
 
   for (const s of signals) {
-    s?.addEventListener("abort", onAbort);
+    s?.addEventListener("abort", onAbort, { once: true });
   }
 
   if (signals.some((s) => s?.aborted)) {
