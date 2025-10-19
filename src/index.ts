@@ -3,6 +3,7 @@ const PROJECT_EVENT_TYPES = ["created", "updated", "deleted"] as const;
 interface ProjectEvent {
   type: (typeof PROJECT_EVENT_TYPES)[number];
   configId: string;
+  configName: string;
 }
 
 interface GetProjectEventsReplaneStorageOptions extends ReplaneFinalOptions {
@@ -449,10 +450,12 @@ function _createReplaneClient(
       },
     });
 
-    const intervalId = setInterval(async () => updater.run(), 60_000);
+    const intervalId = setInterval(async () => {
+      updater.run();
+    }, 60_000);
     const unsubscribeFromEvents = events.subscribe({
       next: (event) => {
-        if (event.configId !== configName) return;
+        if (event.configName !== configName) return;
         updater.run();
       },
       complete: () => {
