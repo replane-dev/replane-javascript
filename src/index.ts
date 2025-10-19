@@ -1,6 +1,6 @@
 const PROJECT_EVENT_TYPES = ["created", "updated", "deleted"] as const;
 
-export interface ProjectEvent {
+interface ProjectEvent {
   type: (typeof PROJECT_EVENT_TYPES)[number];
   configId: string;
 }
@@ -122,7 +122,7 @@ class ReplaneRemoteStorage implements ReplaneStorage {
       this.closeController.signal,
       options.signal,
     ]);
-    const events = fetchSse({
+    const rawEvents = fetchSse({
       fetchFn: options.fetchFn,
       headers: {
         Authorization: this.getAuthHeader(options),
@@ -133,7 +133,8 @@ class ReplaneRemoteStorage implements ReplaneStorage {
       url: this.getApiEndpoint("/v1/events", options),
     });
 
-    for await (const event of events) {
+    for await (const rawEvent of rawEvents) {
+      const event = JSON.parse(rawEvent);
       if (
         typeof event === "object" &&
         event !== null &&
@@ -315,7 +316,7 @@ export interface ReplaneLogger {
   error(...args: any[]): void;
 }
 
-export interface GetConfigOptions<T> extends Partial<ReplaneClientOptions> {}
+export interface GetConfigOptions extends Partial<ReplaneClientOptions> {}
 
 export interface ConfigValueWatcher<T> {
   /** Current config value (or fallback if not found). */
@@ -328,12 +329,12 @@ export interface ReplaneClient {
   /** Fetch a config value by name. */
   getConfigValue<T = unknown>(
     configName: string,
-    options?: GetConfigOptions<T>
+    options?: GetConfigOptions
   ): Promise<T | undefined>;
   /** Watch a config value by name. */
   watchConfigValue<T = unknown>(
     configName: string,
-    options?: GetConfigOptions<T>
+    options?: GetConfigOptions
   ): Promise<ConfigValueWatcher<T>>;
   /** Close the client and clean up resources. */
   close(): void;
@@ -399,7 +400,7 @@ function _createReplaneClient(
 
   async function getConfigValue<T = unknown>(
     configName: string,
-    inputOptions: GetConfigOptions<T> = {}
+    inputOptions: GetConfigOptions = {}
   ): Promise<T> {
     return await storage.getConfigValue<T>({
       configName,
@@ -414,7 +415,7 @@ function _createReplaneClient(
 
   async function watchConfigValue<T = unknown>(
     configName: string,
-    originalOptions: GetConfigOptions<T> = {}
+    originalOptions: GetConfigOptions = {}
   ): Promise<ConfigValueWatcher<T>> {
     const options = combineOptions(sdkOptions, originalOptions);
     let currentWatcherValue: T = await storage.getConfigValue<T>({
@@ -518,64 +519,81 @@ function combineOptions(
   };
 }
 
+const SSE_DATA_PREFIX = "data:";
+
 async function* fetchSse(params: {
   fetchFn: typeof fetch;
   url: string;
-  headers: Record<string, string>;
-  method: string;
-  signal: AbortSignal;
+  headers?: Record<string, string>;
+  method?: string;
+  signal?: AbortSignal;
 }) {
   const abortController = new AbortController();
+  const signal = params.signal
+    ? combineAbortSignals([params.signal, abortController.signal])
+    : abortController.signal;
 
-  const signal = combineAbortSignals([params.signal, abortController.signal]);
-
-  const response = await fetch(params.url, {
-    method: params.method,
-    headers: params.headers,
+  const res = await params.fetchFn(params.url, {
+    method: params.method ?? "GET",
+    headers: { Accept: "text/event-stream", ...(params.headers ?? {}) },
     signal,
   });
 
-  if (response.status !== 200) {
-    throw new Error("Failed to fetch SSE endpoint: " + response.statusText);
-  }
+  await ensureSuccessfulResponse(res, `SSE ${params.url}`);
 
-  await ensureSuccessfulResponse(response, `Fetch SSE ${params.url}`);
-
-  if (response.body === null) {
+  if (!res.body) {
     throw new ReplaneError({
       message: `Failed to fetch SSE ${params.url}: body is empty`,
       code: ReplaneErrorCode.Unknown,
     });
   }
 
-  const decodedResponse = new TextDecoderStream();
-  await response.body.pipeTo(decodedResponse.writable, {
-    signal,
-  });
+  const decoded = res.body.pipeThrough(new TextDecoderStream());
+  const reader = decoded.getReader();
 
-  let leftover: string = "";
+  let buffer = "";
 
   try {
-    for await (const responsePart of decodedResponse.readable) {
-      leftover += responsePart;
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += value!;
 
-      let messages = leftover.split("\n\n");
-      leftover = messages.at(-1) ?? "";
+      // Split on blank line; handle both \n\n and \r\n\r\n
+      const frames = buffer.split(/\r?\n\r?\n/);
+      buffer = frames.pop() ?? "";
 
-      for (const message of messages.slice(0, -1)) {
-        if (!message.startsWith(SSE_DATA_MESSAGE_PREFIX)) continue;
+      for (const frame of frames) {
+        // Parse lines inside a single SSE event frame
+        let dataLines: string[] = [];
 
-        yield JSON.parse(
-          message.slice(SSE_DATA_MESSAGE_PREFIX.length)
-        ) as unknown;
+        for (const rawLine of frame.split(/\r?\n/)) {
+          if (!rawLine) continue;
+          if (rawLine.startsWith(":")) continue; // comment/keepalive
+
+          if (rawLine.startsWith(SSE_DATA_PREFIX)) {
+            // Keep leading space after "data:" if present per spec
+            const line = rawLine
+              .slice(SSE_DATA_PREFIX.length)
+              .replace(/^\s/, "");
+            dataLines.push(line);
+          }
+          // Optionally handle event:, id:, retry: here if you need them
+        }
+
+        if (dataLines.length) {
+          const payload = dataLines.join("\n");
+          yield payload;
+        }
       }
     }
   } finally {
     abortController.abort();
+    try {
+      await reader.cancel();
+    } catch {}
   }
 }
-
-const SSE_DATA_MESSAGE_PREFIX = "data: ";
 
 async function ensureSuccessfulResponse(response: Response, message: string) {
   if (response.status === 404) {
@@ -726,13 +744,13 @@ class Subject<T> implements Observable<T>, Observer<T> {
   }
 }
 
-export interface DebouncerOptions {
+interface DebouncerOptions {
   name: string;
   task: () => Promise<void>;
   onError: (err: unknown) => void;
 }
 
-export class Debouncer {
+class Debouncer {
   private stopped = false;
   private running = false;
   private rescheduleRequested = false;
