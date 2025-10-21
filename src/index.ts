@@ -69,9 +69,14 @@ async function retry<T>(
     logger: ReplaneLogger;
     name: string;
     isRetryable: (e: any) => boolean;
+    signal?: AbortSignal;
   }
 ): Promise<T> {
-  for (let attempt = 0; attempt <= options.retries; attempt++) {
+  for (
+    let attempt = 0;
+    attempt <= options.retries && !options.signal?.aborted;
+    attempt++
+  ) {
     try {
       return await fn();
     } catch (e) {
@@ -87,7 +92,11 @@ async function retry<T>(
       throw e;
     }
   }
-  throw new Error("Unreachable");
+
+  throw new ReplaneError({
+    message: `${options.name}: aborted`,
+    code: ReplaneErrorCode.Unknown,
+  });
 }
 
 class ReplaneRemoteStorage implements ReplaneStorage {
@@ -211,6 +220,7 @@ class ReplaneRemoteStorage implements ReplaneStorage {
           }
           return true;
         },
+        signal: options.signal,
       }
     );
   }
