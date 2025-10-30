@@ -8,6 +8,7 @@ interface ProjectEvent {
 
 interface GetProjectEventsReplaneStorageOptions extends ReplaneFinalOptions {
   signal?: AbortSignal;
+  onConnect?: () => void;
 }
 
 interface GetConfigValueReplaneStorageOptions extends ReplaneFinalOptions {
@@ -110,22 +111,31 @@ class ReplaneRemoteStorage implements ReplaneStorage {
       options.signal,
     ]);
     try {
+      let failedAttempts = 0;
       while (!signal.aborted) {
         try {
           for await (const event of this.getProjectEventsInternal({
             ...options,
             signal,
+            onConnect: () => {
+              failedAttempts = 0;
+            },
           })) {
             yield event;
           }
         } catch (error: unknown) {
+          failedAttempts++;
+          const retryDelayMs = Math.min(
+            options.retryDelayMs * 2 ** (failedAttempts - 1),
+            10_000
+          );
           if (!signal.aborted) {
             options.logger.error(
-              `Failed to fetch project events, retrying in ${options.retryDelayMs}:`,
+              `Failed to fetch project events, retrying in ${retryDelayMs}ms...`,
               error
             );
 
-            await retryDelay(options.retryDelayMs);
+            await retryDelay(retryDelayMs);
           }
         }
       }
@@ -145,6 +155,7 @@ class ReplaneRemoteStorage implements ReplaneStorage {
       method: "GET",
       signal: options.signal,
       url: this.getApiEndpoint("/v1/events", options),
+      onConnect: options.onConnect,
     });
 
     for await (const rawEvent of rawEvents) {
@@ -545,7 +556,7 @@ function combineOptions(
     timeoutMs: overrides.timeoutMs ?? defaults.timeoutMs ?? 2000,
     logger: overrides.logger ?? defaults.logger ?? console,
     retries: overrides.retries ?? defaults.retries ?? 2,
-    retryDelayMs: overrides.retryDelayMs ?? defaults.retryDelayMs ?? 100,
+    retryDelayMs: overrides.retryDelayMs ?? defaults.retryDelayMs ?? 200,
   };
 }
 
@@ -557,6 +568,7 @@ async function* fetchSse(params: {
   headers?: Record<string, string>;
   method?: string;
   signal?: AbortSignal;
+  onConnect?: () => void;
 }) {
   const abortController = new AbortController();
   const { signal, cleanUpSignals } = params.signal
@@ -584,6 +596,10 @@ async function* fetchSse(params: {
         message: `Failed to fetch SSE ${params.url}: body is empty`,
         code: ReplaneErrorCode.Unknown,
       });
+    }
+
+    if (params.onConnect) {
+      params.onConnect();
     }
 
     const decoded = res.body.pipeThrough(new TextDecoderStream());
