@@ -28,11 +28,13 @@ yarn add replane-sdk
 
 ## Quick start
 
+> **Important:** Each API key is tied to a specific project. The client can only access configs from the project that the API key belongs to. If you need to access configs from multiple projects, create separate API keys and initialize separate clients for each project.
+
 ```ts
 import { createReplaneClient } from "replane-sdk";
 
 const client = createReplaneClient({
-  apiKey: process.env.REPLANE_API_KEY!,
+  apiKey: process.env.REPLANE_API_KEY!, // API key for a specific project
   baseUrl: "https://api.my-replane-host.com",
 });
 
@@ -81,7 +83,7 @@ Returns an object: `{ getConfigValue, watchConfigValue, close }`.
 #### Options
 
 - `baseUrl` (string) – API origin (no trailing slash needed).
-- `apiKey` (string) – API key for authorization. Required.
+- `apiKey` (string) – API key for authorization. Required. **Note:** Each API key is tied to a specific project and can only access configs from that project.
 - `fetchFn` (function) – custom fetch (e.g. `undici.fetch` or mocked fetch in tests).
 - `timeoutMs` (number) – abort the request after N ms. Default: 2000.
 - `retries` (number) – number of retry attempts on failures (5xx or network errors). Default: 2.
@@ -210,6 +212,25 @@ const client = createReplaneClient({
   baseUrl: "https://api",
   fetchFn: mockFetch,
 });
+```
+
+Multiple projects:
+
+```ts
+// Each project needs its own API key and client instance
+const projectAClient = createReplaneClient({
+  apiKey: process.env.PROJECT_A_API_KEY!,
+  baseUrl: "https://api.my-replane-host.com",
+});
+
+const projectBClient = createReplaneClient({
+  apiKey: process.env.PROJECT_B_API_KEY!,
+  baseUrl: "https://api.my-replane-host.com",
+});
+
+// Each client only accesses configs from its respective project
+const featureA = await projectAClient.getConfigValue("feature-flag");
+const featureB = await projectBClient.getConfigValue("feature-flag");
 ```
 
 ## Roadmap
