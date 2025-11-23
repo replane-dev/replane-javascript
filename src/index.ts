@@ -6,12 +6,262 @@ interface ProjectEvent {
   configName: string;
 }
 
+interface PropertyCondition {
+  operator:
+    | "equals"
+    | "in"
+    | "not_in"
+    | "less_than"
+    | "less_than_or_equal"
+    | "greater_than"
+    | "greater_than_or_equal";
+  property: string;
+  value: unknown;
+}
+
+interface SegmentationCondition {
+  operator: "segmentation";
+  property: string;
+  percentage: number;
+  seed: string;
+}
+
+interface AndCondition {
+  operator: "and";
+  conditions: RenderedCondition[];
+}
+
+interface OrCondition {
+  operator: "or";
+  conditions: RenderedCondition[];
+}
+
+interface NotCondition {
+  operator: "not";
+  condition: RenderedCondition;
+}
+
+type RenderedCondition =
+  | PropertyCondition
+  | SegmentationCondition
+  | AndCondition
+  | OrCondition
+  | NotCondition;
+
+interface RenderedOverride {
+  name: string;
+  conditions: RenderedCondition[];
+  value: unknown;
+}
+
+interface Config<T> {
+  name: string;
+  value: T;
+  overrides: RenderedOverride[];
+  version: number;
+}
+
+type EvaluationResult = "matched" | "not_matched" | "unknown";
+
+/**
+ * Evaluate config overrides based on context (client-side implementation)
+ * This is a simplified version without debug info
+ */
+function evaluateOverrides<T>(
+  baseValue: T,
+  overrides: RenderedOverride[],
+  context: ReplaneContext
+): T {
+  // Find first matching override
+  for (const override of overrides) {
+    // All conditions must match (implicit AND)
+    let overrideResult: EvaluationResult = "matched";
+    const results = override.conditions.map((c) =>
+      evaluateCondition(c, context)
+    );
+    // AND: false > unknown > true
+    if (results.some((r) => r === "not_matched")) {
+      overrideResult = "not_matched";
+    } else if (results.some((r) => r === "unknown")) {
+      overrideResult = "unknown";
+    }
+
+    // Only use override if all conditions matched (not unknown)
+    if (overrideResult === "matched") {
+      return override.value as T;
+    }
+  }
+
+  return baseValue;
+}
+
+/**
+ * Evaluate a single condition
+ */
+function evaluateCondition(
+  condition: RenderedCondition,
+  context: ReplaneContext
+): EvaluationResult {
+  const operator = condition.operator;
+
+  // Composite conditions
+  if (operator === "and") {
+    const results = condition.conditions.map((c) =>
+      evaluateCondition(c, context)
+    );
+    // AND: false > unknown > true
+    if (results.some((r) => r === "not_matched")) return "not_matched";
+    if (results.some((r) => r === "unknown")) return "unknown";
+    return "matched";
+  }
+
+  if (operator === "or") {
+    const results = condition.conditions.map((c) =>
+      evaluateCondition(c, context)
+    );
+    // OR: true > unknown > false
+    if (results.some((r) => r === "matched")) return "matched";
+    if (results.some((r) => r === "unknown")) return "unknown";
+    return "not_matched";
+  }
+
+  if (operator === "not") {
+    const result = evaluateCondition(condition.condition, context);
+    if (result === "matched") return "not_matched";
+    if (result === "not_matched") return "matched";
+    return "unknown"; // NOT unknown = unknown
+  }
+
+  // Segmentation
+  if (operator === "segmentation") {
+    const contextValue = context[condition.property];
+    if (contextValue === undefined || contextValue === null) {
+      return "unknown";
+    }
+
+    // Simple hash function
+    const hashInput = String(contextValue) + condition.seed;
+    let hash = 0;
+    for (let i = 0; i < hashInput.length; i++) {
+      hash = ((hash << 5) - hash + hashInput.charCodeAt(i)) | 0;
+    }
+    const bucket = Math.abs(hash) % 100;
+    return bucket < condition.percentage ? "matched" : "not_matched";
+  }
+
+  // Property-based conditions
+  const property = condition.property;
+  const contextValue = context[property];
+  const expectedValue = condition.value;
+
+  if (contextValue === undefined) {
+    return "unknown";
+  }
+
+  // Type casting
+  const castedValue = castToContextType(expectedValue, contextValue);
+
+  switch (operator) {
+    case "equals":
+      return contextValue === castedValue ? "matched" : "not_matched";
+
+    case "in":
+      return Array.isArray(castedValue) && castedValue.includes(contextValue)
+        ? "matched"
+        : "not_matched";
+
+    case "not_in":
+      return Array.isArray(castedValue) && !castedValue.includes(contextValue)
+        ? "matched"
+        : "not_matched";
+
+    case "less_than":
+      if (typeof contextValue === "number" && typeof castedValue === "number") {
+        return contextValue < castedValue ? "matched" : "not_matched";
+      }
+      if (typeof contextValue === "string" && typeof castedValue === "string") {
+        return contextValue < castedValue ? "matched" : "not_matched";
+      }
+      return "not_matched";
+
+    case "less_than_or_equal":
+      if (typeof contextValue === "number" && typeof castedValue === "number") {
+        return contextValue <= castedValue ? "matched" : "not_matched";
+      }
+      if (typeof contextValue === "string" && typeof castedValue === "string") {
+        return contextValue <= castedValue ? "matched" : "not_matched";
+      }
+      return "not_matched";
+
+    case "greater_than":
+      if (typeof contextValue === "number" && typeof castedValue === "number") {
+        return contextValue > castedValue ? "matched" : "not_matched";
+      }
+      if (typeof contextValue === "string" && typeof castedValue === "string") {
+        return contextValue > castedValue ? "matched" : "not_matched";
+      }
+      return "not_matched";
+
+    case "greater_than_or_equal":
+      if (typeof contextValue === "number" && typeof castedValue === "number") {
+        return contextValue >= castedValue ? "matched" : "not_matched";
+      }
+      if (typeof contextValue === "string" && typeof castedValue === "string") {
+        return contextValue >= castedValue ? "matched" : "not_matched";
+      }
+      return "not_matched";
+
+    default:
+      const _: never = operator;
+      return "unknown";
+  }
+}
+
+/**
+ * Cast expected value to match context value type
+ */
+function castToContextType(
+  expectedValue: unknown,
+  contextValue: unknown
+): unknown {
+  if (typeof contextValue === "number") {
+    if (typeof expectedValue === "string") {
+      const num = Number(expectedValue);
+      return isNaN(num) ? expectedValue : num;
+    }
+    return expectedValue;
+  }
+
+  if (typeof contextValue === "boolean") {
+    if (typeof expectedValue === "string") {
+      if (expectedValue === "true") return true;
+      if (expectedValue === "false") return false;
+    }
+    if (typeof expectedValue === "number") {
+      return expectedValue !== 0;
+    }
+    return expectedValue;
+  }
+
+  if (typeof contextValue === "string") {
+    if (
+      typeof expectedValue === "number" ||
+      typeof expectedValue === "boolean"
+    ) {
+      return String(expectedValue);
+    }
+    return expectedValue;
+  }
+
+  return expectedValue;
+}
+
 interface GetProjectEventsReplaneStorageOptions extends ReplaneFinalOptions {
   signal?: AbortSignal;
   onConnect?: () => void;
 }
 
-interface GetConfigValueReplaneStorageOptions extends ReplaneFinalOptions {
+interface GetConfigReplaneStorageOptions extends ReplaneFinalOptions {
   configName: string;
   signal?: AbortSignal;
 }
@@ -20,7 +270,9 @@ interface ReplaneStorage {
   getProjectEvents(
     options: GetProjectEventsReplaneStorageOptions
   ): AsyncIterable<ProjectEvent>;
-  getConfigValue<T>(options: GetConfigValueReplaneStorageOptions): Promise<T>;
+  getConfig<T>(
+    options: GetConfigReplaneStorageOptions
+  ): Promise<Config<T> | null>;
   close(): void;
 }
 
@@ -172,14 +424,14 @@ class ReplaneRemoteStorage implements ReplaneStorage {
     }
   }
 
-  async getConfigValue<T>(
-    options: GetConfigValueReplaneStorageOptions
-  ): Promise<T> {
+  async getConfig<T>(
+    options: GetConfigReplaneStorageOptions
+  ): Promise<Config<T> | null> {
     return await retry(
       async () => {
         try {
           const url = this.getApiEndpoint(
-            `/v1/configs/${encodeURIComponent(options.configName)}/value`,
+            `/v1/configs/${encodeURIComponent(options.configName)}`,
             options
           );
           const response = await fetchWithTimeout(
@@ -188,7 +440,7 @@ class ReplaneRemoteStorage implements ReplaneStorage {
               method: "GET",
               headers: {
                 Authorization: this.getAuthHeader(options),
-                Accept: "application/json, text/plain;q=0.9, */*;q=0.8",
+                Accept: "application/json",
               },
               // we don't combine the signal with this.closeController,
               // because we expect it to finish shortly
@@ -203,7 +455,7 @@ class ReplaneRemoteStorage implements ReplaneStorage {
             `Config ${options.configName}`
           );
 
-          return (await response.json()) as T;
+          return (await response.json()) as Config<T>;
         } catch (e) {
           if (e instanceof ReplaneError) {
             throw e;
@@ -281,22 +533,30 @@ class ReplaneInMemoryStorage implements ReplaneStorage {
     }
   }
 
-  async getConfigValue<T>(
-    options: GetConfigValueReplaneStorageOptions
-  ): Promise<T> {
+  async getConfig<T>(
+    options: GetConfigReplaneStorageOptions
+  ): Promise<Config<T> | null> {
     if (!this.store.has(options.configName)) {
       throw new ReplaneError({
         message: `Config not found: ${options.configName}`,
         code: ReplaneErrorCode.NotFound,
       });
     }
-    return this.store.get(options.configName) as T;
+    const value = this.store.get(options.configName) as T;
+    return {
+      name: options.configName,
+      value,
+      overrides: [],
+      version: 1,
+    };
   }
 
   close() {
     this.closeController.abort();
   }
 }
+
+export type ReplaneContext = Record<string, unknown>;
 
 export interface ReplaneClientOptions {
   /**
@@ -330,6 +590,11 @@ export interface ReplaneClientOptions {
    * Optional logger (defaults to console).
    */
   logger?: ReplaneLogger;
+  /**
+   * Default context for all config evaluations.
+   * Can be overridden per-request in `client.watchConfig()` and `watcher.getValue()`.
+   */
+  context?: ReplaneContext;
 }
 
 interface ReplaneFinalOptions {
@@ -340,6 +605,7 @@ interface ReplaneFinalOptions {
   logger: ReplaneLogger;
   retries: number;
   retryDelayMs: number;
+  context: ReplaneContext;
 }
 
 export interface ReplaneLogger {
@@ -349,26 +615,26 @@ export interface ReplaneLogger {
   error(...args: any[]): void;
 }
 
-export interface GetConfigOptions extends Partial<ReplaneClientOptions> {}
+export interface WatchConfigOptions {
+  /**
+   * Context for override evaluation (merged with client-level context).
+   */
+  context?: ReplaneContext;
+}
 
-export interface ConfigValueWatcher<T> {
+export interface ConfigWatcher<T> {
   /** Current config value (or fallback if not found). */
-  get(): T;
+  getValue(context?: ReplaneContext): T;
   /** Stop watching for changes. */
   close(): void;
 }
 
 export interface ReplaneClient {
-  /** Fetch a config value by name. */
-  getConfigValue<T = unknown>(
+  /** Watch a config by its name. */
+  watchConfig<T = unknown>(
     configName: string,
-    options?: GetConfigOptions
-  ): Promise<T>;
-  /** Watch a config value by name. */
-  watchConfigValue<T = unknown>(
-    configName: string,
-    options?: GetConfigOptions
-  ): Promise<ConfigValueWatcher<T>>;
+    options?: WatchConfigOptions
+  ): Promise<ConfigWatcher<T>>;
   /** Close the client and clean up resources. */
   close(): void;
 }
@@ -431,30 +697,28 @@ function _createReplaneClient(
     storage.getProjectEvents(combineOptions(sdkOptions, {}))
   );
 
-  async function getConfigValue<T = unknown>(
-    configName: string,
-    inputOptions: GetConfigOptions = {}
-  ): Promise<T> {
-    return await storage.getConfigValue<T>({
-      configName,
-      ...combineOptions(
-        sdkOptions,
-        inputOptions as Partial<ReplaneClientOptions>
-      ),
-    });
-  }
+  const watchers = new Set<ConfigWatcher<any>>();
 
-  const watchers = new Set<ConfigValueWatcher<any>>();
-
-  async function watchConfigValue<T = unknown>(
+  async function watchConfig<T = unknown>(
     configName: string,
-    originalOptions: GetConfigOptions = {}
-  ): Promise<ConfigValueWatcher<T>> {
+    originalOptions: WatchConfigOptions = {}
+  ): Promise<ConfigWatcher<T>> {
     const options = combineOptions(sdkOptions, originalOptions);
-    let currentWatcherValue: T = await storage.getConfigValue<T>({
+
+    // Fetch initial value
+    const config = await storage.getConfig<T>({
       ...options,
       configName,
     });
+
+    if (!config) {
+      throw new ReplaneError({
+        message: `Config not found: ${configName}`,
+        code: ReplaneErrorCode.NotFound,
+      });
+    }
+
+    let currentConfig = config;
     let isWatcherClosed = false;
 
     const updater = new Debouncer({
@@ -463,11 +727,19 @@ function _createReplaneClient(
         options.logger.error(`ReplaneConfigWatcherWorker error: ${err}`);
       },
       task: async () => {
-        const newValue = await storage.getConfigValue<T>({
+        const config = await storage.getConfig<T>({
           ...options,
           configName,
         });
-        currentWatcherValue = newValue;
+
+        if (!config) {
+          throw new ReplaneError({
+            message: `Config not found: ${configName}`,
+            code: ReplaneErrorCode.NotFound,
+          });
+        }
+
+        currentConfig = config;
       },
     });
 
@@ -491,12 +763,19 @@ function _createReplaneClient(
       },
     });
 
-    const watcher: ConfigValueWatcher<T> = {
-      get() {
+    const watcher: ConfigWatcher<T> = {
+      getValue(context: ReplaneContext = {}) {
         if (isWatcherClosed) {
           throw new Error("Config value watcher is closed");
         }
-        return currentWatcherValue;
+        return evaluateOverrides<T>(
+          currentConfig.value,
+          currentConfig.overrides,
+          {
+            ...options.context,
+            ...context,
+          }
+        );
       },
       close() {
         if (isWatcherClosed) return;
@@ -525,17 +804,11 @@ function _createReplaneClient(
   }
 
   return {
-    getConfigValue: async (name, req) => {
+    watchConfig: async (name, options) => {
       if (isClientClosed) {
         throw new Error("Replane client is closed");
       }
-      return await getConfigValue(name, req);
-    },
-    watchConfigValue: async (name, options) => {
-      if (isClientClosed) {
-        throw new Error("Replane client is closed");
-      }
-      return await watchConfigValue(name, options);
+      return await watchConfig(name, options);
     },
     close,
   };
@@ -557,6 +830,10 @@ function combineOptions(
     logger: overrides.logger ?? defaults.logger ?? console,
     retries: overrides.retries ?? defaults.retries ?? 2,
     retryDelayMs: overrides.retryDelayMs ?? defaults.retryDelayMs ?? 200,
+    context: {
+      ...(defaults.context ?? {}),
+      ...(overrides.context ?? {}),
+    },
   };
 }
 
