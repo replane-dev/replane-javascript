@@ -166,14 +166,12 @@ function evaluateCondition(
       return contextValue === castedValue ? "matched" : "not_matched";
 
     case "in":
-      return Array.isArray(castedValue) && castedValue.includes(contextValue)
-        ? "matched"
-        : "not_matched";
+      if (!Array.isArray(castedValue)) return "unknown";
+      return castedValue.includes(contextValue) ? "matched" : "not_matched";
 
     case "not_in":
-      return Array.isArray(castedValue) && !castedValue.includes(contextValue)
-        ? "matched"
-        : "not_matched";
+      if (!Array.isArray(castedValue)) return "unknown";
+      return !castedValue.includes(contextValue) ? "matched" : "not_matched";
 
     case "less_than":
       if (typeof contextValue === "number" && typeof castedValue === "number") {
@@ -768,14 +766,19 @@ function _createReplaneClient(
         if (isWatcherClosed) {
           throw new Error("Config value watcher is closed");
         }
-        return evaluateOverrides<T>(
-          currentConfig.value,
-          currentConfig.overrides,
-          {
-            ...options.context,
-            ...context,
-          }
-        );
+        try {
+          return evaluateOverrides<T>(
+            currentConfig.value,
+            currentConfig.overrides,
+            {
+              ...options.context,
+              ...context,
+            }
+          );
+        } catch (err) {
+          options.logger.error(`ReplaneConfigWatcherWorker error: ${err}`);
+          return currentConfig.value;
+        }
       },
       close() {
         if (isWatcherClosed) return;
