@@ -1,6 +1,6 @@
 # Replane JavaScript SDK
 
-Small TypeScript client for fetching configuration values from a Replane API.
+Small TypeScript client for watching configuration values from a Replane API with realtime updates and context-based override evaluation.
 
 Part of the Replane project: [replane-dev/replane](https://github.com/replane-dev/replane).
 
@@ -8,11 +8,12 @@ Part of the Replane project: [replane-dev/replane](https://github.com/replane-de
 
 ## Why it exists
 
-You just need: given a token + config name -> get the value. This package does only that:
+You need: given a token + config name + optional context -> watch the value with realtime updates. This package does only that:
 
 - Works in ESM and CJS (dual build)
 - Zero runtime deps (uses native `fetch` — bring a polyfill if your runtime lacks it)
 - Realtime updates via Server-Sent Events (SSE)
+- Context-based override evaluation (feature flags, A/B testing, gradual rollouts)
 - Tiny bundle footprint
 - Strong TypeScript types
 
@@ -39,12 +40,13 @@ const client = createReplaneClient({
   baseUrl: "https://api.my-replane-host.com",
 });
 
-// One-off fetch
+// Watch a config (receives realtime updates via SSE)
+const featureFlag = await client.watchConfig<boolean>("new-onboarding");
 
-const featureFlag = await client
-  .getConfigValue<boolean>("new-onboarding")
-  // Ignore errors and use `false` if config is missing or fetch fails
-  .catch(() => false);
+// Get the current value
+if (featureFlag.getValue()) {
+  console.log("New onboarding enabled!");
+}
 
 // Typed example
 interface PasswordRequirements {
@@ -52,24 +54,29 @@ interface PasswordRequirements {
   requireSymbol: boolean;
 }
 
-const passwordRequirements = await client
-  .getConfigValue<PasswordRequirements>("password-requirements")
-  .catch(() => ({ minLength: 8, requireSymbol: false }));
-
-// Watching a config (initial fetch must succeed)
-const billingEnabled = await client.watchConfigValue<boolean>(
-  "billing-enabled"
+const passwordReqs = await client.watchConfig<PasswordRequirements>(
+  "password-requirements"
 );
 
-// Later, read the latest value
-if (billingEnabled.get()) {
-  console.log("Billing enabled!");
-}
+// Read value anytime (always returns the latest from realtime updates)
+const { minLength } = passwordReqs.getValue();
+
+// With context for override evaluation
+const billingEnabled = await client.watchConfig<boolean>("billing-enabled");
+
+// Evaluate with user context - overrides apply automatically
+const enabled = billingEnabled.getValue({
+  userId: "user-123",
+  plan: "premium",
+  region: "us-east",
+});
 
 // When done, clean up resources
+featureFlag.close();
+passwordReqs.close();
 billingEnabled.close();
 
-// Or, if you don't need the client anymore
+// Or close all watchers at once
 client.close();
 ```
 
@@ -77,48 +84,41 @@ client.close();
 
 ### `createReplaneClient(options)`
 
-Returns an object: `{ getConfigValue, watchConfigValue, close }`.
+Returns an object: `{ watchConfig, close }`.
 
-`close()` stops all active watchers created by this client and marks the client as closed. After calling it, any subsequent call to `getConfigValue` or `watchConfigValue` will throw. It is safe to call multiple times (no‑op after the first call).
+`close()` stops all active watchers created by this client and marks the client as closed. After calling it, any subsequent call to `watchConfig` will throw. It is safe to call multiple times (no‑op after the first call).
 
 #### Options
 
 - `baseUrl` (string) – API origin (no trailing slash needed).
 - `apiKey` (string) – API key for authorization. Required. **Note:** Each API key is tied to a specific project and can only access configs from that project. To access configs from multiple projects, create multiple API keys and initialize separate client instances.
-- `fetchFn` (function) – custom fetch (e.g. `undici.fetch` or mocked fetch in tests).
+- `context` (object) – default context for all config evaluations. Can be overridden per-request in `watcher.getValue()`. Optional.
+- `fetchFn` (function) – custom fetch (e.g. `undici.fetch` or mocked fetch in tests). Optional.
 - `timeoutMs` (number) – abort the request after N ms. Default: 2000.
 - `retries` (number) – number of retry attempts on failures (5xx or network errors). Default: 2.
-- `retryDelayMs` (number) – base delay between retries in ms (a small jitter is applied). Default: 100.
+- `retryDelayMs` (number) – base delay between retries in ms (a small jitter is applied). Default: 200.
+- `logger` (object) – custom logger with `debug`, `info`, `warn`, `error` methods. Default: `console`.
 
-### `client.getConfigValue(name, overrides?)`
-
-Parameters:
-
-- `name` (string) – config name to fetch.
-- Overrides: same semantics as in `createReplaneClient`.
-
-Returns: a promise resolving to the parsed JSON value.
-
-Errors: throws on non-2xx responses (including 404 for missing configs), network errors, or invalid JSON. Catch `ReplaneError` to handle failures.
-
-Retry behavior:
-
-- Transient failures (5xx responses or network errors) are retried up to `retries` times with a base delay of `retryDelayMs` between attempts.
-- You can override these per call via the `overrides` argument.
-
-### `client.watchConfigValue(name, overrides?)`
+### `client.watchConfig(name, options?)`
 
 Creates a lightweight watcher that receives realtime updates for the config value via Server-Sent Events (SSE). Useful for long‑lived processes wanting instant updates without manually refetching.
 
-Returns a promise resolving to an object: `{ get(): T, close(): void }`.
+Parameters:
 
-- `get()` – returns the most recent value.
-- `close()` – stops watching for updates. Further calls to `get()` after `close()` throw.
+- `name` (string) – config name to watch.
+- `options` (object) – optional configuration:
+  - `context` (object) – context merged with client-level context for override evaluation.
+
+Returns a promise resolving to an object: `{ getValue(context?): T, close(): void }`.
+
+- `getValue(context?)` – returns the current value with override evaluation based on provided context (merged with client and watcher contexts). The value is always up-to-date thanks to realtime SSE updates.
+- `close()` – stops watching for updates. Further calls to `getValue()` after `close()` throw.
 
 Notes:
 
 - The initial fetch must succeed (it will throw on errors).
 - Subsequent updates are pushed from the server in realtime via SSE.
+- Values are automatically refreshed every 60 seconds as a fallback.
 
 #### Watcher lifecycle
 
@@ -129,10 +129,18 @@ Notes:
 Example:
 
 ```ts
-const billingEnabled = await client.watchConfigValue("billing-enabled");
-if (billingEnabled.get()) {
+const billingEnabled = await client.watchConfig<boolean>("billing-enabled");
+
+// Get value without context values
+if (billingEnabled.getValue()) {
   // ...
 }
+
+// Get value with context for override evaluation
+if (billingEnabled.getValue({ userId: "user-123", plan: "premium" })) {
+  // ...
+}
+
 // Later, when you no longer need updates:
 billingEnabled.close();
 ```
@@ -145,13 +153,13 @@ Parameters:
 
 - `initialData` (object) – map of config name to value.
 
-Returns the same client shape as `createReplaneClient` (`{ getConfigValue, watchConfigValue, close }`).
+Returns the same client shape as `createReplaneClient` (`{ watchConfig, close }`).
 
 Notes:
 
-- `getConfigValue(name)` resolves to the value from `initialData`.
+- `watchConfig(name)` resolves to a watcher with the value from `initialData`.
 - If a name is missing, it throws a `ReplaneError` (`Config not found: <name>`).
-- `watchConfigValue` works as usual, but uses periodic refresh (every 60s) instead of SSE since there's no server connection (values remain whatever is in-memory).
+- Watchers work as usual but don't receive SSE updates (values remain whatever is in-memory).
 
 Example:
 
@@ -160,13 +168,19 @@ import { createInMemoryReplaneClient } from "replane-sdk";
 
 const client = createInMemoryReplaneClient({
   "feature-a": true,
-  "max-items": { value: 10, updatedAt: Date.now() },
+  "max-items": { value: 10, ttl: 3600 },
 });
 
-const enabled = await client.getConfigValue<boolean>("feature-a"); // true
-const watcher = await client.watchConfigValue<number>("max-items");
-watcher.get(); // { value: 10, updatedAt: ... }
-watcher.close();
+const featureA = await client.watchConfig<boolean>("feature-a");
+console.log(featureA.getValue()); // true
+
+const maxItems = await client.watchConfig<{ value: number; ttl: number }>(
+  "max-items"
+);
+console.log(maxItems.getValue()); // { value: 10, ttl: 3600 }
+
+featureA.close();
+maxItems.close();
 ```
 
 ### `client.close()`
@@ -180,7 +194,9 @@ client.close();
 
 ### Errors
 
-`getConfigValue` throws on non‑2xx HTTP responses (including 404), network errors, and invalid JSON. `watchConfigValue` uses `getConfigValue` for its initial fetch; handle errors accordingly with try/catch when creating a watcher. A `ReplaneError` is thrown for HTTP failures; other errors may be thrown for network/parse issues.
+`watchConfig` throws on non‑2xx HTTP responses (including 404), network errors, and invalid JSON during the initial fetch. Handle errors with try/catch when creating a watcher. A `ReplaneError` is thrown for HTTP failures; other errors may be thrown for network/parse issues.
+
+After the initial fetch succeeds, subsequent SSE update errors are logged but don't throw (the watcher continues to work with the last known value).
 
 ## Environment notes
 
@@ -189,23 +205,49 @@ client.close();
 
 ## Common patterns
 
-Typed config:
+### Typed config
 
 ```ts
 interface LayoutConfig {
   variant: "a" | "b";
   ttl: number;
 }
-const layout = await client.getConfigValue<LayoutConfig>("layout");
+const layout = await client.watchConfig<LayoutConfig>("layout");
+console.log(layout.getValue()); // { variant: "a", ttl: 3600 }
 ```
 
-Timeout override:
+### Context-based overrides
 
 ```ts
-await client.getConfigValue("slow-config", { timeoutMs: 3000 });
+// Config has base value `false` but override: if `plan === "premium"` then `true`
+const featureWatcher = await client.watchConfig<boolean>("advanced-features");
+
+// Free user
+const freeUserEnabled = featureWatcher.getValue({ plan: "free" }); // false
+
+// Premium user
+const premiumUserEnabled = featureWatcher.getValue({ plan: "premium" }); // true
 ```
 
-Custom fetch (tests):
+### Client-level context
+
+```ts
+const client = createReplaneClient({
+  apiKey: process.env.REPLANE_API_KEY!,
+  baseUrl: "https://api.my-replane-host.com",
+  context: {
+    environment: "production",
+    region: "us-east",
+  },
+});
+
+// This context is used for all watchers unless overridden
+const watcher = await client.watchConfig("feature-flag");
+watcher.getValue(); // Uses client-level context
+watcher.getValue({ userId: "123" }); // Merges with client context
+```
+
+### Custom fetch (tests)
 
 ```ts
 const client = createReplaneClient({
@@ -215,7 +257,7 @@ const client = createReplaneClient({
 });
 ```
 
-Multiple projects:
+### Multiple projects
 
 ```ts
 // Each project needs its own API key and client instance
@@ -230,8 +272,8 @@ const projectBClient = createReplaneClient({
 });
 
 // Each client only accesses configs from its respective project
-const featureA = await projectAClient.getConfigValue("feature-flag");
-const featureB = await projectBClient.getConfigValue("feature-flag");
+const featureA = await projectAClient.watchConfig("feature-flag");
+const featureB = await projectBClient.watchConfig("feature-flag");
 ```
 
 ## Roadmap
