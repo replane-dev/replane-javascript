@@ -71,15 +71,14 @@ type EvaluationResult = "matched" | "not_matched" | "unknown";
 function evaluateOverrides<T>(
   baseValue: T,
   overrides: RenderedOverride[],
-  context: ReplaneContext
+  context: ReplaneContext,
+  logger: ReplaneLogger
 ): T {
   // Find first matching override
   for (const override of overrides) {
     // All conditions must match (implicit AND)
     let overrideResult: EvaluationResult = "matched";
-    const results = override.conditions.map((c) =>
-      evaluateCondition(c, context)
-    );
+    const results = override.conditions.map((c) => evaluateCondition(c, context, logger));
     // AND: false > unknown > true
     if (results.some((r) => r === "not_matched")) {
       overrideResult = "not_matched";
@@ -101,15 +100,14 @@ function evaluateOverrides<T>(
  */
 function evaluateCondition(
   condition: RenderedCondition,
-  context: ReplaneContext
+  context: ReplaneContext,
+  logger: ReplaneLogger
 ): EvaluationResult {
   const operator = condition.operator;
 
   // Composite conditions
   if (operator === "and") {
-    const results = condition.conditions.map((c) =>
-      evaluateCondition(c, context)
-    );
+    const results = condition.conditions.map((c) => evaluateCondition(c, context, logger));
     // AND: false > unknown > true
     if (results.some((r) => r === "not_matched")) return "not_matched";
     if (results.some((r) => r === "unknown")) return "unknown";
@@ -117,9 +115,7 @@ function evaluateCondition(
   }
 
   if (operator === "or") {
-    const results = condition.conditions.map((c) =>
-      evaluateCondition(c, context)
-    );
+    const results = condition.conditions.map((c) => evaluateCondition(c, context, logger));
     // OR: true > unknown > false
     if (results.some((r) => r === "matched")) return "matched";
     if (results.some((r) => r === "unknown")) return "unknown";
@@ -127,7 +123,7 @@ function evaluateCondition(
   }
 
   if (operator === "not") {
-    const result = evaluateCondition(condition.condition, context);
+    const result = evaluateCondition(condition.condition, context, logger);
     if (result === "matched") return "not_matched";
     if (result === "not_matched") return "matched";
     return "unknown"; // NOT unknown = unknown
@@ -213,18 +209,19 @@ function evaluateCondition(
       return "not_matched";
 
     default:
-      const _: never = operator;
+      warnNever(operator, logger, `Unexpected operator: ${operator}`);
       return "unknown";
   }
+}
+
+function warnNever(value: never, logger: ReplaneLogger, message: string): void {
+  logger.warn(message, { value });
 }
 
 /**
  * Cast expected value to match context value type
  */
-function castToContextType(
-  expectedValue: unknown,
-  contextValue: unknown
-): unknown {
+function castToContextType(expectedValue: unknown, contextValue: unknown): unknown {
   if (typeof contextValue === "number") {
     if (typeof expectedValue === "string") {
       const num = Number(expectedValue);
@@ -245,10 +242,7 @@ function castToContextType(
   }
 
   if (typeof contextValue === "string") {
-    if (
-      typeof expectedValue === "number" ||
-      typeof expectedValue === "boolean"
-    ) {
+    if (typeof expectedValue === "number" || typeof expectedValue === "boolean") {
       return String(expectedValue);
     }
     return expectedValue;
@@ -268,17 +262,13 @@ interface GetConfigReplaneStorageOptions extends ReplaneFinalOptions {
 }
 
 interface ReplaneStorage {
-  getProjectEvents(
-    options: GetProjectEventsReplaneStorageOptions
-  ): AsyncIterable<ProjectEvent>;
-  getConfig<T>(
-    options: GetConfigReplaneStorageOptions
-  ): Promise<Config<T> | null>;
+  getProjectEvents(options: GetProjectEventsReplaneStorageOptions): AsyncIterable<ProjectEvent>;
+  getConfig<T>(options: GetConfigReplaneStorageOptions): Promise<Config<T> | null>;
   close(): void;
 }
 
 async function fetchWithTimeout(
-  input: any,
+  input: string | URL | Request,
   init: RequestInit,
   timeoutMs: number,
   fetchFn: typeof fetch
@@ -289,10 +279,7 @@ async function fetchWithTimeout(
   if (!timeoutMs) return fetchFn(input, init);
   const timeoutController = new AbortController();
   const t = setTimeout(() => timeoutController.abort(), timeoutMs);
-  const { signal, cleanUpSignals } = combineAbortSignals([
-    init.signal,
-    timeoutController.signal,
-  ]);
+  const { signal, cleanUpSignals } = combineAbortSignals([init.signal, timeoutController.signal]);
   try {
     return await fetchFn(input, {
       ...init,
@@ -322,15 +309,11 @@ async function retry<T>(
     delayMs: number;
     logger: ReplaneLogger;
     name: string;
-    isRetryable: (e: any) => boolean;
+    isRetryable: (e: unknown) => boolean;
     signal?: AbortSignal;
   }
 ): Promise<T> {
-  for (
-    let attempt = 0;
-    attempt <= options.retries && !options.signal?.aborted;
-    attempt++
-  ) {
+  for (let attempt = 0; attempt <= options.retries && !options.signal?.aborted; attempt++) {
     try {
       return await fn();
     } catch (e) {
@@ -378,10 +361,7 @@ class ReplaneRemoteStorage implements ReplaneStorage {
           }
         } catch (error: unknown) {
           failedAttempts++;
-          const retryDelayMs = Math.min(
-            options.retryDelayMs * 2 ** (failedAttempts - 1),
-            10_000
-          );
+          const retryDelayMs = Math.min(options.retryDelayMs * 2 ** (failedAttempts - 1), 10_000);
           if (!signal.aborted) {
             options.logger.error(
               `Failed to fetch project events, retrying in ${retryDelayMs}ms...`,
@@ -425,9 +405,7 @@ class ReplaneRemoteStorage implements ReplaneStorage {
     }
   }
 
-  async getConfig<T>(
-    options: GetConfigReplaneStorageOptions
-  ): Promise<Config<T> | null> {
+  async getConfig<T>(options: GetConfigReplaneStorageOptions): Promise<Config<T> | null> {
     return await retry(
       async () => {
         try {
@@ -451,10 +429,7 @@ class ReplaneRemoteStorage implements ReplaneStorage {
             options.fetchFn
           );
 
-          await ensureSuccessfulResponse(
-            response,
-            `Config ${options.configName}`
-          );
+          await ensureSuccessfulResponse(response, `Config ${options.configName}`);
 
           return (await response.json()) as Config<T>;
         } catch (e) {
@@ -503,10 +478,10 @@ class ReplaneRemoteStorage implements ReplaneStorage {
 }
 
 class ReplaneInMemoryStorage implements ReplaneStorage {
-  private store: Map<string, any>;
+  private store: Map<string, unknown>;
   private closeController = new AbortController();
 
-  constructor(initialData: Record<string, any>) {
+  constructor(initialData: Record<string, unknown>) {
     this.store = new Map(Object.entries(initialData));
   }
 
@@ -515,6 +490,9 @@ class ReplaneInMemoryStorage implements ReplaneStorage {
       options.signal,
       this.closeController.signal,
     ]);
+
+    // suppress eslint warning about lack of explicit yield in the async generator
+    yield* [];
 
     try {
       if (signal.aborted) return;
@@ -534,9 +512,7 @@ class ReplaneInMemoryStorage implements ReplaneStorage {
     }
   }
 
-  async getConfig<T>(
-    options: GetConfigReplaneStorageOptions
-  ): Promise<Config<T> | null> {
+  async getConfig<T>(options: GetConfigReplaneStorageOptions): Promise<Config<T> | null> {
     if (!this.store.has(options.configName)) {
       throw new ReplaneError({
         message: `Config not found: ${options.configName}`,
@@ -610,10 +586,10 @@ interface ReplaneFinalOptions {
 }
 
 export interface ReplaneLogger {
-  debug(...args: any[]): void;
-  info(...args: any[]): void;
-  warn(...args: any[]): void;
-  error(...args: any[]): void;
+  debug(...args: unknown[]): void;
+  info(...args: unknown[]): void;
+  warn(...args: unknown[]): void;
+  error(...args: unknown[]): void;
 }
 
 export interface WatchConfigOptions {
@@ -665,9 +641,7 @@ export class ReplaneError extends Error {
  *   const client = createReplaneClient({ apiKey: 'your-api-key', baseUrl: 'https://app.replane.dev' })
  *   const value = await client.getConfig('my-config')
  */
-export function createReplaneClient(
-  sdkOptions: ReplaneClientOptions
-): ReplaneClient {
+export function createReplaneClient(sdkOptions: ReplaneClientOptions): ReplaneClient {
   const storage = new ReplaneRemoteStorage();
   return _createReplaneClient(sdkOptions, storage);
 }
@@ -678,9 +652,7 @@ export function createReplaneClient(
  *   const client = createInMemoryReplaneClient({ 'my-config': 123 })
  *   const value = await client.getConfigValue('my-config') // 123
  */
-export function createInMemoryReplaneClient(
-  initialData: Record<string, any>
-): ReplaneClient {
+export function createInMemoryReplaneClient(initialData: Record<string, unknown>): ReplaneClient {
   const storage = new ReplaneInMemoryStorage(initialData);
   return _createReplaneClient(
     { apiKey: "test-api-key", baseUrl: "https://app.replane.dev" },
@@ -698,7 +670,7 @@ function _createReplaneClient(
     storage.getProjectEvents(combineOptions(sdkOptions, {}))
   );
 
-  const watchers = new Set<ConfigWatcher<any>>();
+  const watchers = new Set<ConfigWatcher<unknown>>();
 
   async function watchConfig<T = unknown>(
     configName: string,
@@ -757,10 +729,7 @@ function _createReplaneClient(
         // nothing to do
       },
       throw: (err) => {
-        options.logger.error(
-          "ReplaneConfigWatcherWorker event stream error:",
-          err
-        );
+        options.logger.error("ReplaneConfigWatcherWorker event stream error:", err);
       },
     });
 
@@ -773,10 +742,8 @@ function _createReplaneClient(
           return evaluateOverrides<T>(
             currentConfig.value,
             currentConfig.overrides,
-            {
-              ...options.context,
-              ...context,
-            }
+            { ...options.context, ...context },
+            options.logger
           );
         } catch (err) {
           options.logger.error(`ReplaneConfigWatcherWorker error: ${err}`);
@@ -902,7 +869,7 @@ async function* fetchSse(params: {
 
         for (const frame of frames) {
           // Parse lines inside a single SSE event frame
-          let dataLines: string[] = [];
+          const dataLines: string[] = [];
 
           for (const rawLine of frame.split(/\r?\n/)) {
             if (!rawLine) continue;
@@ -910,9 +877,7 @@ async function* fetchSse(params: {
 
             if (rawLine.startsWith(SSE_DATA_PREFIX)) {
               // Keep leading space after "data:" if present per spec
-              const line = rawLine
-                .slice(SSE_DATA_PREFIX.length)
-                .replace(/^\s/, "");
+              const line = rawLine.slice(SSE_DATA_PREFIX.length).replace(/^\s/, "");
               dataLines.push(line);
             }
             // Optionally handle event:, id:, retry: here if you need them
@@ -927,7 +892,9 @@ async function* fetchSse(params: {
     } finally {
       try {
         await reader.cancel();
-      } catch {}
+      } catch {
+        // ignore error
+      }
       abortController.abort();
     }
   } finally {
@@ -969,8 +936,8 @@ async function ensureSuccessfulResponse(response: Response, message: string) {
       response.status >= 500
         ? ReplaneErrorCode.ServerError
         : response.status >= 400
-        ? ReplaneErrorCode.ClientError
-        : ReplaneErrorCode.Unknown;
+          ? ReplaneErrorCode.ClientError
+          : ReplaneErrorCode.Unknown;
 
     throw new ReplaneError({
       message: `Fetch response isn't successful (${message}): ${response.status} ${response.statusText} - ${body}`,

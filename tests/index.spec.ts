@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { createInMemoryReplaneClient, ReplaneError } from "../src";
 
 describe("ReplaneError", () => {
@@ -42,9 +42,7 @@ describe("In-memory client", () => {
     expect(watcher.getValue()).toBe(42);
 
     watcher.close();
-    expect(() => watcher.getValue()).toThrowError(
-      "Config value watcher is closed"
-    );
+    expect(() => watcher.getValue()).toThrowError("Config value watcher is closed");
 
     client.close();
   });
@@ -64,17 +62,11 @@ describe("In-memory client", () => {
     client.close();
 
     // Both watchers should be closed
-    expect(() => watcherA.getValue()).toThrowError(
-      "Config value watcher is closed"
-    );
-    expect(() => watcherB.getValue()).toThrowError(
-      "Config value watcher is closed"
-    );
+    expect(() => watcherA.getValue()).toThrowError("Config value watcher is closed");
+    expect(() => watcherB.getValue()).toThrowError("Config value watcher is closed");
 
     // New watchers can't be created
-    await expect(client.watchConfig("a")).rejects.toThrow(
-      "Replane client is closed"
-    );
+    await expect(client.watchConfig("a")).rejects.toThrow("Replane client is closed");
   });
 });
 
@@ -141,9 +133,7 @@ describe("Client lifecycle", () => {
 
     client.close();
 
-    await expect(client.watchConfig("test")).rejects.toThrow(
-      "Replane client is closed"
-    );
+    await expect(client.watchConfig("test")).rejects.toThrow("Replane client is closed");
   });
 
   it("allows multiple watchers for same config", async () => {
