@@ -22,7 +22,8 @@ interface PropertyCondition {
 interface SegmentationCondition {
   operator: "segmentation";
   property: string;
-  percentage: number;
+  fromPercentage: number;
+  toPercentage: number;
   seed: string;
 }
 
@@ -146,7 +147,9 @@ function evaluateCondition(
       hash = ((hash << 5) - hash + hashInput.charCodeAt(i)) | 0;
     }
     const bucket = Math.abs(hash) % 100;
-    return bucket < condition.percentage ? "matched" : "not_matched";
+    return bucket >= condition.fromPercentage && bucket < condition.toPercentage
+      ? "matched"
+      : "not_matched";
   }
 
   // Property-based conditions
