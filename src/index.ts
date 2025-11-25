@@ -6,6 +6,33 @@ interface ProjectEvent {
   configName: string;
 }
 
+/**
+ * FNV-1a 32-bit hash function
+ */
+function fnv1a32(input: string): number {
+  // Convert string to bytes (UTF-8)
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(input);
+
+  // FNV-1a core
+  let hash = 0x811c9dc5 >>> 0; // 2166136261, force uint32
+
+  for (let i = 0; i < bytes.length; i++) {
+    hash ^= bytes[i]; // XOR with byte
+    hash = Math.imul(hash, 0x01000193) >>> 0; // * 16777619 mod 2^32
+  }
+
+  return hash >>> 0; // ensure unsigned 32-bit
+}
+
+/**
+ * Convert FNV-1a hash to [0, 1) for bucketing.
+ */
+function fnv1a32ToUnit(input: string): number {
+  const h = fnv1a32(input);
+  return h / 2 ** 32; // double in [0, 1)
+}
+
 interface PropertyCondition {
   operator:
     | "equals"
@@ -136,14 +163,10 @@ function evaluateCondition(
       return "unknown";
     }
 
-    // Simple hash function
+    // FNV-1a hash to bucket [0, 100)
     const hashInput = String(contextValue) + condition.seed;
-    let hash = 0;
-    for (let i = 0; i < hashInput.length; i++) {
-      hash = ((hash << 5) - hash + hashInput.charCodeAt(i)) | 0;
-    }
-    const bucket = Math.abs(hash) % 100;
-    return bucket >= condition.fromPercentage && bucket < condition.toPercentage
+    const unitValue = fnv1a32ToUnit(hashInput);
+    return unitValue >= condition.fromPercentage / 100 && unitValue < condition.toPercentage / 100
       ? "matched"
       : "not_matched";
   }
