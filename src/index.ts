@@ -4,6 +4,9 @@ interface ProjectEvent {
   type: (typeof PROJECT_EVENT_TYPES)[number];
   configId: string;
   configName: string;
+  renderedOverrides: RenderedOverride[];
+  version: number;
+  value: unknown;
 }
 
 /**
@@ -274,19 +277,26 @@ function castToContextType(expectedValue: unknown, contextValue: unknown): unkno
   return expectedValue;
 }
 
-interface GetProjectEventsReplaneStorageOptions extends ReplaneFinalOptions {
+interface GetProjectEventsReplaneStorageOptions<T extends Configs> extends ReplaneFinalOptions<T> {
   signal?: AbortSignal;
   onConnect?: () => void;
 }
 
-interface GetConfigReplaneStorageOptions extends ReplaneFinalOptions {
-  configName: string;
+interface GetProjectConfigsReplaneStorageOptions<T extends Configs> extends ReplaneFinalOptions<T> {
   signal?: AbortSignal;
 }
 
-interface ReplaneStorage {
-  getProjectEvents(options: GetProjectEventsReplaneStorageOptions): AsyncIterable<ProjectEvent>;
-  getConfig<T>(options: GetConfigReplaneStorageOptions): Promise<Config<T> | null>;
+type Configs = object;
+
+type InferProjectConfig<T extends Configs> = {
+  [K in keyof T]: Config<T[K]>;
+}[keyof T];
+
+interface ReplaneStorage<T extends Configs> {
+  getProjectEvents(options: GetProjectEventsReplaneStorageOptions<T>): AsyncIterable<ProjectEvent>;
+  getProjectConfigs(
+    options: GetProjectConfigsReplaneStorageOptions<T>
+  ): Promise<Array<InferProjectConfig<T>>>;
   close(): void;
 }
 
@@ -359,11 +369,11 @@ async function retry<T>(
   });
 }
 
-class ReplaneRemoteStorage implements ReplaneStorage {
+class ReplaneRemoteStorage<T extends Configs> implements ReplaneStorage<T> {
   private closeController = new AbortController();
 
   async *getProjectEvents(
-    options: GetProjectEventsReplaneStorageOptions
+    options: GetProjectEventsReplaneStorageOptions<T>
   ): AsyncIterable<ProjectEvent> {
     const { signal, cleanUpSignals } = combineAbortSignals([
       this.closeController.signal,
@@ -401,7 +411,7 @@ class ReplaneRemoteStorage implements ReplaneStorage {
   }
 
   private async *getProjectEventsInternal(
-    options: GetProjectEventsReplaneStorageOptions
+    options: GetProjectEventsReplaneStorageOptions<T>
   ): AsyncIterable<ProjectEvent> {
     const rawEvents = fetchSse({
       fetchFn: options.fetchFn,
@@ -428,14 +438,13 @@ class ReplaneRemoteStorage implements ReplaneStorage {
     }
   }
 
-  async getConfig<T>(options: GetConfigReplaneStorageOptions): Promise<Config<T> | null> {
+  async getProjectConfigs(
+    options: GetProjectConfigsReplaneStorageOptions<T>
+  ): Promise<Array<InferProjectConfig<T>>> {
     return await retry(
       async () => {
         try {
-          const url = this.getApiEndpoint(
-            `/v1/configs/${encodeURIComponent(options.configName)}`,
-            options
-          );
+          const url = this.getApiEndpoint(`/v1/configs`, options);
           const response = await fetchWithTimeout(
             url,
             {
@@ -452,15 +461,15 @@ class ReplaneRemoteStorage implements ReplaneStorage {
             options.fetchFn
           );
 
-          await ensureSuccessfulResponse(response, `Config ${options.configName}`);
+          await ensureSuccessfulResponse(response, `Project configs`);
 
-          return (await response.json()) as Config<T>;
+          return ((await response.json()) as { items: Array<InferProjectConfig<T>> }).items;
         } catch (e) {
           if (e instanceof ReplaneError) {
             throw e;
           }
           throw new ReplaneError({
-            message: `Network error fetching config "${options.configName}": ${e}`,
+            message: `Network error fetching project configs: ${e}`,
             code: ReplaneErrorCode.NetworkError,
             cause: e,
           });
@@ -470,7 +479,7 @@ class ReplaneRemoteStorage implements ReplaneStorage {
         delayMs: options.retryDelayMs,
         retries: options.retries,
         logger: options.logger,
-        name: `fetch ${options.configName}`,
+        name: `fetch project configs`,
         isRetryable: (e) => {
           if (e instanceof ReplaneError) {
             return (
@@ -491,24 +500,24 @@ class ReplaneRemoteStorage implements ReplaneStorage {
     this.closeController.abort();
   }
 
-  private getAuthHeader(options: ReplaneFinalOptions): string {
+  private getAuthHeader(options: ReplaneFinalOptions<T>): string {
     return `Bearer ${options.apiKey}`;
   }
 
-  private getApiEndpoint(path: string, options: ReplaneFinalOptions) {
+  private getApiEndpoint(path: string, options: ReplaneFinalOptions<T>) {
     return `${options.baseUrl}/api${path}`;
   }
 }
 
-class ReplaneInMemoryStorage implements ReplaneStorage {
+class ReplaneInMemoryStorage<T extends Configs> implements ReplaneStorage<T> {
   private store: Map<string, unknown>;
   private closeController = new AbortController();
 
-  constructor(initialData: Record<string, unknown>) {
+  constructor(initialData: T) {
     this.store = new Map(Object.entries(initialData));
   }
 
-  async *getProjectEvents(options: GetProjectEventsReplaneStorageOptions) {
+  async *getProjectEvents(options: GetProjectEventsReplaneStorageOptions<T>) {
     const { signal, cleanUpSignals } = combineAbortSignals([
       options.signal,
       this.closeController.signal,
@@ -535,20 +544,13 @@ class ReplaneInMemoryStorage implements ReplaneStorage {
     }
   }
 
-  async getConfig<T>(options: GetConfigReplaneStorageOptions): Promise<Config<T> | null> {
-    if (!this.store.has(options.configName)) {
-      throw new ReplaneError({
-        message: `Config not found: ${options.configName}`,
-        code: ReplaneErrorCode.NotFound,
-      });
-    }
-    const value = this.store.get(options.configName) as T;
-    return {
-      name: options.configName,
-      value,
+  async getProjectConfigs(): Promise<Array<InferProjectConfig<T>>> {
+    return Array.from(this.store.entries()).map(([key, value]) => ({
+      name: key,
+      value: value as T[keyof T],
       overrides: [],
       version: 1,
-    };
+    }));
   }
 
   close() {
@@ -558,7 +560,7 @@ class ReplaneInMemoryStorage implements ReplaneStorage {
 
 export type ReplaneContext = Record<string, unknown>;
 
-export interface ReplaneClientOptions {
+export interface ReplaneClientOptions<T extends Configs> {
   /**
    * Base URL of the Replane API (no trailing slash).
    */
@@ -595,9 +597,25 @@ export interface ReplaneClientOptions {
    * Can be overridden per-request in `client.watchConfig()` and `watcher.getValue()`.
    */
   context?: ReplaneContext;
+
+  /**
+   * Required configs for the client.
+   * If a config is not present, the client will throw an error.
+   * @example
+   * {
+   *   requiredConfigs: {
+   *     config1: true,
+   *     config2: true,
+   *     config3: false,
+   *   },
+   * }
+   */
+  requiredConfigs?: {
+    [K in keyof T]: boolean;
+  };
 }
 
-interface ReplaneFinalOptions {
+interface ReplaneFinalOptions<T extends Configs> {
   baseUrl: string;
   fetchFn: typeof fetch;
   timeoutMs: number;
@@ -606,6 +624,9 @@ interface ReplaneFinalOptions {
   retries: number;
   retryDelayMs: number;
   context: ReplaneContext;
+  requiredConfigs?: {
+    [K in keyof T]: boolean;
+  };
 }
 
 export interface ReplaneLogger {
@@ -615,7 +636,7 @@ export interface ReplaneLogger {
   error(...args: unknown[]): void;
 }
 
-export interface WatchConfigOptions {
+export interface GetConfigOptions {
   /**
    * Context for override evaluation (merged with client-level context).
    */
@@ -629,12 +650,9 @@ export interface ConfigWatcher<T> {
   close(): void;
 }
 
-export interface ReplaneClient {
-  /** Watch a config by its name. */
-  watchConfig<T = unknown>(
-    configName: string,
-    options?: WatchConfigOptions
-  ): Promise<ConfigWatcher<T>>;
+export interface ReplaneClient<T extends Configs> {
+  /** Get a config by its name. */
+  getConfig<K extends keyof T>(configName: K, options?: GetConfigOptions): T[K];
   /** Close the client and clean up resources. */
   close(): void;
 }
@@ -664,9 +682,11 @@ export class ReplaneError extends Error {
  *   const client = createReplaneClient({ apiKey: 'your-api-key', baseUrl: 'https://app.replane.dev' })
  *   const value = await client.getConfig('my-config')
  */
-export function createReplaneClient(sdkOptions: ReplaneClientOptions): ReplaneClient {
-  const storage = new ReplaneRemoteStorage();
-  return _createReplaneClient(sdkOptions, storage);
+export async function createReplaneClient<T extends Configs = Record<string, unknown>>(
+  sdkOptions: ReplaneClientOptions<T>
+): Promise<ReplaneClient<T>> {
+  const storage = new ReplaneRemoteStorage<T>();
+  return await _createReplaneClient(combineOptions(sdkOptions, {}), storage);
 }
 
 /**
@@ -675,118 +695,146 @@ export function createReplaneClient(sdkOptions: ReplaneClientOptions): ReplaneCl
  *   const client = createInMemoryReplaneClient({ 'my-config': 123 })
  *   const value = await client.getConfigValue('my-config') // 123
  */
-export function createInMemoryReplaneClient(initialData: Record<string, unknown>): ReplaneClient {
-  const storage = new ReplaneInMemoryStorage(initialData);
-  return _createReplaneClient(
-    { apiKey: "test-api-key", baseUrl: "https://app.replane.dev" },
+export async function createInMemoryReplaneClient<T extends Configs = Record<string, unknown>>(
+  initialData: T
+): Promise<ReplaneClient<T>> {
+  const storage = new ReplaneInMemoryStorage<T>(initialData);
+  return await _createReplaneClient(
+    combineOptions({ apiKey: "test-api-key", baseUrl: "https://app.replane.dev" }, {}),
     storage
   );
 }
 
-function _createReplaneClient(
-  sdkOptions: ReplaneClientOptions,
-  storage: ReplaneStorage
-): ReplaneClient {
+async function _createReplaneClient<T extends Configs = Record<string, unknown>>(
+  sdkOptions: ReplaneFinalOptions<T>,
+  storage: ReplaneStorage<T>
+): Promise<ReplaneClient<T>> {
   if (!sdkOptions.apiKey) throw new Error("API key is required");
 
   const events = Subject.fromAsyncIterable(
-    storage.getProjectEvents(combineOptions(sdkOptions, {}))
+    storage.getProjectEvents(combineOptions<T>(sdkOptions, {}))
   );
 
-  const watchers = new Set<ConfigWatcher<unknown>>();
+  let configs = await storage
+    .getProjectConfigs(combineOptions(sdkOptions, {}))
+    .then((configs) => new Map(configs.map((config) => [config.name, config])));
 
-  async function watchConfig<T = unknown>(
-    configName: string,
-    originalOptions: WatchConfigOptions = {}
-  ): Promise<ConfigWatcher<T>> {
-    const options = combineOptions(sdkOptions, originalOptions);
+  const requiredConfigs = new Set(
+    Object.entries(sdkOptions.requiredConfigs ?? {})
+      .filter(([_, value]) => value)
+      .map(([key]) => key)
+  );
 
-    // Fetch initial value
-    const config = await storage.getConfig<T>({
-      ...options,
-      configName,
+  function getMissingConfigs(configs: Map<string, InferProjectConfig<T>>) {
+    return Array.from(requiredConfigs).filter((configName) => !configs.has(configName));
+  }
+
+  const missingConfigs = getMissingConfigs(configs);
+  if (missingConfigs.length > 0) {
+    throw new ReplaneError({
+      message: `Required configs not found: ${missingConfigs.join(", ")}`,
+      code: ReplaneErrorCode.NotFound,
     });
+  }
 
-    if (!config) {
+  const REFRESH_CONFIGS_INTERVAL_MS = 60_000;
+
+  async function refreshConfigs() {
+    try {
+      const oldConfigs = configs;
+      configs = await storage
+        .getProjectConfigs(combineOptions<T>(sdkOptions, {}))
+        .then((configs) => new Map(configs.map((config) => [config.name, config])));
+
+      const missingConfigs = getMissingConfigs(configs);
+      if (missingConfigs.length > 0) {
+        sdkOptions.logger.warn(
+          "Replane: required configs not found, refreshing configs. Missing configs:",
+          missingConfigs
+        );
+      }
+
+      for (const configName of missingConfigs) {
+        configs.set(configName, oldConfigs.get(configName)!);
+      }
+    } catch (error) {
+      sdkOptions.logger.error("Replane: error refreshing configs:", error);
+    } finally {
+      timeoutId = setTimeout(refreshConfigs, REFRESH_CONFIGS_INTERVAL_MS);
+    }
+  }
+
+  let timeoutId = setTimeout(refreshConfigs, REFRESH_CONFIGS_INTERVAL_MS);
+
+  const unsubscribeFromEvents = events.subscribe({
+    next: (event) => {
+      if (event.type === "created") {
+        configs.set(event.configName, {
+          name: event.configName,
+          overrides: event.renderedOverrides,
+          version: event.version,
+          value: event.value as T[keyof T],
+        });
+      } else if (event.type === "updated") {
+        configs.set(event.configName, {
+          name: event.configName,
+          overrides: event.renderedOverrides,
+          version: event.version,
+          value: event.value as T[keyof T],
+        });
+      } else if (event.type === "deleted") {
+        if (requiredConfigs.has(event.configName)) {
+          sdkOptions.logger.warn(
+            "Replane: required config deleted. Deleted config name:",
+            event.configName
+          );
+        } else {
+          configs.delete(event.configName);
+        }
+      } else {
+        sdkOptions.logger.warn(
+          "Replane: unknown event type in event stream (upgrade the SDK to handle this event type):",
+          event
+        );
+      }
+    },
+    complete: () => {
+      // nothing to do
+    },
+    throw: (err) => {
+      sdkOptions.logger.error("Replane: event stream error:", err);
+    },
+  });
+
+  function getConfig<K extends keyof T>(
+    configName: K,
+    getConfigOptions: GetConfigOptions = {}
+  ): T[K] {
+    const config = configs.get(String(configName));
+
+    if (config === undefined) {
       throw new ReplaneError({
-        message: `Config not found: ${configName}`,
+        message: `Config not found: ${String(configName)}`,
         code: ReplaneErrorCode.NotFound,
       });
     }
 
-    let currentConfig = config;
-    let isWatcherClosed = false;
+    const options = combineOptions(sdkOptions, getConfigOptions);
 
-    const updater = new Debouncer({
-      name: "ReplaneConfigWatcherDebouncer",
-      onError: (err) => {
-        options.logger.error(`ReplaneConfigWatcherWorker error: ${err}`);
-      },
-      task: async () => {
-        const config = await storage.getConfig<T>({
-          ...options,
-          configName,
-        });
-
-        if (!config) {
-          throw new ReplaneError({
-            message: `Config not found: ${configName}`,
-            code: ReplaneErrorCode.NotFound,
-          });
-        }
-
-        currentConfig = config;
-      },
-    });
-
-    // we periodically refresh the config value in case events are missed
-    const intervalId = setInterval(async () => {
-      updater.run();
-    }, 60_000);
-    const unsubscribeFromEvents = events.subscribe({
-      next: (event) => {
-        if (event.configName !== configName) return;
-        updater.run();
-      },
-      complete: () => {
-        // nothing to do
-      },
-      throw: (err) => {
-        options.logger.error("ReplaneConfigWatcherWorker event stream error:", err);
-      },
-    });
-
-    const watcher: ConfigWatcher<T> = {
-      getValue(context: ReplaneContext = {}) {
-        if (isWatcherClosed) {
-          throw new Error("Config value watcher is closed");
-        }
-        try {
-          return evaluateOverrides<T>(
-            currentConfig.value,
-            currentConfig.overrides,
-            { ...options.context, ...context },
-            options.logger
-          );
-        } catch (err) {
-          options.logger.error(`ReplaneConfigWatcherWorker error: ${err}`);
-          return currentConfig.value;
-        }
-      },
-      close() {
-        if (isWatcherClosed) return;
-        isWatcherClosed = true;
-
-        clearInterval(intervalId);
-        watchers.delete(watcher);
-        unsubscribeFromEvents();
-        updater.stop();
-      },
-    };
-
-    watchers.add(watcher);
-
-    return watcher;
+    try {
+      return evaluateOverrides<T[K]>(
+        config.value as T[K],
+        config.overrides,
+        options.context,
+        options.logger
+      );
+    } catch (error) {
+      options.logger.error(
+        `Replane: error evaluating overrides for config ${String(configName)}:`,
+        error
+      );
+      return config.value as T[K];
+    }
   }
 
   let isClientClosed = false;
@@ -795,25 +843,27 @@ function _createReplaneClient(
     if (isClientClosed) return;
     isClientClosed = true;
 
-    watchers.forEach((w) => w.close());
+    clearTimeout(timeoutId);
+    unsubscribeFromEvents();
+
     storage.close();
   }
 
   return {
-    watchConfig: async (name, options) => {
+    getConfig: (configName, getConfigOptions) => {
       if (isClientClosed) {
         throw new Error("Replane client is closed");
       }
-      return await watchConfig(name, options);
+      return getConfig(configName, getConfigOptions);
     },
     close,
   };
 }
 
-function combineOptions(
-  defaults: ReplaneClientOptions,
-  overrides: Partial<ReplaneClientOptions>
-): ReplaneFinalOptions {
+function combineOptions<T extends Configs>(
+  defaults: ReplaneClientOptions<T>,
+  overrides: Partial<ReplaneClientOptions<T>>
+): ReplaneFinalOptions<T> {
   return {
     apiKey: overrides.apiKey ?? defaults.apiKey,
     baseUrl: (overrides.baseUrl ?? defaults.baseUrl).replace(/\/+$/, ""),
@@ -830,6 +880,7 @@ function combineOptions(
       ...(defaults.context ?? {}),
       ...(overrides.context ?? {}),
     },
+    requiredConfigs: overrides.requiredConfigs ?? defaults.requiredConfigs,
   };
 }
 
@@ -1073,60 +1124,6 @@ class Subject<T> implements Observable<T>, Observer<T> {
   private ensureActive() {
     if (this.isComplete) {
       throw new Error("Subject already completed");
-    }
-  }
-}
-
-interface DebouncerOptions {
-  name: string;
-  task: () => Promise<void>;
-  onError: (err: unknown) => void;
-}
-
-class Debouncer {
-  private stopped = false;
-  private running = false;
-  private rescheduleRequested = false;
-
-  readonly name: string;
-
-  constructor(private readonly options: DebouncerOptions) {
-    this.name = options.name;
-  }
-
-  stop() {
-    this.stopped = true;
-  }
-
-  run() {
-    if (this.stopped) {
-      throw new Error(`Debouncer ${this.options.name} is stopped`);
-    }
-    if (this.running) {
-      this.rescheduleRequested = true;
-      return;
-    }
-    this.runInternal();
-  }
-
-  private async runInternal() {
-    if (this.running || this.stopped) {
-      return;
-    }
-
-    this.running = true;
-    this.rescheduleRequested = false;
-
-    try {
-      await this.options.task();
-    } catch (err) {
-      this.options.onError(err);
-    } finally {
-      this.running = false;
-    }
-
-    if (this.rescheduleRequested) {
-      this.runInternal();
     }
   }
 }
