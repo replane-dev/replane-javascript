@@ -613,6 +613,22 @@ export interface ReplaneClientOptions<T extends Configs> {
   requiredConfigs?: {
     [K in keyof T]: boolean;
   };
+
+  /**
+   * Fallback configs to use if the initial request to fetch configs fails.
+   * Explicit undefined value must be used to indicate that there is no fallback value for this config. This makes sure you don't forget to provide a fallback value for all configs.
+   * @example
+   * {
+   *   fallbackConfigs: {
+   *     config1: "value1",
+   *     config2: 42,
+   *     config3: undefined, // undefined means the is no fallback value for this config
+   *   },
+   * }
+   */
+  fallbackConfigs?: {
+    [K in keyof T]: T[K] | undefined;
+  };
 }
 
 interface ReplaneFinalOptions<T extends Configs> {
@@ -626,6 +642,9 @@ interface ReplaneFinalOptions<T extends Configs> {
   context: ReplaneContext;
   requiredConfigs?: {
     [K in keyof T]: boolean;
+  };
+  fallbackConfigs?: {
+    [K in keyof T]: T[K] | undefined;
   };
 }
 
@@ -715,9 +734,47 @@ async function _createReplaneClient<T extends Configs = Record<string, unknown>>
     storage.getProjectEvents(combineOptions<T>(sdkOptions, {}))
   );
 
+  function enrichWithFallbackConfigs(configs: Map<string, InferProjectConfig<T>>) {
+    const result = new Map<string, InferProjectConfig<T>>(configs);
+    for (const [key, value] of Object.entries(sdkOptions.fallbackConfigs ?? {})) {
+      if (value !== undefined) {
+        result.set(key, {
+          name: key,
+          value: value as T[keyof T],
+          overrides: [],
+          version: -1, // -1 means the config is a fallback config
+        });
+      }
+    }
+
+    return result;
+  }
+
   let configs = await storage
     .getProjectConfigs(combineOptions(sdkOptions, {}))
-    .then((configs) => new Map(configs.map((config) => [config.name, config])));
+    .then((configs) => {
+      const remoteConfigs = new Map<string, InferProjectConfig<T>>(
+        configs.map((config) => [config.name, config])
+      );
+      return enrichWithFallbackConfigs(remoteConfigs);
+    })
+    .catch((error) => {
+      if (!sdkOptions.fallbackConfigs) {
+        throw error;
+      }
+
+      return new Map<string, InferProjectConfig<T>>(
+        Object.entries(sdkOptions.fallbackConfigs).map(([key, value]) => [
+          key,
+          {
+            name: key,
+            value: value as T[keyof T],
+            overrides: [],
+            version: -1, // -1 means the config is a fallback config
+          },
+        ])
+      );
+    });
 
   const requiredConfigs = new Set(
     Object.entries(sdkOptions.requiredConfigs ?? {})
@@ -745,6 +802,7 @@ async function _createReplaneClient<T extends Configs = Record<string, unknown>>
       configs = await storage
         .getProjectConfigs(combineOptions<T>(sdkOptions, {}))
         .then((configs) => new Map(configs.map((config) => [config.name, config])));
+      configs = enrichWithFallbackConfigs(configs);
 
       const missingConfigs = getMissingConfigs(configs);
       if (missingConfigs.length > 0) {

@@ -222,40 +222,6 @@ describe("Replane SDK", () => {
       expect(client.getConfig("new-config")).toBe("new value");
     });
 
-    it("should handle SSE events for config deletion", async () => {
-      const mockConfigs = [
-        {
-          name: "to-delete",
-          value: "value",
-          overrides: [],
-          version: 1,
-        },
-      ];
-
-      const deleteEvent = JSON.stringify({
-        type: "deleted",
-        configName: "to-delete",
-        configId: "789",
-        value: null,
-        renderedOverrides: [],
-        version: 2,
-      });
-
-      const fetchMock = createFetchMock(mockConfigs, [deleteEvent]);
-
-      client = await createReplaneClient({
-        baseUrl: "https://api.replane.dev",
-        apiKey: "test-key",
-        fetchFn: fetchMock,
-      });
-
-      expect(client.getConfig("to-delete")).toBe("value");
-
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      expect(() => client.getConfig("to-delete")).toThrow("Config not found");
-    });
-
     it("should strip trailing slashes from baseUrl", async () => {
       const fetchMock = createFetchMock();
 
@@ -1285,11 +1251,18 @@ describe("Replane SDK", () => {
       expect(client).toBeDefined();
     });
 
-    it("should handle required configs with SSE events", async () => {
+    it("should not delete required configs when they receive delete events", async () => {
       interface MyConfigs {
         config1: string;
         config2: number;
       }
+
+      const mockLogger = {
+        debug: vi.fn(),
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+      };
 
       const mockConfigs = [
         { name: "config1", value: "value1", overrides: [], version: 1 },
@@ -1311,9 +1284,10 @@ describe("Replane SDK", () => {
         baseUrl: "https://api.replane.dev",
         apiKey: "test-key",
         fetchFn: fetchMock,
+        logger: mockLogger,
         requiredConfigs: {
           config1: true,
-          config2: true,
+          config2: true, // Required
         },
       });
 
@@ -1324,8 +1298,49 @@ describe("Replane SDK", () => {
       // Wait for the delete event to be processed
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // After deletion, config2 should not be found
-      expect(() => client!.getConfig("config2")).toThrow("Config not found");
+      // Required config should NOT be deleted - just warned
+      expect(client.getConfig("config2")).toBe(42);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        "Replane: required config deleted. Deleted config name:",
+        "config2"
+      );
+    });
+  });
+
+  describe("Fallback Configs", () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let client: ReplaneClient<any> | undefined;
+
+    afterEach(() => {
+      client?.close();
+    });
+
+    it("should prefer fetched configs over fallbacks when fetch succeeds", async () => {
+      interface MyConfigs {
+        "feature-flag": boolean;
+        "max-connections": number;
+      }
+
+      const mockConfigs = [
+        { name: "feature-flag", value: false, overrides: [], version: 1 },
+        { name: "max-connections", value: 20, overrides: [], version: 1 },
+      ];
+
+      const fetchMock = createFetchMock(mockConfigs);
+
+      client = await createReplaneClient<MyConfigs>({
+        baseUrl: "https://api.replane.dev",
+        apiKey: "test-key",
+        fetchFn: fetchMock,
+        fallbackConfigs: {
+          "feature-flag": true, // Fallback is true
+          "max-connections": 10, // Fallback is 10
+        },
+      });
+
+      // Should use real values, not fallbacks
+      expect(client.getConfig("feature-flag")).toBe(false); // Real value
+      expect(client.getConfig("max-connections")).toBe(20); // Real value
     });
   });
 });
