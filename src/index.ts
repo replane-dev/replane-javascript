@@ -1,13 +1,25 @@
-const PROJECT_EVENT_TYPES = ["created", "updated", "deleted"] as const;
+const PROJECT_EVENT_TYPES = ["config_created", "config_updated", "config_deleted"] as const;
 
-interface ProjectEvent {
-  type: (typeof PROJECT_EVENT_TYPES)[number];
-  configId: string;
-  configName: string;
-  renderedOverrides: RenderedOverride[];
-  version: number;
-  value: unknown;
-}
+type ProjectEvent =
+  | {
+      type: "config_created";
+      configName: string;
+      overrides: RenderedOverride[];
+      version: number;
+      value: unknown;
+    }
+  | {
+      type: "config_updated";
+      configName: string;
+      overrides: RenderedOverride[];
+      version: number;
+      value: unknown;
+    }
+  | {
+      type: "config_deleted";
+      configName: string;
+      version: number;
+    };
 
 /**
  * FNV-1a 32-bit hash function
@@ -826,21 +838,21 @@ async function _createReplaneClient<T extends Configs = Record<string, unknown>>
 
   const unsubscribeFromEvents = events.subscribe({
     next: (event) => {
-      if (event.type === "created") {
+      if (event.type === "config_created") {
         configs.set(event.configName, {
           name: event.configName,
-          overrides: event.renderedOverrides,
+          overrides: event.overrides,
           version: event.version,
           value: event.value as T[keyof T],
         });
-      } else if (event.type === "updated") {
+      } else if (event.type === "config_updated") {
         configs.set(event.configName, {
           name: event.configName,
-          overrides: event.renderedOverrides,
+          overrides: event.overrides,
           version: event.version,
           value: event.value as T[keyof T],
         });
-      } else if (event.type === "deleted") {
+      } else if (event.type === "config_deleted") {
         if (requiredConfigs.has(event.configName)) {
           sdkOptions.logger.warn(
             "Replane: required config deleted. Deleted config name:",
