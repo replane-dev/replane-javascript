@@ -177,7 +177,7 @@ describe("Replane SDK", () => {
       ];
 
       const updateEvent = JSON.stringify({
-        type: "updated",
+        type: "config_updated",
         configName: "feature-flag",
         configId: "123",
         value: true,
@@ -201,7 +201,7 @@ describe("Replane SDK", () => {
 
     it("should handle SSE events for config creation", async () => {
       const createEvent = JSON.stringify({
-        type: "created",
+        type: "config_created",
         configName: "new-config",
         configId: "456",
         value: "new value",
@@ -855,7 +855,7 @@ describe("Replane SDK", () => {
 
     it("should handle multiline SSE data", async () => {
       const event = {
-        type: "created",
+        type: "config_created",
         configName: "test",
         configId: "123",
         value: "test value",
@@ -907,7 +907,7 @@ describe("Replane SDK", () => {
 
     it("should ignore SSE comments", async () => {
       const event = JSON.stringify({
-        type: "created",
+        type: "config_created",
         configName: "test",
         configId: "123",
         value: "value",
@@ -954,7 +954,7 @@ describe("Replane SDK", () => {
 
     it("should handle SSE with \\r\\n line endings", async () => {
       const event = JSON.stringify({
-        type: "created",
+        type: "config_created",
         configName: "test",
         configId: "123",
         value: "value",
@@ -1270,7 +1270,7 @@ describe("Replane SDK", () => {
       ];
 
       const deleteEvent = JSON.stringify({
-        type: "deleted",
+        type: "config_deleted",
         configName: "config2",
         configId: "123",
         value: null,
