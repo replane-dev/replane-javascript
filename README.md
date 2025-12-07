@@ -29,7 +29,7 @@ yarn add replane-sdk
 
 ## Quick start
 
-> **Important:** Each API key is tied to a specific project. The client can only access configs from the project that the API key belongs to. If you need configs from multiple projects, create separate API keys and initialize separate clients—one per project.
+> **Important:** Each SDK key is tied to a specific project. The client can only access configs from the project that the SDK key belongs to. If you need configs from multiple projects, create separate SDK keys and initialize separate clients—one per project.
 
 ```ts
 import { createReplaneClient } from "replane-sdk";
@@ -47,9 +47,9 @@ interface PasswordRequirements {
 }
 
 const client = await createReplaneClient<Configs>({
-  // Each API key belongs to one project only
-  apiKey: process.env.REPLANE_API_KEY!,
-  baseUrl: "https://api.my-replane-host.com",
+  // Each SDK key belongs to one project only
+  sdkKey: process.env.REPLANE_SDK_KEY!,
+  baseUrl: "https://replane.my-hosting.com",
 });
 
 // Get a config value (knows about latest updates via SSE)
@@ -94,8 +94,8 @@ Type parameter `T` defines the shape of your configs (a mapping of config names 
 
 #### Options
 
-- `baseUrl` (string) – API origin (no trailing slash needed).
-- `apiKey` (string) – API key for authorization. Required. **Note:** Each API key is tied to a specific project and can only access configs from that project. To access configs from multiple projects, create multiple API keys and initialize separate client instances.
+- `baseUrl` (string) – Replane origin (no trailing slash needed).
+- `sdkKey` (string) – SDK key for authorization. Required. **Note:** Each SDK key is tied to a specific project and can only access configs from that project. To access configs from multiple projects, create multiple SDK keys and initialize separate client instances.
 - `requiredConfigs` (object) – mark specific configs as required. If any required config is missing, the client will throw an error during initialization. Optional.
 - `fallbackConfigs` (object) – fallback values to use if the initial request to fetch configs fails. Allows the client to start even when the API is unavailable. Use explicit `undefined` for configs without fallbacks. Optional.
 - `context` (object) – default context for all config evaluations. Can be overridden per-request in `getConfig()`. Optional.
@@ -133,8 +133,8 @@ interface Configs {
 }
 
 const client = await createReplaneClient<Configs>({
-  apiKey: "your-api-key",
-  baseUrl: "https://api.my-replane-host.com",
+  sdkKey: "your-sdk-key",
+  baseUrl: "https://replane.my-host.com",
 });
 
 // Get value without context - TypeScript knows this is boolean
@@ -224,8 +224,8 @@ interface Configs {
 }
 
 const client = await createReplaneClient<Configs>({
-  apiKey: process.env.REPLANE_API_KEY!,
-  baseUrl: "https://api.my-replane-host.com",
+  sdkKey: process.env.REPLANE_SDK_KEY!,
+  baseUrl: "https://replane.my-host.com",
 });
 
 const layout = client.getConfig("layout"); // TypeScript knows this is LayoutConfig
@@ -240,8 +240,8 @@ interface Configs {
 }
 
 const client = await createReplaneClient<Configs>({
-  apiKey: process.env.REPLANE_API_KEY!,
-  baseUrl: "https://api.my-replane-host.com",
+  sdkKey: process.env.REPLANE_SDK_KEY!,
+  baseUrl: "https://replane.my-host.com",
 });
 
 // Config has base value `false` but override: if `plan === "premium"` then `true`
@@ -265,8 +265,8 @@ interface Configs {
 }
 
 const client = await createReplaneClient<Configs>({
-  apiKey: process.env.REPLANE_API_KEY!,
-  baseUrl: "https://api.my-replane-host.com",
+  sdkKey: process.env.REPLANE_SDK_KEY!,
+  baseUrl: "https://replane.my-host.com",
   context: {
     userId: "user-123",
     region: "us-east",
@@ -284,7 +284,7 @@ const value2 = client.getConfig("feature-flag", {
 
 ```ts
 const client = await createReplaneClient({
-  apiKey: "TKN",
+  sdkKey: "TKN",
   baseUrl: "https://api",
   fetchFn: mockFetch,
 });
@@ -300,8 +300,8 @@ interface Configs {
 }
 
 const client = await createReplaneClient<Configs>({
-  apiKey: process.env.REPLANE_API_KEY!,
-  baseUrl: "https://api.my-replane-host.com",
+  sdkKey: process.env.REPLANE_SDK_KEY!,
+  baseUrl: "https://replane.my-host.com",
   requiredConfigs: {
     "api-key": true,
     "database-url": true,
@@ -323,8 +323,8 @@ interface Configs {
 }
 
 const client = await createReplaneClient<Configs>({
-  apiKey: process.env.REPLANE_API_KEY!,
-  baseUrl: "https://api.my-replane-host.com",
+  sdkKey: process.env.REPLANE_SDK_KEY!,
+  baseUrl: "https://replane.my-host.com",
   fallbackConfigs: {
     "feature-flag": false, // Use false if fetch fails
     "max-connections": 10, // Use 10 if fetch fails
@@ -350,15 +350,15 @@ interface ProjectBConfigs {
   "api-rate-limit": number;
 }
 
-// Each project needs its own API key and client instance
+// Each project needs its own SDK key and client instance
 const projectAClient = await createReplaneClient<ProjectAConfigs>({
-  apiKey: process.env.PROJECT_A_API_KEY!,
-  baseUrl: "https://api.my-replane-host.com",
+  sdkKey: process.env.PROJECT_A_SDK_KEY!,
+  baseUrl: "https://replane.my-host.com",
 });
 
 const projectBClient = await createReplaneClient<ProjectBConfigs>({
-  apiKey: process.env.PROJECT_B_API_KEY!,
-  baseUrl: "https://api.my-replane-host.com",
+  sdkKey: process.env.PROJECT_B_SDK_KEY!,
+  baseUrl: "https://replane.my-host.com",
 });
 
 // Each client only accesses configs from its respective project

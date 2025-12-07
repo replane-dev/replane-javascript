@@ -513,7 +513,7 @@ class ReplaneRemoteStorage<T extends Configs> implements ReplaneStorage<T> {
   }
 
   private getAuthHeader(options: ReplaneFinalOptions<T>): string {
-    return `Bearer ${options.apiKey}`;
+    return `Bearer ${options.sdkKey}`;
   }
 
   private getApiEndpoint(path: string, options: ReplaneFinalOptions<T>) {
@@ -580,7 +580,7 @@ export interface ReplaneClientOptions<T extends Configs> {
   /**
    * Project API key for authorization.
    */
-  apiKey: string;
+  sdkKey: string;
   /**
    * Custom fetch implementation (useful for tests / polyfills).
    */
@@ -647,7 +647,7 @@ interface ReplaneFinalOptions<T extends Configs> {
   baseUrl: string;
   fetchFn: typeof fetch;
   timeoutMs: number;
-  apiKey: string;
+  sdkKey: string;
   logger: ReplaneLogger;
   retries: number;
   retryDelayMs: number;
@@ -710,7 +710,7 @@ export class ReplaneError extends Error {
 /**
  * Create a Replane client bound to an API key.
  * Usage:
- *   const client = createReplaneClient({ apiKey: 'your-api-key', baseUrl: 'https://app.replane.dev' })
+ *   const client = createReplaneClient({ sdkKey: 'your-sdk-key', baseUrl: 'https://app.replane.dev' })
  *   const value = await client.getConfig('my-config')
  */
 export async function createReplaneClient<T extends Configs = Record<string, unknown>>(
@@ -731,7 +731,7 @@ export async function createInMemoryReplaneClient<T extends Configs = Record<str
 ): Promise<ReplaneClient<T>> {
   const storage = new ReplaneInMemoryStorage<T>(initialData);
   return await _createReplaneClient(
-    combineOptions({ apiKey: "test-api-key", baseUrl: "https://app.replane.dev" }, {}),
+    combineOptions({ sdkKey: "test-sdk-key", baseUrl: "https://app.replane.dev" }, {}),
     storage
   );
 }
@@ -740,7 +740,7 @@ async function _createReplaneClient<T extends Configs = Record<string, unknown>>
   sdkOptions: ReplaneFinalOptions<T>,
   storage: ReplaneStorage<T>
 ): Promise<ReplaneClient<T>> {
-  if (!sdkOptions.apiKey) throw new Error("API key is required");
+  if (!sdkOptions.sdkKey) throw new Error("API key is required");
 
   const events = Subject.fromAsyncIterable(
     storage.getProjectEvents(combineOptions<T>(sdkOptions, {}))
@@ -935,7 +935,7 @@ function combineOptions<T extends Configs>(
   overrides: Partial<ReplaneClientOptions<T>>
 ): ReplaneFinalOptions<T> {
   return {
-    apiKey: overrides.apiKey ?? defaults.apiKey,
+    sdkKey: overrides.sdkKey ?? defaults.sdkKey,
     baseUrl: (overrides.baseUrl ?? defaults.baseUrl).replace(/\/+$/, ""),
     fetchFn:
       overrides.fetchFn ??
