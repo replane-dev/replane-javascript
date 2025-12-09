@@ -521,55 +521,6 @@ class ReplaneRemoteStorage<T extends Configs> implements ReplaneStorage<T> {
   }
 }
 
-class ReplaneInMemoryStorage<T extends Configs> implements ReplaneStorage<T> {
-  private store: Map<string, unknown>;
-  private closeController = new AbortController();
-
-  constructor(initialData: T) {
-    this.store = new Map(Object.entries(initialData));
-  }
-
-  async *getProjectEvents(options: GetProjectEventsReplaneStorageOptions<T>) {
-    const { signal, cleanUpSignals } = combineAbortSignals([
-      options.signal,
-      this.closeController.signal,
-    ]);
-
-    // suppress eslint warning about lack of explicit yield in the async generator
-    yield* [];
-
-    try {
-      if (signal.aborted) return;
-
-      signal.onabort = () => {
-        reject(new Error("getProjectEvents abort requested"));
-      };
-
-      let reject: (err: unknown) => void;
-
-      // nothing ever happens in the in memory storage
-      await new Promise((_resolve, promiseReject) => {
-        reject = promiseReject;
-      });
-    } finally {
-      cleanUpSignals();
-    }
-  }
-
-  async getProjectConfigs(): Promise<Array<InferProjectConfig<T>>> {
-    return Array.from(this.store.entries()).map(([key, value]) => ({
-      name: key,
-      value: value as T[keyof T],
-      overrides: [],
-      version: 1,
-    }));
-  }
-
-  close() {
-    this.closeController.abort();
-  }
-}
-
 export type ReplaneContext = Record<string, unknown>;
 
 export interface ReplaneClientOptions<T extends Configs> {
@@ -708,10 +659,10 @@ export class ReplaneError extends Error {
 }
 
 /**
- * Create a Replane client bound to an API key.
+ * Create a Replane client bound to an SDK key.
  * Usage:
- *   const client = createReplaneClient({ sdkKey: 'your-sdk-key', baseUrl: 'https://app.replane.dev' })
- *   const value = await client.getConfig('my-config')
+ *   const client = await createReplaneClient({ sdkKey: 'your-sdk-key', baseUrl: 'https://app.replane.dev' })
+ *   const value = client.getConfig('my-config')
  */
 export async function createReplaneClient<T extends Configs = Record<string, unknown>>(
   sdkOptions: ReplaneClientOptions<T>
@@ -724,16 +675,30 @@ export async function createReplaneClient<T extends Configs = Record<string, unk
  * Create a Replane client that uses in-memory storage.
  * Usage:
  *   const client = createInMemoryReplaneClient({ 'my-config': 123 })
- *   const value = await client.getConfigValue('my-config') // 123
+ *   const value = client.getConfig('my-config') // 123
  */
-export async function createInMemoryReplaneClient<T extends Configs = Record<string, unknown>>(
+export function createInMemoryReplaneClient<T extends Configs = Record<string, unknown>>(
   initialData: T
-): Promise<ReplaneClient<T>> {
-  const storage = new ReplaneInMemoryStorage<T>(initialData);
-  return await _createReplaneClient(
-    combineOptions({ sdkKey: "test-sdk-key", baseUrl: "https://app.replane.dev" }, {}),
-    storage
-  );
+): ReplaneClient<T> {
+  let isClosed = false;
+  return {
+    getConfig: (configName) => {
+      if (isClosed) {
+        throw new Error("Replane client is closed");
+      }
+      const config = initialData[configName];
+      if (config === undefined) {
+        throw new ReplaneError({
+          message: `Config not found: ${String(configName)}`,
+          code: ReplaneErrorCode.NotFound,
+        });
+      }
+      return config;
+    },
+    close: () => {
+      isClosed = true;
+    },
+  };
 }
 
 async function _createReplaneClient<T extends Configs = Record<string, unknown>>(
