@@ -331,10 +331,7 @@ class ReplaneRemoteStorage<T extends Configs> implements ReplaneStorage<T> {
       timeoutMs: options.timeoutMs,
       method: "GET",
       signal: options.signal,
-      url: this.getApiEndpoint(
-        `/v1/events?includeInitialConfigs=${options.includeInitialConfigs}`,
-        options
-      ),
+      url: this.getApiEndpoint(`/sdk/v1/replication/stream`, options),
       onConnect: options.onConnect,
     });
 
@@ -373,7 +370,7 @@ export interface ReplaneClientOptions<T extends Configs> {
    */
   baseUrl: string;
   /**
-   * Project API key for authorization.
+   * Project SDK key for authorization.
    */
   sdkKey: string;
   /**
