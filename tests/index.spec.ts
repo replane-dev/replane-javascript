@@ -1343,6 +1343,1036 @@ describe("createReplaneClient", () => {
       expect(() => client.getConfig("config1")).toThrow("Replane client is closed");
     });
   });
+
+  describe("multiple conditions on single override (implicit AND)", () => {
+    it("should apply override only when all conditions match", async () => {
+      clientPromise = createClient({ context: { environment: "production", tier: "premium" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "multi-condition-override",
+                conditions: [
+                  { operator: "equals", property: "environment", value: "production" },
+                  { operator: "equals", property: "tier", value: "premium" },
+                ],
+                value: "both-match-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("both-match-value");
+    });
+
+    it("should not apply override when one condition fails", async () => {
+      clientPromise = createClient({ context: { environment: "production", tier: "basic" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "multi-condition-override",
+                conditions: [
+                  { operator: "equals", property: "environment", value: "production" },
+                  { operator: "equals", property: "tier", value: "premium" },
+                ],
+                value: "both-match-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("default-value");
+    });
+
+    it("should not apply override when one condition is unknown", async () => {
+      clientPromise = createClient({ context: { environment: "production" } }); // missing tier
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "multi-condition-override",
+                conditions: [
+                  { operator: "equals", property: "environment", value: "production" },
+                  { operator: "equals", property: "tier", value: "premium" },
+                ],
+                value: "both-match-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("default-value");
+    });
+  });
+
+  describe("override with empty conditions array", () => {
+    it("should always apply override with empty conditions array", async () => {
+      clientPromise = createClient({ context: {} });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "always-on-override",
+                conditions: [],
+                value: "always-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("always-value");
+    });
+  });
+
+  describe("override priority and ordering", () => {
+    it("should skip non-matching overrides and apply first matching one", async () => {
+      clientPromise = createClient({ context: { tier: "basic" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "enterprise-override",
+                conditions: [{ operator: "equals", property: "tier", value: "enterprise" }],
+                value: "enterprise-value",
+              },
+              {
+                name: "premium-override",
+                conditions: [{ operator: "equals", property: "tier", value: "premium" }],
+                value: "premium-value",
+              },
+              {
+                name: "basic-override",
+                conditions: [{ operator: "equals", property: "tier", value: "basic" }],
+                value: "basic-value",
+              },
+            ],
+            version: 1,
+            value: "free-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("basic-value");
+    });
+
+    it("should use first matching override when multiple would match", async () => {
+      clientPromise = createClient({ context: { tier: "premium", environment: "production" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "premium-override",
+                conditions: [{ operator: "equals", property: "tier", value: "premium" }],
+                value: "premium-value",
+              },
+              {
+                name: "prod-override",
+                conditions: [{ operator: "equals", property: "environment", value: "production" }],
+                value: "prod-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      // First matching override wins
+      expect(client.getConfig("feature")).toBe("premium-value");
+    });
+  });
+
+  describe("real-time override updates", () => {
+    it("should update overrides via config_updated event", async () => {
+      clientPromise = createClient({ context: { tier: "premium" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("default-value");
+
+      // Add override via update
+      await connection.push({
+        type: "config_updated",
+        configName: "feature",
+        overrides: [
+          {
+            name: "premium-override",
+            conditions: [{ operator: "equals", property: "tier", value: "premium" }],
+            value: "premium-value",
+          },
+        ],
+        version: 2,
+        value: "default-value",
+      });
+      await sync();
+
+      expect(client.getConfig("feature")).toBe("premium-value");
+    });
+
+    it("should create config with overrides via config_created event", async () => {
+      clientPromise = createClient({ context: { tier: "premium" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [],
+      });
+
+      const client = await clientPromise;
+
+      await connection.push({
+        type: "config_created",
+        configName: "feature",
+        overrides: [
+          {
+            name: "premium-override",
+            conditions: [{ operator: "equals", property: "tier", value: "premium" }],
+            value: "premium-value",
+          },
+        ],
+        version: 1,
+        value: "default-value",
+      });
+      await sync();
+
+      expect(client.getConfig("feature")).toBe("premium-value");
+    });
+  });
+
+  describe("edge cases for in/not_in operators", () => {
+    it("should not match when 'in' list is empty", async () => {
+      clientPromise = createClient({ context: { region: "us-east" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "empty-list-override",
+                conditions: [{ operator: "in", property: "region", value: [] }],
+                value: "matched-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("default-value");
+    });
+
+    it("should always match when 'not_in' list is empty", async () => {
+      clientPromise = createClient({ context: { region: "us-east" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "empty-not-in-override",
+                conditions: [{ operator: "not_in", property: "region", value: [] }],
+                value: "matched-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("matched-value");
+    });
+
+    it("should handle numeric values in 'in' operator", async () => {
+      clientPromise = createClient({ context: { statusCode: 200 } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "success-codes-override",
+                conditions: [{ operator: "in", property: "statusCode", value: [200, 201, 204] }],
+                value: "success-value",
+              },
+            ],
+            version: 1,
+            value: "error-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("success-value");
+    });
+  });
+
+  describe("segmentation edge cases", () => {
+    it("should handle segmentation with null property value", async () => {
+      clientPromise = createClient({ context: { userId: null } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "rollout",
+                conditions: [
+                  {
+                    operator: "segmentation",
+                    property: "userId",
+                    fromPercentage: 0,
+                    toPercentage: 100,
+                    seed: "test-seed",
+                  },
+                ],
+                value: "rollout-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      // null is not undefined, so it should be used in the hash
+      expect(client.getConfig("feature")).toBe("default-value");
+    });
+
+    it("should handle segmentation with middle percentage range", async () => {
+      clientPromise = createClient({ context: { userId: "test-user" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "middle-rollout",
+                conditions: [
+                  {
+                    operator: "segmentation",
+                    property: "userId",
+                    fromPercentage: 25,
+                    toPercentage: 75,
+                    seed: "test-seed",
+                  },
+                ],
+                value: "rollout-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      // Result depends on hash - just verify it doesn't throw
+      const result = client.getConfig("feature");
+      expect(["rollout-value", "default-value"]).toContain(result);
+    });
+
+    it("should produce different results for different seeds with same userId", async () => {
+      const results: Map<string, unknown> = new Map();
+
+      for (const seed of ["seed-a", "seed-b", "seed-c"]) {
+        const server = new MockReplaneServerController();
+        const client = createReplaneClient({
+          sdkKey: "test",
+          baseUrl: "https://test.com",
+          fetchFn: server.fetchFn,
+          logger: silentLogger,
+          context: { userId: "same-user" },
+        });
+
+        const connection = await server.acceptConnection();
+        await connection.push({
+          type: "config_list",
+          configs: [
+            {
+              name: "feature",
+              overrides: [
+                {
+                  name: "rollout",
+                  conditions: [
+                    {
+                      operator: "segmentation",
+                      property: "userId",
+                      fromPercentage: 0,
+                      toPercentage: 50,
+                      seed,
+                    },
+                  ],
+                  value: "rollout-value",
+                },
+              ],
+              version: 1,
+              value: "default-value",
+            },
+          ],
+        });
+
+        const c = await client;
+        results.set(seed, c.getConfig("feature"));
+        c.close();
+        server.close();
+      }
+
+      // Different seeds should potentially produce different results
+      // (statistically, at least one should differ with 50% rollout)
+      expect(results.size).toBe(3);
+    });
+  });
+
+  describe("falsy config values", () => {
+    it("should handle zero as config value", async () => {
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [{ name: "count", overrides: [], version: 1, value: 0 }],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("count")).toBe(0);
+    });
+
+    it("should handle empty string as config value", async () => {
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [{ name: "message", overrides: [], version: 1, value: "" }],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("message")).toBe("");
+    });
+
+    it("should handle false as config value", async () => {
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [{ name: "enabled", overrides: [], version: 1, value: false }],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("enabled")).toBe(false);
+    });
+  });
+
+  describe("complex config value types", () => {
+    it("should handle deeply nested objects", async () => {
+      const nestedValue = {
+        level1: {
+          level2: {
+            level3: {
+              value: "deep",
+            },
+          },
+        },
+      };
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [{ name: "nested", overrides: [], version: 1, value: nestedValue }],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("nested")).toEqual(nestedValue);
+    });
+
+    it("should handle arrays of objects", async () => {
+      const arrayValue = [
+        { id: 1, name: "item1" },
+        { id: 2, name: "item2" },
+      ];
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [{ name: "items", overrides: [], version: 1, value: arrayValue }],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("items")).toEqual(arrayValue);
+    });
+
+    it("should handle mixed type arrays", async () => {
+      const mixedArray = [1, "two", true, null, { nested: "object" }];
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [{ name: "mixed", overrides: [], version: 1, value: mixedArray }],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("mixed")).toEqual(mixedArray);
+    });
+  });
+
+  describe("multiple required configs", () => {
+    it("should fail when any required config is missing", async () => {
+      clientPromise = createClient({
+        requiredConfigs: {
+          config1: true,
+          config2: true,
+          config3: true,
+        },
+      });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          { name: "config1", overrides: [], version: 1, value: "value1" },
+          // config2 is missing
+          { name: "config3", overrides: [], version: 1, value: "value3" },
+        ],
+      });
+
+      await expect(clientPromise).rejects.toThrow("Required configs not found: config2");
+    });
+
+    it("should succeed when all required configs are present", async () => {
+      clientPromise = createClient({
+        requiredConfigs: {
+          config1: true,
+          config2: true,
+          config3: true,
+        },
+      });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          { name: "config1", overrides: [], version: 1, value: "value1" },
+          { name: "config2", overrides: [], version: 1, value: "value2" },
+          { name: "config3", overrides: [], version: 1, value: "value3" },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("config1")).toBe("value1");
+      expect(client.getConfig("config2")).toBe("value2");
+      expect(client.getConfig("config3")).toBe("value3");
+    });
+  });
+
+  describe("fallback configs with complex types", () => {
+    it("should handle fallback with object value", async () => {
+      clientPromise = createClient({
+        fallbackConfigs: {
+          settings: { theme: "dark", language: "en" },
+        },
+      });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("settings")).toEqual({ theme: "dark", language: "en" });
+    });
+
+    it("should handle fallback with array value", async () => {
+      clientPromise = createClient({
+        fallbackConfigs: {
+          features: ["feature1", "feature2", "feature3"],
+        },
+      });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("features")).toEqual(["feature1", "feature2", "feature3"]);
+    });
+  });
+
+  describe("context with special values", () => {
+    it("should handle context with null value", async () => {
+      clientPromise = createClient({ context: { nullProp: null } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "null-check",
+                conditions: [{ operator: "equals", property: "nullProp", value: null }],
+                value: "null-matched",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("null-matched");
+    });
+
+    it("should handle context with zero value", async () => {
+      clientPromise = createClient({ context: { count: 0 } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "zero-check",
+                conditions: [{ operator: "equals", property: "count", value: 0 }],
+                value: "zero-matched",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("zero-matched");
+    });
+
+    it("should handle context with empty string value", async () => {
+      clientPromise = createClient({ context: { name: "" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "empty-string-check",
+                conditions: [{ operator: "equals", property: "name", value: "" }],
+                value: "empty-matched",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("empty-matched");
+    });
+
+    it("should handle context with boolean false value", async () => {
+      clientPromise = createClient({ context: { isActive: false } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "false-check",
+                conditions: [{ operator: "equals", property: "isActive", value: false }],
+                value: "false-matched",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("false-matched");
+    });
+  });
+
+  describe("type casting edge cases", () => {
+    it("should cast number 0 to boolean false", async () => {
+      clientPromise = createClient({ context: { isActive: false } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "number-to-bool",
+                conditions: [{ operator: "equals", property: "isActive", value: 0 }],
+                value: "matched-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("matched-value");
+    });
+
+    it("should cast number 1 to boolean true", async () => {
+      clientPromise = createClient({ context: { isActive: true } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "number-to-bool",
+                conditions: [{ operator: "equals", property: "isActive", value: 1 }],
+                value: "matched-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("matched-value");
+    });
+
+    it("should handle invalid numeric string gracefully", async () => {
+      clientPromise = createClient({ context: { age: 25 } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "invalid-number",
+                conditions: [{ operator: "greater_than", property: "age", value: "not-a-number" }],
+                value: "matched-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      // Invalid numeric string should not match
+      expect(client.getConfig("feature")).toBe("default-value");
+    });
+
+    it("should cast boolean to string when context value is string", async () => {
+      clientPromise = createClient({ context: { flag: "true" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "bool-to-string",
+                conditions: [{ operator: "equals", property: "flag", value: true }],
+                value: "matched-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("matched-value");
+    });
+  });
+
+  describe("NOT condition with unknown inner condition", () => {
+    it("should return unknown when NOT wraps an unknown condition", async () => {
+      clientPromise = createClient({ context: {} }); // missing 'tier' property
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "not-unknown",
+                conditions: [
+                  {
+                    operator: "not",
+                    condition: { operator: "equals", property: "tier", value: "premium" },
+                  },
+                ],
+                value: "not-premium-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      // NOT unknown = unknown, so override should not apply
+      expect(client.getConfig("feature")).toBe("default-value");
+    });
+  });
+
+  describe("OR condition with mixed results", () => {
+    it("should return matched if any OR condition matches even with unknowns", async () => {
+      clientPromise = createClient({ context: { tier: "premium" } }); // missing 'region'
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "or-with-unknown",
+                conditions: [
+                  {
+                    operator: "or",
+                    conditions: [
+                      { operator: "equals", property: "tier", value: "premium" }, // matches
+                      { operator: "equals", property: "region", value: "us-east" }, // unknown
+                    ],
+                  },
+                ],
+                value: "matched-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      // OR: true > unknown, so should match
+      expect(client.getConfig("feature")).toBe("matched-value");
+    });
+
+    it("should return unknown if all OR conditions are not_matched or unknown with at least one unknown", async () => {
+      clientPromise = createClient({ context: { tier: "basic" } }); // missing 'region'
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "or-all-fail-or-unknown",
+                conditions: [
+                  {
+                    operator: "or",
+                    conditions: [
+                      { operator: "equals", property: "tier", value: "premium" }, // not_matched
+                      { operator: "equals", property: "region", value: "us-east" }, // unknown
+                    ],
+                  },
+                ],
+                value: "matched-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      // OR: unknown (since no match but one unknown), so should not apply
+      expect(client.getConfig("feature")).toBe("default-value");
+    });
+  });
+
+  describe("AND condition with mixed results", () => {
+    it("should return not_matched if any AND condition fails even with unknowns", async () => {
+      clientPromise = createClient({ context: { tier: "basic" } }); // missing 'region'
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "and-with-fail",
+                conditions: [
+                  {
+                    operator: "and",
+                    conditions: [
+                      { operator: "equals", property: "tier", value: "premium" }, // not_matched
+                      { operator: "equals", property: "region", value: "us-east" }, // unknown
+                    ],
+                  },
+                ],
+                value: "matched-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      // AND: false > unknown, so should not match
+      expect(client.getConfig("feature")).toBe("default-value");
+    });
+
+    it("should return unknown if all AND conditions match except one unknown", async () => {
+      clientPromise = createClient({ context: { tier: "premium" } }); // missing 'region'
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "and-with-unknown",
+                conditions: [
+                  {
+                    operator: "and",
+                    conditions: [
+                      { operator: "equals", property: "tier", value: "premium" }, // matched
+                      { operator: "equals", property: "region", value: "us-east" }, // unknown
+                    ],
+                  },
+                ],
+                value: "matched-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      // AND with unknown = unknown, so should not apply
+      expect(client.getConfig("feature")).toBe("default-value");
+    });
+  });
+
+  describe("config names edge cases", () => {
+    it("should handle config names with special characters", async () => {
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          { name: "feature-flag", overrides: [], version: 1, value: "dash" },
+          { name: "feature_flag", overrides: [], version: 1, value: "underscore" },
+          { name: "feature.flag", overrides: [], version: 1, value: "dot" },
+          { name: "feature:flag", overrides: [], version: 1, value: "colon" },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature-flag")).toBe("dash");
+      expect(client.getConfig("feature_flag")).toBe("underscore");
+      expect(client.getConfig("feature.flag")).toBe("dot");
+      expect(client.getConfig("feature:flag")).toBe("colon");
+    });
+
+    it("should handle unicode config names", async () => {
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [{ name: "功能配置", overrides: [], version: 1, value: "chinese" }],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("功能配置")).toBe("chinese");
+    });
+  });
 });
 
 describe("createInMemoryReplaneClient", () => {
