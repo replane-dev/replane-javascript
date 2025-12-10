@@ -1,6 +1,6 @@
 {
   "name": "replane-sdk",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "Replane TypeScript SDK.",
   "type": "module",
   "license": "MIT",
