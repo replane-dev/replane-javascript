@@ -1,1346 +1,1398 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   createReplaneClient,
   createInMemoryReplaneClient,
+  ReplaneClient,
   ReplaneError,
-  type ReplaneClient,
 } from "../src/index";
+import { MockReplaneServerController } from "./utils";
+import { RenderedOverride } from "../src/types";
 
-// Helper to create a mock SSE stream that stays open
-function createMockSseStream(events: string[] = []) {
-  const encoder = new TextEncoder();
-  return new ReadableStream({
-    start(controller) {
-      for (const event of events) {
-        controller.enqueue(encoder.encode(`data:${event}\n\n`));
-      }
-      // Keep the stream open indefinitely (it will be closed when the test cleans up)
-    },
-  });
+function sync() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-// Helper to create a proper fetch mock that handles both config and SSE requests
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function createFetchMock(configs: any[] = [], sseEvents: string[] = []) {
-  const mockFetch = vi.fn();
+describe("createReplaneClient", () => {
+  let mockServer: MockReplaneServerController;
+  let clientPromise: Promise<ReplaneClient<Record<string, unknown>>>;
+  let silentLogger: ReturnType<typeof createSilentLogger>;
 
-  mockFetch.mockImplementation(async (url: string) => {
-    if (url.includes("/v1/configs")) {
-      return new Response(JSON.stringify({ items: configs }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    } else if (url.includes("/v1/events")) {
-      return new Response(createMockSseStream(sseEvents), {
-        status: 200,
-        headers: { "Content-Type": "text/event-stream" },
-      });
+  function createSilentLogger() {
+    return {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    };
+  }
+
+  beforeEach(() => {
+    mockServer = new MockReplaneServerController();
+    silentLogger = createSilentLogger();
+  });
+
+  afterEach(async () => {
+    try {
+      const client = await clientPromise;
+      client.close();
+    } catch {
+      // Client may have failed to initialize
     }
-    return new Response("Not found", { status: 404 });
+    mockServer.close();
   });
 
-  return mockFetch;
-}
-
-describe("Replane SDK", () => {
-  describe("createInMemoryReplaneClient", () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let client: ReplaneClient<any>;
-
-    afterEach(() => {
-      client?.close();
+  function createClient<T extends Record<string, unknown>>(
+    options: Partial<Parameters<typeof createReplaneClient<T>>[0]> = {}
+  ) {
+    return createReplaneClient<T>({
+      sdkKey: "test-sdk-key",
+      baseUrl: "https://replane.my-host.com",
+      fetchFn: mockServer.fetchFn,
+      logger: silentLogger,
+      ...options,
     });
+  }
 
-    it("should create a client with initial data", async () => {
-      client = await createInMemoryReplaneClient({
-        "my-config": "hello",
-        "another-config": 42,
+  describe("basic config fetching", () => {
+    it("should fetch a single config", async () => {
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "config1",
+            overrides: [],
+            version: 1,
+            value: "value1",
+          },
+        ],
       });
 
-      expect(client).toBeDefined();
-      expect(client.getConfig("my-config")).toBe("hello");
-      expect(client.getConfig("another-config")).toBe(42);
+      const client = await clientPromise;
+      expect(client.getConfig("config1")).toBe("value1");
     });
 
-    it("should throw error for non-existent config", async () => {
-      client = await createInMemoryReplaneClient({
-        "my-config": "hello",
+    it("should fetch multiple configs", async () => {
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          { name: "stringConfig", overrides: [], version: 1, value: "hello" },
+          { name: "numberConfig", overrides: [], version: 1, value: 42 },
+          { name: "booleanConfig", overrides: [], version: 1, value: true },
+          { name: "objectConfig", overrides: [], version: 1, value: { key: "value" } },
+          { name: "arrayConfig", overrides: [], version: 1, value: [1, 2, 3] },
+          { name: "nullConfig", overrides: [], version: 1, value: null },
+        ],
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect(() => client.getConfig("non-existent" as any)).toThrow(ReplaneError);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect(() => client.getConfig("non-existent" as any)).toThrow("Config not found");
-    });
-
-    it("should close the client", async () => {
-      client = await createInMemoryReplaneClient({
-        "my-config": "hello",
-      });
-
-      client.close();
-
-      expect(() => client.getConfig("my-config")).toThrow("Replane client is closed");
-    });
-
-    it("should handle multiple close calls gracefully", async () => {
-      client = await createInMemoryReplaneClient({
-        "my-config": "hello",
-      });
-
-      client.close();
-      client.close(); // Should not throw
-
-      expect(() => client.getConfig("my-config")).toThrow("Replane client is closed");
-    });
-
-    it("should support typed configs", async () => {
-      interface MyConfigs {
-        stringConfig: string;
-        numberConfig: number;
-        booleanConfig: boolean;
-        objectConfig: { foo: string };
-      }
-
-      client = await createInMemoryReplaneClient<MyConfigs>({
-        stringConfig: "test",
-        numberConfig: 123,
-        booleanConfig: true,
-        objectConfig: { foo: "bar" },
-      });
-
-      expect(client.getConfig("stringConfig")).toBe("test");
-      expect(client.getConfig("numberConfig")).toBe(123);
+      const client = await clientPromise;
+      expect(client.getConfig("stringConfig")).toBe("hello");
+      expect(client.getConfig("numberConfig")).toBe(42);
       expect(client.getConfig("booleanConfig")).toBe(true);
-      expect(client.getConfig("objectConfig")).toEqual({ foo: "bar" });
+      expect(client.getConfig("objectConfig")).toEqual({ key: "value" });
+      expect(client.getConfig("arrayConfig")).toEqual([1, 2, 3]);
+      expect(client.getConfig("nullConfig")).toBe(null);
+    });
+
+    it("should throw when getting non-existent config", async () => {
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [{ name: "existing", overrides: [], version: 1, value: "test" }],
+      });
+
+      const client = await clientPromise;
+      expect(() => client.getConfig("nonExistent")).toThrow(ReplaneError);
+      expect(() => client.getConfig("nonExistent")).toThrow("Config not found: nonExistent");
+    });
+
+    it("should throw when client is closed", async () => {
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [{ name: "config1", overrides: [], version: 1, value: "value1" }],
+      });
+
+      const client = await clientPromise;
+      client.close();
+
+      expect(() => client.getConfig("config1")).toThrow(ReplaneError);
+      expect(() => client.getConfig("config1")).toThrow("Replane client is closed");
+    });
+
+    it("should handle empty config list", async () => {
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [],
+      });
+
+      const client = await clientPromise;
+      expect(() => client.getConfig("anyConfig")).toThrow("Config not found");
     });
   });
 
-  describe("createReplaneClient", () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let client: ReplaneClient<any>;
-
-    afterEach(() => {
-      client?.close();
-    });
-
-    it("should throw error if API key is missing", async () => {
-      const fetchMock = vi.fn();
-      await expect(
-        createReplaneClient({
-          baseUrl: "https://api.replane.dev",
-          apiKey: "",
-          fetchFn: fetchMock,
-        })
-      ).rejects.toThrow("API key is required");
-    });
-
-    it("should fetch initial configs", async () => {
-      const mockConfigs = [
-        {
-          name: "feature-flag",
-          value: true,
-          overrides: [],
-          version: 1,
-        },
-      ];
-
-      const fetchMock = createFetchMock(mockConfigs);
-
-      client = await createReplaneClient({
-        baseUrl: "https://api.replane.dev",
-        apiKey: "test-key",
-        fetchFn: fetchMock,
+  describe("real-time config updates", () => {
+    it("should handle config_created event", async () => {
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [],
       });
 
-      expect(fetchMock).toHaveBeenCalledWith(
-        "https://api.replane.dev/api/v1/configs",
-        expect.objectContaining({
-          method: "GET",
-          headers: expect.objectContaining({
-            Authorization: "Bearer test-key",
-          }),
-        })
-      );
+      const client = await clientPromise;
+      expect(() => client.getConfig("newConfig")).toThrow("Config not found");
 
-      expect(client.getConfig("feature-flag")).toBe(true);
+      await connection.push({
+        type: "config_created",
+        configName: "newConfig",
+        overrides: [],
+        version: 1,
+        value: "newValue",
+      });
+      await sync();
+
+      expect(client.getConfig("newConfig")).toBe("newValue");
     });
 
-    it("should handle SSE events for config updates", async () => {
-      const mockConfigs = [
-        {
-          name: "feature-flag",
-          value: false,
-          overrides: [],
-          version: 1,
-        },
-      ];
+    it("should handle config_updated event", async () => {
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [{ name: "config1", overrides: [], version: 1, value: "oldValue" }],
+      });
 
-      const updateEvent = JSON.stringify({
+      const client = await clientPromise;
+      expect(client.getConfig("config1")).toBe("oldValue");
+
+      await connection.push({
         type: "config_updated",
-        configName: "feature-flag",
-        configId: "123",
-        value: true,
-        renderedOverrides: [],
+        configName: "config1",
+        overrides: [],
+        version: 2,
+        value: "newValue",
+      });
+      await sync();
+
+      expect(client.getConfig("config1")).toBe("newValue");
+    });
+
+    it("should handle config_deleted event", async () => {
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [{ name: "config1", overrides: [], version: 1, value: "value1" }],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("config1")).toBe("value1");
+
+      await connection.push({
+        type: "config_deleted",
+        configName: "config1",
         version: 2,
       });
+      await sync();
 
-      const fetchMock = createFetchMock(mockConfigs, [updateEvent]);
-
-      client = await createReplaneClient({
-        baseUrl: "https://api.replane.dev",
-        apiKey: "test-key",
-        fetchFn: fetchMock,
-      });
-
-      // Wait for the event to be processed
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      expect(client.getConfig("feature-flag")).toBe(true);
+      expect(() => client.getConfig("config1")).toThrow("Config not found");
     });
 
-    it("should handle SSE events for config creation", async () => {
-      const createEvent = JSON.stringify({
-        type: "config_created",
-        configName: "new-config",
-        configId: "456",
-        value: "new value",
-        renderedOverrides: [],
-        version: 1,
+    it("should handle multiple sequential updates", async () => {
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [{ name: "counter", overrides: [], version: 1, value: 0 }],
       });
 
-      const fetchMock = createFetchMock([], [createEvent]);
+      const client = await clientPromise;
 
-      client = await createReplaneClient({
-        baseUrl: "https://api.replane.dev",
-        apiKey: "test-key",
-        fetchFn: fetchMock,
-      });
-
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      expect(client.getConfig("new-config")).toBe("new value");
-    });
-
-    it("should strip trailing slashes from baseUrl", async () => {
-      const fetchMock = createFetchMock();
-
-      client = await createReplaneClient({
-        baseUrl: "https://api.replane.dev///",
-        apiKey: "test-key",
-        fetchFn: fetchMock,
-      });
-
-      expect(fetchMock).toHaveBeenCalledWith(
-        "https://api.replane.dev/api/v1/configs",
-        expect.any(Object)
-      );
+      for (let i = 1; i <= 5; i++) {
+        await connection.push({
+          type: "config_updated",
+          configName: "counter",
+          overrides: [],
+          version: i + 1,
+          value: i,
+        });
+        await sync();
+        expect(client.getConfig("counter")).toBe(i);
+      }
     });
   });
 
-  describe("Override Evaluation", () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let client: ReplaneClient<any>;
+  describe("overrides with equals operator", () => {
+    it("should apply override when condition matches", async () => {
+      clientPromise = createClient({ context: { environment: "production" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "prod-override",
+                conditions: [{ operator: "equals", property: "environment", value: "production" }],
+                value: "prod-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
 
-    afterEach(() => {
-      client?.close();
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("prod-value");
     });
 
-    describe("Property Conditions", () => {
-      it("should evaluate 'equals' operator", async () => {
-        // This test is a placeholder - actual override testing is done in other tests
-        client = await createInMemoryReplaneClient({
-          config: "default",
-        });
-
-        expect(client.getConfig("config")).toBe("default");
-      });
-
-      it("should evaluate 'in' operator", async () => {
-        const mockConfigs = [
+    it("should use base value when condition does not match", async () => {
+      clientPromise = createClient({ context: { environment: "development" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
           {
-            name: "config",
-            value: "default",
+            name: "feature",
             overrides: [
               {
-                name: "override1",
-                conditions: [{ operator: "in", property: "country", value: ["US", "CA", "UK"] }],
-                value: "overridden",
+                name: "prod-override",
+                conditions: [{ operator: "equals", property: "environment", value: "production" }],
+                value: "prod-value",
               },
             ],
             version: 1,
+            value: "default-value",
           },
-        ];
-
-        const fetchMock = createFetchMock(mockConfigs);
-
-        client = await createReplaneClient({
-          baseUrl: "https://api.replane.dev",
-          apiKey: "test-key",
-          fetchFn: fetchMock,
-          context: { country: "US" },
-        });
-
-        expect(client.getConfig("config")).toBe("overridden");
+        ],
       });
 
-      it("should return default when context is missing", async () => {
-        const mockConfigs = [
-          {
-            name: "config",
-            value: "default",
-            overrides: [
-              {
-                name: "override1",
-                conditions: [{ operator: "equals", property: "userId", value: "123" }],
-                value: "overridden",
-              },
-            ],
-            version: 1,
-          },
-        ];
-
-        const fetchMock = createFetchMock(mockConfigs);
-
-        client = await createReplaneClient({
-          baseUrl: "https://api.replane.dev",
-          apiKey: "test-key",
-          fetchFn: fetchMock,
-          context: {}, // No userId in context
-        });
-
-        expect(client.getConfig("config")).toBe("default");
-      });
-
-      it("should evaluate 'greater_than' operator with numbers", async () => {
-        const mockConfigs = [
-          {
-            name: "config",
-            value: "default",
-            overrides: [
-              {
-                name: "override1",
-                conditions: [{ operator: "greater_than", property: "age", value: 18 }],
-                value: "adult",
-              },
-            ],
-            version: 1,
-          },
-        ];
-
-        const fetchMock = createFetchMock(mockConfigs);
-
-        client = await createReplaneClient({
-          baseUrl: "https://api.replane.dev",
-          apiKey: "test-key",
-          fetchFn: fetchMock,
-          context: { age: 25 },
-        });
-
-        expect(client.getConfig("config")).toBe("adult");
-      });
-
-      it("should evaluate 'less_than_or_equal' operator", async () => {
-        const mockConfigs = [
-          {
-            name: "config",
-            value: "default",
-            overrides: [
-              {
-                name: "override1",
-                conditions: [{ operator: "less_than_or_equal", property: "score", value: 100 }],
-                value: "passed",
-              },
-            ],
-            version: 1,
-          },
-        ];
-
-        const fetchMock = createFetchMock(mockConfigs);
-
-        client = await createReplaneClient({
-          baseUrl: "https://api.replane.dev",
-          apiKey: "test-key",
-          fetchFn: fetchMock,
-          context: { score: 100 },
-        });
-
-        expect(client.getConfig("config")).toBe("passed");
-      });
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("default-value");
     });
 
-    describe("Logical Operators", () => {
-      it("should evaluate 'and' operator", async () => {
-        const mockConfigs = [
+    it("should use base value when context property is missing (unknown)", async () => {
+      clientPromise = createClient({ context: {} });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
           {
-            name: "config",
-            value: "default",
+            name: "feature",
             overrides: [
               {
-                name: "override1",
+                name: "override",
+                conditions: [{ operator: "equals", property: "environment", value: "production" }],
+                value: "override-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("default-value");
+    });
+
+    it("should apply first matching override when multiple exist", async () => {
+      clientPromise = createClient({ context: { tier: "premium" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "premium-override",
+                conditions: [{ operator: "equals", property: "tier", value: "premium" }],
+                value: "premium-value",
+              },
+              {
+                name: "basic-override",
+                conditions: [{ operator: "equals", property: "tier", value: "basic" }],
+                value: "basic-value",
+              },
+            ],
+            version: 1,
+            value: "free-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("premium-value");
+    });
+  });
+
+  describe("overrides with in/not_in operators", () => {
+    it("should apply override when value is in list", async () => {
+      clientPromise = createClient({ context: { region: "us-east" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "us-override",
+                conditions: [{ operator: "in", property: "region", value: ["us-east", "us-west"] }],
+                value: "us-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("us-value");
+    });
+
+    it("should not apply override when value is not in list", async () => {
+      clientPromise = createClient({ context: { region: "eu-west" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "us-override",
+                conditions: [{ operator: "in", property: "region", value: ["us-east", "us-west"] }],
+                value: "us-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("default-value");
+    });
+
+    it("should apply override when value is not in excluded list", async () => {
+      clientPromise = createClient({ context: { region: "eu-west" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "non-us-override",
+                conditions: [
+                  { operator: "not_in", property: "region", value: ["us-east", "us-west"] },
+                ],
+                value: "non-us-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("non-us-value");
+    });
+
+    it("should not apply override when value is in excluded list", async () => {
+      clientPromise = createClient({ context: { region: "us-east" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "non-us-override",
+                conditions: [
+                  { operator: "not_in", property: "region", value: ["us-east", "us-west"] },
+                ],
+                value: "non-us-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("default-value");
+    });
+  });
+
+  describe("overrides with comparison operators", () => {
+    it("should apply less_than override for numbers", async () => {
+      clientPromise = createClient({ context: { age: 17 } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "minor-override",
+                conditions: [{ operator: "less_than", property: "age", value: 18 }],
+                value: "minor-value",
+              },
+            ],
+            version: 1,
+            value: "adult-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("minor-value");
+    });
+
+    it("should not apply less_than override when equal", async () => {
+      clientPromise = createClient({ context: { age: 18 } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "minor-override",
+                conditions: [{ operator: "less_than", property: "age", value: 18 }],
+                value: "minor-value",
+              },
+            ],
+            version: 1,
+            value: "adult-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("adult-value");
+    });
+
+    it("should apply less_than_or_equal override when equal", async () => {
+      clientPromise = createClient({ context: { age: 18 } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "young-override",
+                conditions: [{ operator: "less_than_or_equal", property: "age", value: 18 }],
+                value: "young-value",
+              },
+            ],
+            version: 1,
+            value: "old-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("young-value");
+    });
+
+    it("should apply greater_than override for numbers", async () => {
+      clientPromise = createClient({ context: { score: 100 } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "high-score-override",
+                conditions: [{ operator: "greater_than", property: "score", value: 50 }],
+                value: "high-score-value",
+              },
+            ],
+            version: 1,
+            value: "low-score-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("high-score-value");
+    });
+
+    it("should apply greater_than_or_equal override when equal", async () => {
+      clientPromise = createClient({ context: { score: 50 } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "high-score-override",
+                conditions: [{ operator: "greater_than_or_equal", property: "score", value: 50 }],
+                value: "high-score-value",
+              },
+            ],
+            version: 1,
+            value: "low-score-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("high-score-value");
+    });
+
+    it("should apply comparison operators for strings (lexicographic)", async () => {
+      clientPromise = createClient({ context: { version: "2.0.0" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "new-version-override",
+                conditions: [{ operator: "greater_than", property: "version", value: "1.9.0" }],
+                value: "new-feature",
+              },
+            ],
+            version: 1,
+            value: "old-feature",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("new-feature");
+    });
+  });
+
+  describe("overrides with composite conditions (and/or/not)", () => {
+    it("should apply override when all AND conditions match", async () => {
+      clientPromise = createClient({ context: { environment: "production", tier: "premium" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "premium-prod-override",
                 conditions: [
                   {
                     operator: "and",
                     conditions: [
-                      { operator: "equals", property: "country", value: "US" },
-                      { operator: "greater_than", property: "age", value: 18 },
+                      { operator: "equals", property: "environment", value: "production" },
+                      { operator: "equals", property: "tier", value: "premium" },
                     ],
                   },
                 ],
-                value: "us-adult",
+                value: "premium-prod-value",
               },
             ],
             version: 1,
+            value: "default-value",
           },
-        ];
-
-        const fetchMock = createFetchMock(mockConfigs);
-
-        client = await createReplaneClient({
-          baseUrl: "https://api.replane.dev",
-          apiKey: "test-key",
-          fetchFn: fetchMock,
-          context: { country: "US", age: 25 },
-        });
-
-        expect(client.getConfig("config")).toBe("us-adult");
+        ],
       });
 
-      it("should evaluate 'or' operator", async () => {
-        const mockConfigs = [
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("premium-prod-value");
+    });
+
+    it("should not apply override when any AND condition fails", async () => {
+      clientPromise = createClient({ context: { environment: "production", tier: "basic" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
           {
-            name: "config",
-            value: "default",
+            name: "feature",
             overrides: [
               {
-                name: "override1",
+                name: "premium-prod-override",
+                conditions: [
+                  {
+                    operator: "and",
+                    conditions: [
+                      { operator: "equals", property: "environment", value: "production" },
+                      { operator: "equals", property: "tier", value: "premium" },
+                    ],
+                  },
+                ],
+                value: "premium-prod-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("default-value");
+    });
+
+    it("should apply override when any OR condition matches", async () => {
+      clientPromise = createClient({ context: { tier: "premium" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "special-tier-override",
                 conditions: [
                   {
                     operator: "or",
                     conditions: [
-                      { operator: "equals", property: "country", value: "US" },
-                      { operator: "equals", property: "country", value: "CA" },
+                      { operator: "equals", property: "tier", value: "premium" },
+                      { operator: "equals", property: "tier", value: "enterprise" },
                     ],
                   },
                 ],
-                value: "north-america",
+                value: "special-value",
               },
             ],
             version: 1,
+            value: "default-value",
           },
-        ];
-
-        const fetchMock = createFetchMock(mockConfigs);
-
-        client = await createReplaneClient({
-          baseUrl: "https://api.replane.dev",
-          apiKey: "test-key",
-          fetchFn: fetchMock,
-          context: { country: "CA" },
-        });
-
-        expect(client.getConfig("config")).toBe("north-america");
+        ],
       });
 
-      it("should evaluate 'not' operator", async () => {
-        const mockConfigs = [
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("special-value");
+    });
+
+    it("should not apply override when no OR conditions match", async () => {
+      clientPromise = createClient({ context: { tier: "basic" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
           {
-            name: "config",
-            value: "default",
+            name: "feature",
             overrides: [
               {
-                name: "override1",
+                name: "special-tier-override",
+                conditions: [
+                  {
+                    operator: "or",
+                    conditions: [
+                      { operator: "equals", property: "tier", value: "premium" },
+                      { operator: "equals", property: "tier", value: "enterprise" },
+                    ],
+                  },
+                ],
+                value: "special-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("default-value");
+    });
+
+    it("should apply override with NOT condition (inverted match)", async () => {
+      clientPromise = createClient({ context: { environment: "development" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "non-prod-override",
                 conditions: [
                   {
                     operator: "not",
-                    condition: { operator: "equals", property: "country", value: "US" },
+                    condition: { operator: "equals", property: "environment", value: "production" },
                   },
                 ],
-                value: "non-us",
+                value: "non-prod-value",
               },
             ],
             version: 1,
+            value: "prod-value",
           },
-        ];
-
-        const fetchMock = createFetchMock(mockConfigs);
-
-        client = await createReplaneClient({
-          baseUrl: "https://api.replane.dev",
-          apiKey: "test-key",
-          fetchFn: fetchMock,
-          context: { country: "UK" },
-        });
-
-        expect(client.getConfig("config")).toBe("non-us");
+        ],
       });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("non-prod-value");
     });
 
-    describe("Segmentation", () => {
-      it("should evaluate segmentation condition", async () => {
-        const mockConfigs = [
+    it("should not apply override with NOT condition when inner matches", async () => {
+      clientPromise = createClient({ context: { environment: "production" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
           {
-            name: "config",
-            value: "default",
+            name: "feature",
             overrides: [
               {
-                name: "override1",
+                name: "non-prod-override",
+                conditions: [
+                  {
+                    operator: "not",
+                    condition: { operator: "equals", property: "environment", value: "production" },
+                  },
+                ],
+                value: "non-prod-value",
+              },
+            ],
+            version: 1,
+            value: "prod-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("prod-value");
+    });
+
+    it("should handle deeply nested composite conditions", async () => {
+      clientPromise = createClient({
+        context: { environment: "production", tier: "premium", region: "us-east" },
+      });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "complex-override",
+                conditions: [
+                  {
+                    operator: "and",
+                    conditions: [
+                      { operator: "equals", property: "environment", value: "production" },
+                      {
+                        operator: "or",
+                        conditions: [
+                          { operator: "equals", property: "tier", value: "premium" },
+                          { operator: "equals", property: "tier", value: "enterprise" },
+                        ],
+                      },
+                      {
+                        operator: "not",
+                        condition: { operator: "equals", property: "region", value: "eu-west" },
+                      },
+                    ],
+                  },
+                ],
+                value: "complex-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("complex-value");
+    });
+  });
+
+  describe("overrides with segmentation", () => {
+    it("should apply segmentation override when hash falls within range", async () => {
+      // Use a known userId that hashes into the 0-50% range with a specific seed
+      clientPromise = createClient({ context: { userId: "user-in-segment" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "50-percent-rollout",
                 conditions: [
                   {
                     operator: "segmentation",
                     property: "userId",
                     fromPercentage: 0,
-                    toPercentage: 50,
-                    seed: "experiment-1",
+                    toPercentage: 100, // 100% to ensure it always matches
+                    seed: "test-seed",
                   },
                 ],
-                value: "variant-a",
+                value: "rollout-value",
               },
             ],
             version: 1,
+            value: "default-value",
           },
-        ];
-
-        const fetchMock = createFetchMock(mockConfigs);
-
-        client = await createReplaneClient({
-          baseUrl: "https://api.replane.dev",
-          apiKey: "test-key",
-          fetchFn: fetchMock,
-          context: { userId: "user-123" },
-        });
-
-        const value = client.getConfig("config");
-        // The result depends on the hash, but it should be deterministic
-        expect(["default", "variant-a"]).toContain(value);
+        ],
       });
 
-      it("should return default when segmentation property is missing", async () => {
-        const mockConfigs = [
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("rollout-value");
+    });
+
+    it("should not apply segmentation when property is undefined", async () => {
+      clientPromise = createClient({ context: {} });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
           {
-            name: "config",
-            value: "default",
+            name: "feature",
             overrides: [
               {
-                name: "override1",
+                name: "rollout",
                 conditions: [
                   {
                     operator: "segmentation",
                     property: "userId",
                     fromPercentage: 0,
                     toPercentage: 100,
-                    seed: "experiment-1",
+                    seed: "test-seed",
                   },
                 ],
-                value: "variant-a",
+                value: "rollout-value",
               },
             ],
             version: 1,
+            value: "default-value",
           },
-        ];
-
-        const fetchMock = createFetchMock(mockConfigs);
-
-        client = await createReplaneClient({
-          baseUrl: "https://api.replane.dev",
-          apiKey: "test-key",
-          fetchFn: fetchMock,
-          context: {}, // No userId
-        });
-
-        expect(client.getConfig("config")).toBe("default");
+        ],
       });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("default-value");
     });
 
-    describe("Context Merging", () => {
-      it("should merge client-level and request-level context", async () => {
-        const mockConfigs = [
+    it("should exclude users with 0% segmentation range", async () => {
+      clientPromise = createClient({ context: { userId: "any-user" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
           {
-            name: "config",
-            value: "default",
+            name: "feature",
             overrides: [
               {
-                name: "override1",
+                name: "zero-rollout",
                 conditions: [
-                  { operator: "equals", property: "userId", value: "123" },
-                  { operator: "equals", property: "country", value: "US" },
+                  {
+                    operator: "segmentation",
+                    property: "userId",
+                    fromPercentage: 0,
+                    toPercentage: 0,
+                    seed: "test-seed",
+                  },
                 ],
-                value: "overridden",
+                value: "rollout-value",
               },
             ],
             version: 1,
+            value: "default-value",
           },
-        ];
-
-        const fetchMock = createFetchMock(mockConfigs);
-
-        client = await createReplaneClient({
-          baseUrl: "https://api.replane.dev",
-          apiKey: "test-key",
-          fetchFn: fetchMock,
-          context: { userId: "123" }, // Client-level context
-        });
-
-        // Request-level context should merge
-        const value = client.getConfig("config", { context: { country: "US" } });
-        expect(value).toBe("overridden");
-      });
-    });
-  });
-
-  describe("Error Handling", () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let client: ReplaneClient<any>;
-
-    afterEach(() => {
-      client?.close();
-    });
-
-    it("should handle 404 errors", async () => {
-      const fetchMock = vi.fn();
-      fetchMock.mockResolvedValueOnce(
-        new Response("Not found", {
-          status: 404,
-        })
-      );
-
-      await expect(
-        createReplaneClient({
-          baseUrl: "https://api.replane.dev",
-          apiKey: "test-key",
-          fetchFn: fetchMock,
-          retries: 0,
-        })
-      ).rejects.toThrow(ReplaneError);
-    });
-
-    it("should handle 401 errors", async () => {
-      const fetchMock = vi.fn();
-      fetchMock.mockResolvedValueOnce(
-        new Response("Unauthorized", {
-          status: 401,
-        })
-      );
-
-      await expect(
-        createReplaneClient({
-          baseUrl: "https://api.replane.dev",
-          apiKey: "invalid-key",
-          fetchFn: fetchMock,
-          retries: 0,
-        })
-      ).rejects.toThrow(ReplaneError);
-    });
-
-    it("should handle 403 errors", async () => {
-      const fetchMock = vi.fn();
-      fetchMock.mockResolvedValueOnce(
-        new Response("Forbidden", {
-          status: 403,
-        })
-      );
-
-      await expect(
-        createReplaneClient({
-          baseUrl: "https://api.replane.dev",
-          apiKey: "test-key",
-          fetchFn: fetchMock,
-          retries: 0,
-        })
-      ).rejects.toThrow(ReplaneError);
-    });
-
-    it("should handle 500 errors with retries", async () => {
-      const fetchMock = vi.fn();
-      let callCount = 0;
-
-      fetchMock.mockImplementation(async (url: string) => {
-        if (url.includes("/v1/configs")) {
-          callCount++;
-          if (callCount <= 2) {
-            return new Response("Server error", { status: 500 });
-          }
-          return new Response(JSON.stringify({ items: [] }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
-        } else if (url.includes("/v1/events")) {
-          return new Response(createMockSseStream(), {
-            status: 200,
-            headers: { "Content-Type": "text/event-stream" },
-          });
-        }
-        return new Response("Not found", { status: 404 });
+        ],
       });
 
-      client = await createReplaneClient({
-        baseUrl: "https://api.replane.dev",
-        apiKey: "test-key",
-        fetchFn: fetchMock,
-        retries: 2,
-        retryDelayMs: 10,
-      });
-
-      // Should have retried 2 times, then succeeded
-      expect(callCount).toBe(3);
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("default-value");
     });
 
-    it("should handle network errors with retries", async () => {
-      const fetchMock = vi.fn();
-      let callCount = 0;
-
-      fetchMock.mockImplementation(async (url: string) => {
-        if (url.includes("/v1/configs")) {
-          callCount++;
-          if (callCount === 1) {
-            throw new Error("Network error");
-          }
-          return new Response(JSON.stringify({ items: [] }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
-        } else if (url.includes("/v1/events")) {
-          return new Response(createMockSseStream(), {
-            status: 200,
-            headers: { "Content-Type": "text/event-stream" },
-          });
-        }
-        return new Response("Not found", { status: 404 });
-      });
-
-      client = await createReplaneClient({
-        baseUrl: "https://api.replane.dev",
-        apiKey: "test-key",
-        fetchFn: fetchMock,
-        retries: 2,
-        retryDelayMs: 10,
-      });
-
-      expect(callCount).toBe(2); // 1 failure + 1 success
-    });
-  });
-
-  describe("ReplaneError", () => {
-    it("should create error with code and message", () => {
-      const error = new ReplaneError({
-        message: "Test error",
-        code: "test_code",
-      });
-
-      expect(error).toBeInstanceOf(Error);
-      expect(error.name).toBe("ReplaneError");
-      expect(error.message).toBe("Test error");
-      expect(error.code).toBe("test_code");
-    });
-
-    it("should include cause if provided", () => {
-      const cause = new Error("Original error");
-      const error = new ReplaneError({
-        message: "Test error",
-        code: "test_code",
-        cause,
-      });
-
-      expect(error.cause).toBe(cause);
-    });
-  });
-
-  describe("Custom Logger", () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let client: ReplaneClient<any>;
-    const mockLogger = {
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    };
-
-    afterEach(() => {
-      client?.close();
-      vi.clearAllMocks();
-    });
-
-    it("should use custom logger for warnings", async () => {
-      const mockConfigs = [
+    it("should be deterministic for the same userId and seed", async () => {
+      const overrides: RenderedOverride[] = [
         {
-          name: "test-config",
-          value: "default",
-          overrides: [
+          name: "deterministic-rollout",
+          conditions: [
             {
-              name: "bad-override",
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              conditions: [{ operator: "invalid_op" as any, property: "test", value: "x" }],
-              value: "override",
+              operator: "segmentation",
+              property: "userId",
+              fromPercentage: 0,
+              toPercentage: 50,
+              seed: "stable-seed",
             },
           ],
-          version: 1,
+          value: "rollout-value",
         },
       ];
 
-      const fetchMock = createFetchMock(mockConfigs);
+      // Create client multiple times with the same userId
+      const results: unknown[] = [];
+      for (let i = 0; i < 3; i++) {
+        const server = new MockReplaneServerController();
+        const client = createReplaneClient({
+          sdkKey: "test",
+          baseUrl: "https://test.com",
+          fetchFn: server.fetchFn,
+          logger: silentLogger,
+          context: { userId: "stable-user-123" },
+        });
 
-      client = await createReplaneClient({
-        baseUrl: "https://api.replane.dev",
-        apiKey: "test-key",
-        fetchFn: fetchMock,
-        logger: mockLogger,
-        context: { test: "x" }, // Provide context so the condition is evaluated
+        const connection = await server.acceptConnection();
+        await connection.push({
+          type: "config_list",
+          configs: [{ name: "feature", overrides, version: 1, value: "default-value" }],
+        });
+
+        const c = await client;
+        results.push(c.getConfig("feature"));
+        c.close();
+        server.close();
+      }
+
+      // All results should be the same
+      expect(results[0]).toBe(results[1]);
+      expect(results[1]).toBe(results[2]);
+    });
+  });
+
+  describe("context handling", () => {
+    it("should use client-level context", async () => {
+      clientPromise = createClient({ context: { environment: "production" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "prod-override",
+                conditions: [{ operator: "equals", property: "environment", value: "production" }],
+                value: "prod-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
       });
 
-      // Try to get config with invalid operator - should log warning and return default
-      const value = client.getConfig("test-config");
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("prod-value");
+    });
 
-      // Should return default value since override has unknown condition
-      expect(value).toBe("default");
+    it("should merge per-request context with client-level context", async () => {
+      clientPromise = createClient({ context: { environment: "production" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "premium-prod-override",
+                conditions: [
+                  { operator: "equals", property: "environment", value: "production" },
+                  { operator: "equals", property: "tier", value: "premium" },
+                ],
+                value: "premium-prod-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
 
-      // Should have logged the warning for unexpected operator
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining("Unexpected operator"),
-        expect.objectContaining({ value: "invalid_op" })
+      const client = await clientPromise;
+      // Per-request context adds 'tier' while 'environment' comes from client-level
+      expect(client.getConfig("feature", { context: { tier: "premium" } })).toBe(
+        "premium-prod-value"
+      );
+    });
+
+    it("should override client-level context with per-request context", async () => {
+      clientPromise = createClient({ context: { environment: "production" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "staging-override",
+                conditions: [{ operator: "equals", property: "environment", value: "staging" }],
+                value: "staging-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      // Per-request context overrides 'environment'
+      expect(client.getConfig("feature", { context: { environment: "staging" } })).toBe(
+        "staging-value"
       );
     });
   });
 
-  describe("Timeout", () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let client: ReplaneClient<any> | undefined;
-
-    afterEach(() => {
-      client?.close();
-    });
-
-    it("should timeout requests", async () => {
-      const fetchMock = vi.fn();
-
-      fetchMock.mockImplementation((_url: string, init?: RequestInit) => {
-        return new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            resolve(
-              new Response(JSON.stringify({ items: [] }), {
-                status: 200,
-                headers: { "Content-Type": "application/json" },
-              })
-            );
-          }, 10000); // Very long delay that should timeout
-
-          // Listen to the provided abort signal
-          if (init?.signal) {
-            init.signal.addEventListener("abort", () => {
-              clearTimeout(timeout);
-              reject(new DOMException("Aborted", "AbortError"));
-            });
-          }
-        });
+  describe("type casting in conditions", () => {
+    it("should cast string to number when context value is number", async () => {
+      clientPromise = createClient({ context: { age: 25 } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "age-override",
+                conditions: [{ operator: "greater_than", property: "age", value: "18" }],
+                value: "adult-value",
+              },
+            ],
+            version: 1,
+            value: "minor-value",
+          },
+        ],
       });
 
-      await expect(
-        createReplaneClient({
-          baseUrl: "https://api.replane.dev",
-          apiKey: "test-key",
-          fetchFn: fetchMock,
-          timeoutMs: 50,
-          retries: 0,
-        })
-      ).rejects.toThrow();
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("adult-value");
+    });
+
+    it("should cast 'true' string to boolean when context value is boolean", async () => {
+      clientPromise = createClient({ context: { isAdmin: true } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "admin-override",
+                conditions: [{ operator: "equals", property: "isAdmin", value: "true" }],
+                value: "admin-value",
+              },
+            ],
+            version: 1,
+            value: "user-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("admin-value");
+    });
+
+    it("should cast 'false' string to boolean when context value is boolean", async () => {
+      clientPromise = createClient({ context: { isAdmin: false } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "non-admin-override",
+                conditions: [{ operator: "equals", property: "isAdmin", value: "false" }],
+                value: "non-admin-value",
+              },
+            ],
+            version: 1,
+            value: "admin-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("non-admin-value");
+    });
+
+    it("should cast number to string when context value is string", async () => {
+      clientPromise = createClient({ context: { code: "42" } });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "code-override",
+                conditions: [{ operator: "equals", property: "code", value: 42 }],
+                value: "matched-value",
+              },
+            ],
+            version: 1,
+            value: "default-value",
+          },
+        ],
+      });
+
+      const client = await clientPromise;
+      expect(client.getConfig("feature")).toBe("matched-value");
     });
   });
 
-  describe("SSE Parsing", () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let client: ReplaneClient<any>;
+  describe("fallback configs", () => {
+    it("should use fallback config when initial list is empty", async () => {
+      clientPromise = createClient({
+        fallbackConfigs: {
+          missingConfig: "fallback-value",
+        },
+      });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [],
+      });
 
-    afterEach(() => {
-      client?.close();
+      const client = await clientPromise;
+      expect(client.getConfig("missingConfig")).toBe("fallback-value");
     });
 
-    it("should handle multiline SSE data", async () => {
-      const event = {
-        type: "config_created",
-        configName: "test",
-        configId: "123",
-        value: "test value",
-        renderedOverrides: [],
-        version: 1,
-      };
-
-      // Multiline JSON will be joined by the SSE parser
-      const lines = JSON.stringify(event, null, 2).split("\n");
-
-      const fetchMock = vi.fn();
-      const encoder = new TextEncoder();
-
-      fetchMock.mockImplementation(async (url: string) => {
-        if (url.includes("/v1/configs")) {
-          return new Response(JSON.stringify({ items: [] }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
-        } else if (url.includes("/v1/events")) {
-          return new Response(
-            new ReadableStream({
-              start(controller) {
-                for (const line of lines) {
-                  controller.enqueue(encoder.encode(`data:${line}\n`));
-                }
-                controller.enqueue(encoder.encode("\n"));
-              },
-            }),
-            {
-              status: 200,
-              headers: { "Content-Type": "text/event-stream" },
-            }
-          );
-        }
-        return new Response("Not found", { status: 404 });
+    it("should prefer server config over fallback config", async () => {
+      clientPromise = createClient({
+        fallbackConfigs: {
+          config1: "fallback-value",
+        },
+      });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [{ name: "config1", overrides: [], version: 1, value: "server-value" }],
       });
 
-      client = await createReplaneClient({
-        baseUrl: "https://api.replane.dev",
-        apiKey: "test-key",
-        fetchFn: fetchMock,
-      });
-
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      expect(client.getConfig("test")).toBe("test value");
+      const client = await clientPromise;
+      expect(client.getConfig("config1")).toBe("server-value");
     });
 
-    it("should ignore SSE comments", async () => {
-      const event = JSON.stringify({
-        type: "config_created",
-        configName: "test",
-        configId: "123",
-        value: "value",
-        renderedOverrides: [],
-        version: 1,
+    it("should handle undefined fallback values (no fallback)", async () => {
+      clientPromise = createClient({
+        fallbackConfigs: {
+          config1: "has-fallback",
+          config2: undefined as unknown as string,
+        },
+      });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [],
       });
 
-      const fetchMock = vi.fn();
-      const encoder = new TextEncoder();
-
-      fetchMock.mockImplementation(async (url: string) => {
-        if (url.includes("/v1/configs")) {
-          return new Response(JSON.stringify({ items: [] }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
-        } else if (url.includes("/v1/events")) {
-          return new Response(
-            new ReadableStream({
-              start(controller) {
-                controller.enqueue(encoder.encode(":this is a comment\n"));
-                controller.enqueue(encoder.encode(`data:${event}\n\n`));
-              },
-            }),
-            {
-              status: 200,
-              headers: { "Content-Type": "text/event-stream" },
-            }
-          );
-        }
-        return new Response("Not found", { status: 404 });
-      });
-
-      client = await createReplaneClient({
-        baseUrl: "https://api.replane.dev",
-        apiKey: "test-key",
-        fetchFn: fetchMock,
-      });
-
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      expect(client.getConfig("test")).toBe("value");
-    });
-
-    it("should handle SSE with \\r\\n line endings", async () => {
-      const event = JSON.stringify({
-        type: "config_created",
-        configName: "test",
-        configId: "123",
-        value: "value",
-        renderedOverrides: [],
-        version: 1,
-      });
-
-      const fetchMock = vi.fn();
-      const encoder = new TextEncoder();
-
-      fetchMock.mockImplementation(async (url: string) => {
-        if (url.includes("/v1/configs")) {
-          return new Response(JSON.stringify({ items: [] }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
-        } else if (url.includes("/v1/events")) {
-          return new Response(
-            new ReadableStream({
-              start(controller) {
-                controller.enqueue(encoder.encode(`data:${event}\r\n\r\n`));
-              },
-            }),
-            {
-              status: 200,
-              headers: { "Content-Type": "text/event-stream" },
-            }
-          );
-        }
-        return new Response("Not found", { status: 404 });
-      });
-
-      client = await createReplaneClient({
-        baseUrl: "https://api.replane.dev",
-        apiKey: "test-key",
-        fetchFn: fetchMock,
-      });
-
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      expect(client.getConfig("test")).toBe("value");
+      const client = await clientPromise;
+      expect(client.getConfig("config1")).toBe("has-fallback");
+      expect(() => client.getConfig("config2")).toThrow("Config not found");
     });
   });
 
-  describe("Required Configs", () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let client: ReplaneClient<any> | undefined;
-
-    afterEach(() => {
-      client?.close();
-    });
-
-    it("should successfully create client when all required configs are present", async () => {
-      interface MyConfigs {
-        config1: string;
-        config2: number;
-        config3: boolean;
-      }
-
-      const mockConfigs = [
-        { name: "config1", value: "value1", overrides: [], version: 1 },
-        { name: "config2", value: 42, overrides: [], version: 1 },
-        { name: "config3", value: true, overrides: [], version: 1 },
-      ];
-
-      const fetchMock = createFetchMock(mockConfigs);
-
-      client = await createReplaneClient<MyConfigs>({
-        baseUrl: "https://api.replane.dev",
-        apiKey: "test-key",
-        fetchFn: fetchMock,
+  describe("required configs", () => {
+    it("should reject initialization when required config is missing", async () => {
+      clientPromise = createClient({
         requiredConfigs: {
-          config1: true,
-          config2: true,
-          config3: false, // Not required
+          requiredConfig: true,
         },
       });
-
-      expect(client).toBeDefined();
-      expect(client.getConfig("config1")).toBe("value1");
-      expect(client.getConfig("config2")).toBe(42);
-      expect(client.getConfig("config3")).toBe(true);
-    });
-
-    it("should throw error when required config is missing", async () => {
-      interface MyConfigs {
-        config1: string;
-        config2: number;
-      }
-
-      const mockConfigs = [
-        { name: "config1", value: "value1", overrides: [], version: 1 },
-        // config2 is missing
-      ];
-
-      const fetchMock = createFetchMock(mockConfigs);
-
-      await expect(
-        createReplaneClient<MyConfigs>({
-          baseUrl: "https://api.replane.dev",
-          apiKey: "test-key",
-          fetchFn: fetchMock,
-          requiredConfigs: {
-            config1: true,
-            config2: true, // Required but missing
-          },
-        })
-      ).rejects.toThrow(ReplaneError);
-
-      await expect(
-        createReplaneClient<MyConfigs>({
-          baseUrl: "https://api.replane.dev",
-          apiKey: "test-key",
-          fetchFn: fetchMock,
-          requiredConfigs: {
-            config1: true,
-            config2: true,
-          },
-        })
-      ).rejects.toThrow("Required configs not found: config2");
-    });
-
-    it("should throw error when multiple required configs are missing", async () => {
-      interface MyConfigs {
-        config1: string;
-        config2: number;
-        config3: boolean;
-      }
-
-      const mockConfigs = [
-        { name: "config1", value: "value1", overrides: [], version: 1 },
-        // config2 and config3 are missing
-      ];
-
-      const fetchMock = createFetchMock(mockConfigs);
-
-      await expect(
-        createReplaneClient<MyConfigs>({
-          baseUrl: "https://api.replane.dev",
-          apiKey: "test-key",
-          fetchFn: fetchMock,
-          requiredConfigs: {
-            config1: true,
-            config2: true,
-            config3: true,
-          },
-        })
-      ).rejects.toThrow(ReplaneError);
-
-      // Should mention both missing configs
-      try {
-        await createReplaneClient<MyConfigs>({
-          baseUrl: "https://api.replane.dev",
-          apiKey: "test-key",
-          fetchFn: fetchMock,
-          requiredConfigs: {
-            config1: true,
-            config2: true,
-            config3: true,
-          },
-        });
-        // Should not reach here
-        expect(true).toBe(false);
-      } catch (error) {
-        expect(error).toBeInstanceOf(ReplaneError);
-        expect((error as ReplaneError).message).toContain("config2");
-        expect((error as ReplaneError).message).toContain("config3");
-      }
-    });
-
-    it("should not require configs when requiredConfigs is undefined", async () => {
-      const mockConfigs = [{ name: "config1", value: "value1", overrides: [], version: 1 }];
-
-      const fetchMock = createFetchMock(mockConfigs);
-
-      client = await createReplaneClient({
-        baseUrl: "https://api.replane.dev",
-        apiKey: "test-key",
-        fetchFn: fetchMock,
-        // No requiredConfigs specified
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [],
       });
 
-      expect(client).toBeDefined();
-      expect(client.getConfig("config1")).toBe("value1");
+      await expect(clientPromise).rejects.toThrow("Required configs not found: requiredConfig");
     });
 
-    it("should not require configs when all requiredConfigs are false", async () => {
-      interface MyConfigs {
-        config1: string;
-        config2: number;
-      }
-
-      const mockConfigs = [
-        { name: "config1", value: "value1", overrides: [], version: 1 },
-        // config2 is missing but not required
-      ];
-
-      const fetchMock = createFetchMock(mockConfigs);
-
-      client = await createReplaneClient<MyConfigs>({
-        baseUrl: "https://api.replane.dev",
-        apiKey: "test-key",
-        fetchFn: fetchMock,
+    it("should initialize successfully when required config is present", async () => {
+      clientPromise = createClient({
         requiredConfigs: {
-          config1: false,
-          config2: false,
+          requiredConfig: true,
         },
       });
-
-      expect(client).toBeDefined();
-      expect(client.getConfig("config1")).toBe("value1");
-      expect(() => client!.getConfig("config2")).toThrow("Config not found");
-    });
-
-    it("should warn when required config goes missing during refresh", async () => {
-      const mockLogger = {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      };
-
-      interface MyConfigs {
-        config1: string;
-        config2: number;
-      }
-
-      let callCount = 0;
-      const fetchMock = vi.fn();
-
-      fetchMock.mockImplementation(async (url: string) => {
-        if (url.includes("/v1/configs")) {
-          callCount++;
-          if (callCount === 1) {
-            // Initial fetch - both configs present
-            return new Response(
-              JSON.stringify({
-                items: [
-                  { name: "config1", value: "value1", overrides: [], version: 1 },
-                  { name: "config2", value: 42, overrides: [], version: 1 },
-                ],
-              }),
-              {
-                status: 200,
-                headers: { "Content-Type": "application/json" },
-              }
-            );
-          } else {
-            // Refresh - config2 is missing
-            return new Response(
-              JSON.stringify({
-                items: [{ name: "config1", value: "value1", overrides: [], version: 1 }],
-              }),
-              {
-                status: 200,
-                headers: { "Content-Type": "application/json" },
-              }
-            );
-          }
-        } else if (url.includes("/v1/events")) {
-          return new Response(createMockSseStream(), {
-            status: 200,
-            headers: { "Content-Type": "text/event-stream" },
-          });
-        }
-        return new Response("Not found", { status: 404 });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [{ name: "requiredConfig", overrides: [], version: 1, value: "value" }],
       });
 
-      client = await createReplaneClient<MyConfigs>({
-        baseUrl: "https://api.replane.dev",
-        apiKey: "test-key",
-        fetchFn: fetchMock,
-        logger: mockLogger,
+      const client = await clientPromise;
+      expect(client.getConfig("requiredConfig")).toBe("value");
+    });
+
+    it("should not require configs marked as false", async () => {
+      clientPromise = createClient({
         requiredConfigs: {
-          config1: true,
-          config2: true,
+          optionalConfig: false,
         },
       });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [],
+      });
 
-      // Both configs should be available initially
-      expect(client.getConfig("config1")).toBe("value1");
-      expect(client.getConfig("config2")).toBe(42);
-
-      // Trigger a refresh by waiting (this is timing-dependent)
-      // We need to manually trigger the refresh function
-      // Since we can't access it directly, we'll verify the warning is logged
-      // when the next refresh happens
-
-      // Wait a bit to ensure the client is initialized
-      await new Promise((resolve) => setTimeout(resolve, 50));
-
-      // The refresh happens every 60 seconds, so we can't easily test this without mocking timers
-      // Instead, let's verify that the client was created successfully with required configs
-      expect(client).toBeDefined();
+      const client = await clientPromise;
+      expect(() => client.getConfig("optionalConfig")).toThrow("Config not found");
     });
 
-    it("should not delete required configs when they receive delete events", async () => {
-      interface MyConfigs {
-        config1: string;
-        config2: number;
-      }
+    it("should not delete required configs when delete event is received", async () => {
+      clientPromise = createClient({
+        requiredConfigs: {
+          requiredConfig: true,
+        },
+      });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [{ name: "requiredConfig", overrides: [], version: 1, value: "value" }],
+      });
 
-      const mockLogger = {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      };
+      const client = await clientPromise;
 
-      const mockConfigs = [
-        { name: "config1", value: "value1", overrides: [], version: 1 },
-        { name: "config2", value: 42, overrides: [], version: 1 },
-      ];
-
-      const deleteEvent = JSON.stringify({
+      await connection.push({
         type: "config_deleted",
-        configName: "config2",
-        configId: "123",
-        value: null,
-        renderedOverrides: [],
+        configName: "requiredConfig",
         version: 2,
       });
+      await sync();
 
-      const fetchMock = createFetchMock(mockConfigs, [deleteEvent]);
+      // Should still have the config (delete prevented for required configs)
+      expect(client.getConfig("requiredConfig")).toBe("value");
+      expect(silentLogger.warn).toHaveBeenCalled();
+    });
 
-      client = await createReplaneClient<MyConfigs>({
-        baseUrl: "https://api.replane.dev",
-        apiKey: "test-key",
-        fetchFn: fetchMock,
-        logger: mockLogger,
+    it("should use fallback for missing required config", async () => {
+      clientPromise = createClient({
         requiredConfigs: {
-          config1: true,
-          config2: true, // Required
+          requiredConfig: true,
+        },
+        fallbackConfigs: {
+          requiredConfig: "fallback-value",
         },
       });
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [],
+      });
 
-      // Initially both configs are present
-      expect(client.getConfig("config1")).toBe("value1");
-      expect(client.getConfig("config2")).toBe(42);
-
-      // Wait for the delete event to be processed
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      // Required config should NOT be deleted - just warned
-      expect(client.getConfig("config2")).toBe(42);
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        "Replane: required config deleted. Deleted config name:",
-        "config2"
-      );
+      const client = await clientPromise;
+      expect(client.getConfig("requiredConfig")).toBe("fallback-value");
     });
   });
 
-  describe("Fallback Configs", () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let client: ReplaneClient<any> | undefined;
+  describe("initialization timeout", () => {
+    it("should timeout if no config_list is received", async () => {
+      clientPromise = createClient({ timeoutMs: 100 });
+      await mockServer.acceptConnection();
+      // Don't send any events
 
-    afterEach(() => {
-      client?.close();
+      await expect(clientPromise).rejects.toThrow("Replane client initialization timed out");
     });
+  });
 
-    it("should prefer fetched configs over fallbacks when fetch succeeds", async () => {
-      interface MyConfigs {
-        "feature-flag": boolean;
-        "max-connections": number;
-      }
-
-      const mockConfigs = [
-        { name: "feature-flag", value: false, overrides: [], version: 1 },
-        { name: "max-connections", value: 20, overrides: [], version: 1 },
-      ];
-
-      const fetchMock = createFetchMock(mockConfigs);
-
-      client = await createReplaneClient<MyConfigs>({
-        baseUrl: "https://api.replane.dev",
-        apiKey: "test-key",
-        fetchFn: fetchMock,
-        fallbackConfigs: {
-          "feature-flag": true, // Fallback is true
-          "max-connections": 10, // Fallback is 10
-        },
+  describe("closing behavior", () => {
+    it("should be idempotent when closing multiple times", async () => {
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_list",
+        configs: [{ name: "config1", overrides: [], version: 1, value: "value1" }],
       });
 
-      // Should use real values, not fallbacks
-      expect(client.getConfig("feature-flag")).toBe(false); // Real value
-      expect(client.getConfig("max-connections")).toBe(20); // Real value
+      const client = await clientPromise;
+      client.close();
+      client.close();
+      client.close();
+
+      expect(() => client.getConfig("config1")).toThrow("Replane client is closed");
     });
+  });
+});
+
+describe("createInMemoryReplaneClient", () => {
+  it("should return config values from initial data", () => {
+    const client = createInMemoryReplaneClient({
+      stringConfig: "hello",
+      numberConfig: 42,
+      booleanConfig: true,
+      objectConfig: { key: "value" },
+    });
+
+    expect(client.getConfig("stringConfig")).toBe("hello");
+    expect(client.getConfig("numberConfig")).toBe(42);
+    expect(client.getConfig("booleanConfig")).toBe(true);
+    expect(client.getConfig("objectConfig")).toEqual({ key: "value" });
+
+    client.close();
+  });
+
+  it("should throw when getting non-existent config", () => {
+    const client = createInMemoryReplaneClient<Record<string, unknown>>({ existing: "value" });
+
+    expect(() => client.getConfig("nonExistent")).toThrow("Config not found: nonExistent");
+
+    client.close();
+  });
+
+  it("should throw when client is closed", () => {
+    const client = createInMemoryReplaneClient({ config1: "value1" });
+    client.close();
+
+    expect(() => client.getConfig("config1")).toThrow("Replane client is closed");
+  });
+
+  it("should handle empty initial data", () => {
+    const client = createInMemoryReplaneClient<Record<string, unknown>>({});
+
+    expect(() => client.getConfig("anyConfig")).toThrow("Config not found");
+
+    client.close();
+  });
+
+  it("should handle null and undefined values", () => {
+    const client = createInMemoryReplaneClient({
+      nullConfig: null,
+    });
+
+    expect(client.getConfig("nullConfig")).toBe(null);
+    // Note: undefined is a valid value but getConfig checks for undefined as "not found"
+
+    client.close();
   });
 });

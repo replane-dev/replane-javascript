@@ -20,6 +20,9 @@ importers:
       '@typescript-eslint/parser':
         specifier: ^8.20.0
         version: 8.48.0(eslint@9.39.1(jiti@2.5.1))(typescript@5.9.2)
+      async-channel:
+        specifier: ^0.2.0
+        version: 0.2.0
       bumpp:
         specifier: ^10.1.0
         version: 10.2.3
@@ -761,6 +764,9 @@ packages:
   ast-kit@2.1.2:
     resolution: {integrity: sha512-cl76xfBQM6pztbrFWRnxbrDm9EOqDr1BF6+qQnnDZG2Co2LjyUktkN9GTJfBAfdae+DbT2nJf2nCGAdDDN7W2g==}
     engines: {node: '>=20.18.0'}
+
+  async-channel@0.2.0:
+    resolution: {integrity: sha512-BJyjI/sfKlyijaBt2hbOSxT28xGNtLR0QLzAKO1Hlnv5BULY7sAoYoTPW3lfr1ZIC7y+FxabxO9T8GXpyoofGg==}
 
   balanced-match@1.0.2:
     resolution: {integrity: sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw==}
@@ -1998,6 +2004,8 @@ snapshots:
     dependencies:
       '@babel/parser': 7.28.4
       pathe: 2.0.3
+
+  async-channel@0.2.0: {}
 
   balanced-match@1.0.2: {}
 
