@@ -1,11 +1,15 @@
-import type { RenderedOverride, RenderedCondition, ProjectEvent } from "./types";
+import type {
+  RenderedOverride,
+  RenderedCondition,
+  ReplicationStreamRecord,
+  StartReplicationStreamBody,
+  ConfigDto,
+} from "./types";
 
-const PROJECT_EVENT_TYPES = [
-  "config_created",
-  "config_updated",
-  "config_deleted",
-  "config_list",
-] as const;
+const SUPPORTED_REPLICATION_STREAM_RECORD_TYPES = Object.keys({
+  config_change: true,
+  init: true,
+} satisfies Record<ReplicationStreamRecord["type"], true>);
 
 /**
  * FNV-1a 32-bit hash function
@@ -32,13 +36,6 @@ function fnv1a32(input: string): number {
 function fnv1a32ToUnit(input: string): number {
   const h = fnv1a32(input);
   return h / 2 ** 32; // double in [0, 1)
-}
-
-interface Config<T> {
-  name: string;
-  value: T;
-  overrides: RenderedOverride[];
-  version: number;
 }
 
 type EvaluationResult = "matched" | "not_matched" | "unknown";
@@ -226,45 +223,21 @@ function castToContextType(expectedValue: unknown, contextValue: unknown): unkno
   return expectedValue;
 }
 
-interface GetProjectEventsReplaneStorageOptions<T extends Configs> extends ReplaneFinalOptions<T> {
-  includeInitialConfigs: boolean;
+interface StartReplicationStreamReplaneStorageOptions extends ReplaneFinalOptions {
+  // getBody is a function to get the latest configs when we are trying
+  // to reestablish the replication stream
+  getBody: () => StartReplicationStreamBody;
   signal?: AbortSignal;
   onConnect?: () => void;
 }
 
 type Configs = object;
 
-type InferProjectConfig<T extends Configs> = {
-  [K in keyof T]: Config<T[K]>;
-}[keyof T];
-
-interface ReplaneStorage<T extends Configs> {
-  getProjectEvents(options: GetProjectEventsReplaneStorageOptions<T>): AsyncIterable<ProjectEvent>;
+interface ReplaneStorage {
+  startReplicationStream(
+    options: StartReplicationStreamReplaneStorageOptions
+  ): AsyncIterable<ReplicationStreamRecord>;
   close(): void;
-}
-
-async function fetchWithTimeout(
-  input: string | URL | Request,
-  init: RequestInit,
-  timeoutMs: number,
-  fetchFn: typeof fetch
-) {
-  if (!fetchFn) {
-    throw new Error("Global fetch is not available. Provide options.fetchFn.");
-  }
-  if (!timeoutMs) return fetchFn(input, init);
-  const timeoutController = new AbortController();
-  const t = setTimeout(() => timeoutController.abort(), timeoutMs);
-  const { signal, cleanUpSignals } = combineAbortSignals([init.signal, timeoutController.signal]);
-  try {
-    return await fetchFn(input, {
-      ...init,
-      signal,
-    });
-  } finally {
-    clearTimeout(t);
-    cleanUpSignals();
-  }
 }
 
 async function delay(ms: number) {
@@ -278,13 +251,13 @@ async function retryDelay(averageDelay: number) {
   await delay(delayMs);
 }
 
-class ReplaneRemoteStorage<T extends Configs> implements ReplaneStorage<T> {
+class ReplaneRemoteStorage implements ReplaneStorage {
   private closeController = new AbortController();
 
   // never throws
-  async *getProjectEvents(
-    options: GetProjectEventsReplaneStorageOptions<T>
-  ): AsyncIterable<ProjectEvent> {
+  async *startReplicationStream(
+    options: StartReplicationStreamReplaneStorageOptions
+  ): AsyncIterable<ReplicationStreamRecord> {
     const { signal, cleanUpSignals } = combineAbortSignals([
       this.closeController.signal,
       options.signal,
@@ -293,7 +266,7 @@ class ReplaneRemoteStorage<T extends Configs> implements ReplaneStorage<T> {
       let failedAttempts = 0;
       while (!signal.aborted) {
         try {
-          for await (const event of this.getProjectEventsInternal({
+          for await (const event of this.startReplicationStreamImpl({
             ...options,
             signal,
             onConnect: () => {
@@ -320,16 +293,18 @@ class ReplaneRemoteStorage<T extends Configs> implements ReplaneStorage<T> {
     }
   }
 
-  private async *getProjectEventsInternal(
-    options: GetProjectEventsReplaneStorageOptions<T>
-  ): AsyncIterable<ProjectEvent> {
+  private async *startReplicationStreamImpl(
+    options: StartReplicationStreamReplaneStorageOptions
+  ): AsyncIterable<ReplicationStreamRecord> {
     const rawEvents = fetchSse({
       fetchFn: options.fetchFn,
       headers: {
         Authorization: this.getAuthHeader(options),
+        "Content-Type": "application/json",
       },
-      timeoutMs: options.timeoutMs,
-      method: "GET",
+      body: JSON.stringify(options.getBody()),
+      timeoutMs: options.requestTimeoutMs,
+      method: "POST",
       signal: options.signal,
       url: this.getApiEndpoint(`/sdk/v1/replication/stream`, options),
       onConnect: options.onConnect,
@@ -342,9 +317,9 @@ class ReplaneRemoteStorage<T extends Configs> implements ReplaneStorage<T> {
         event !== null &&
         "type" in event &&
         typeof event.type === "string" &&
-        (PROJECT_EVENT_TYPES as unknown as string[]).includes(event.type)
+        (SUPPORTED_REPLICATION_STREAM_RECORD_TYPES as unknown as string[]).includes(event.type)
       ) {
-        yield event as ProjectEvent;
+        yield event as ReplicationStreamRecord;
       }
     }
   }
@@ -353,11 +328,11 @@ class ReplaneRemoteStorage<T extends Configs> implements ReplaneStorage<T> {
     this.closeController.abort();
   }
 
-  private getAuthHeader(options: ReplaneFinalOptions<T>): string {
+  private getAuthHeader(options: ReplaneFinalOptions): string {
     return `Bearer ${options.sdkKey}`;
   }
 
-  private getApiEndpoint(path: string, options: ReplaneFinalOptions<T>) {
+  private getApiEndpoint(path: string, options: ReplaneFinalOptions) {
     return `${options.baseUrl}/api${path}`;
   }
 }
@@ -381,12 +356,12 @@ export interface ReplaneClientOptions<T extends Configs> {
    * Optional timeout in ms for the request.
    * @default 2000
    */
-  timeoutMs?: number;
+  requestTimeoutMs?: number;
   /**
-   * Number of retries for failed requests.
-   * @default 2
+   * Optional timeout in ms for the SDK initialization.
+   * @default 5000
    */
-  retries?: number;
+  sdkInitializationTimeoutMs?: number;
   /**
    * Delay between retries in ms.
    * @default 100
@@ -404,52 +379,53 @@ export interface ReplaneClientOptions<T extends Configs> {
 
   /**
    * Required configs for the client.
-   * If a config is not present, the client will throw an error.
+   * If a config is not present, the client will throw an error during initialization.
    * @example
    * {
-   *   requiredConfigs: {
+   *   required: {
    *     config1: true,
    *     config2: true,
    *     config3: false,
    *   },
    * }
+   *
+   * @example
+   * {
+   *   required: ["config1", "config2", "config3"],
+   * }
    */
-  requiredConfigs?: {
-    [K in keyof T]: boolean;
-  };
+  required?:
+    | {
+        [K in keyof T]: boolean;
+      }
+    | Array<keyof T>;
 
   /**
    * Fallback configs to use if the initial request to fetch configs fails.
-   * Explicit undefined value must be used to indicate that there is no fallback value for this config. This makes sure you don't forget to provide a fallback value for all configs.
    * @example
    * {
-   *   fallbackConfigs: {
+   *   fallbacks: {
    *     config1: "value1",
    *     config2: 42,
-   *     config3: undefined, // undefined means the is no fallback value for this config
    *   },
    * }
    */
-  fallbackConfigs?: {
-    [K in keyof T]: T[K] | undefined;
+  fallbacks?: {
+    [K in keyof T]: T[K];
   };
 }
 
-interface ReplaneFinalOptions<T extends Configs> {
+interface ReplaneFinalOptions {
   baseUrl: string;
   fetchFn: typeof fetch;
-  timeoutMs: number;
+  requestTimeoutMs: number;
+  sdkInitializationTimeoutMs: number;
   sdkKey: string;
   logger: ReplaneLogger;
-  retries: number;
   retryDelayMs: number;
   context: ReplaneContext;
-  requiredConfigs?: {
-    [K in keyof T]: boolean;
-  };
-  fallbackConfigs: {
-    [K in keyof T]: T[K] | undefined;
-  };
+  requiredConfigs: string[];
+  fallbacks: ConfigDto[];
 }
 
 export interface ReplaneLogger {
@@ -511,8 +487,8 @@ export class ReplaneError extends Error {
 export async function createReplaneClient<T extends Configs = Record<string, unknown>>(
   sdkOptions: ReplaneClientOptions<T>
 ): Promise<ReplaneClient<T>> {
-  const storage = new ReplaneRemoteStorage<T>();
-  return await _createReplaneClient(combineOptions(sdkOptions, {}), storage);
+  const storage = new ReplaneRemoteStorage();
+  return await _createReplaneClient(toFinalOptions(sdkOptions), storage);
 }
 
 /**
@@ -524,12 +500,8 @@ export async function createReplaneClient<T extends Configs = Record<string, unk
 export function createInMemoryReplaneClient<T extends Configs = Record<string, unknown>>(
   initialData: T
 ): ReplaneClient<T> {
-  let isClosed = false;
   return {
     getConfig: (configName) => {
-      if (isClosed) {
-        throw new Error("Replane client is closed");
-      }
       const config = initialData[configName];
       if (config === undefined) {
         throw new ReplaneError({
@@ -539,141 +511,63 @@ export function createInMemoryReplaneClient<T extends Configs = Record<string, u
       }
       return config;
     },
-    close: () => {
-      isClosed = true;
-    },
+    close: () => {},
   };
 }
 
 async function _createReplaneClient<T extends Configs = Record<string, unknown>>(
-  sdkOptions: ReplaneFinalOptions<T>,
-  storage: ReplaneStorage<T>
+  sdkOptions: ReplaneFinalOptions,
+  storage: ReplaneStorage
 ): Promise<ReplaneClient<T>> {
   if (!sdkOptions.sdkKey) throw new Error("SDK key is required");
 
-  const events = Subject.fromAsyncIterable(
-    storage.getProjectEvents({ ...combineOptions<T>(sdkOptions, {}), includeInitialConfigs: true })
+  let configs: Map<string, ConfigDto> = new Map(
+    sdkOptions.fallbacks.map((config) => [config.name, config])
   );
 
-  function enrichWithFallbackConfigs(configs: Map<string, InferProjectConfig<T>>) {
-    const result = new Map<string, InferProjectConfig<T>>(configs);
-    for (const [key, value] of Object.entries(sdkOptions.fallbackConfigs ?? {})) {
-      if (value !== undefined && !result.has(key)) {
-        result.set(key, {
-          name: key,
-          value: value as T[keyof T],
-          overrides: [],
-          version: -1, // -1 means the config is a fallback config
-        });
-      }
-    }
+  const clientReady = new Deferred<void>();
 
-    return result;
-  }
+  (async () => {
+    try {
+      const replicationStream = storage.startReplicationStream({
+        ...sdkOptions,
+        getBody: () => ({
+          currentConfigs: [...configs.values()].map((config) => ({
+            name: config.name,
+            overrides: config.overrides,
+            version: config.version,
+            value: config.value,
+          })),
+          requiredConfigs: sdkOptions.requiredConfigs,
+        }),
+      });
 
-  let configs: Map<string, InferProjectConfig<T>> | undefined = undefined;
+      for await (const event of replicationStream) {
+        if (event.type === "init") {
+          configs = new Map(event.configs.map((config) => [config.name, config]));
 
-  const requiredConfigs = new Set(
-    Object.entries(sdkOptions.requiredConfigs ?? {})
-      .filter(([_, value]) => value)
-      .map(([key]) => key)
-  );
-
-  function getMissingConfigs(configs: Map<string, InferProjectConfig<T>>) {
-    return Array.from(requiredConfigs).filter((configName) => !configs.has(configName));
-  }
-
-  const configsInitialized = new Deferred<void>();
-
-  async function refreshConfigs(newConfigs: Map<string, InferProjectConfig<T>>) {
-    const oldConfigs = configs;
-    configs = enrichWithFallbackConfigs(newConfigs);
-
-    const missingConfigs = getMissingConfigs(configs);
-    if (missingConfigs.length > 0) {
-      sdkOptions.logger.warn(
-        "Replane: required configs not found, refreshing configs. Missing configs:",
-        missingConfigs
-      );
-    }
-
-    if (missingConfigs.length > 0) {
-      if (!oldConfigs) {
-        configsInitialized.reject(
-          new ReplaneError({
-            message: `Required configs not found: ${missingConfigs.join(", ")}`,
-            code: ReplaneErrorCode.NotFound,
-          })
-        );
-      } else {
-        for (const configName of missingConfigs) {
-          configs.set(configName, oldConfigs.get(configName)!);
-        }
-      }
-    }
-
-    configsInitialized.resolve();
-  }
-
-  const unsubscribeFromEvents = events.subscribe({
-    next: (event) => {
-      if (event.type === "config_list") {
-        refreshConfigs(
-          new Map(event.configs.map((config) => [config.name, config as InferProjectConfig<T>]))
-        );
-      } else {
-        if (!configs) {
-          // ignore event until configs are initialized
-        } else if (event.type === "config_created") {
+          clientReady.resolve();
+        } else if (event.type === "config_change") {
           configs.set(event.configName, {
             name: event.configName,
             overrides: event.overrides,
             version: event.version,
-            value: event.value as T[keyof T],
+            value: event.value,
           });
-        } else if (event.type === "config_updated") {
-          configs.set(event.configName, {
-            name: event.configName,
-            overrides: event.overrides,
-            version: event.version,
-            value: event.value as T[keyof T],
-          });
-        } else if (event.type === "config_deleted") {
-          if (requiredConfigs.has(event.configName)) {
-            sdkOptions.logger.warn(
-              "Replane: required config deleted. Deleted config name:",
-              event.configName
-            );
-          } else {
-            configs.delete(event.configName);
-          }
         } else {
-          sdkOptions.logger.warn(
-            "Replane: unknown event type in event stream (upgrade the SDK to handle this event type):",
-            event
-          );
+          warnNever(event, sdkOptions.logger, "Replane: unknown event type in event stream");
         }
       }
-    },
-    complete: () => {
-      // nothing to do
-    },
-    throw: (err) => {
-      sdkOptions.logger.error("Replane: event stream error:", err);
-    },
-  });
+    } catch (error) {
+      sdkOptions.logger.error("Replane: error initializing client:", error);
+      clientReady.reject(error);
+    }
+  })();
 
   function getConfig<K extends keyof T>(
     configName: K,
     getConfigOptions: GetConfigOptions = {}
   ): T[K] {
-    if (!configs) {
-      throw new ReplaneError({
-        message: "Replane client is not initialized",
-        code: ReplaneErrorCode.NotInitialized,
-      });
-    }
-
     const config = configs.get(String(configName));
 
     if (config === undefined) {
@@ -683,17 +577,15 @@ async function _createReplaneClient<T extends Configs = Record<string, unknown>>
       });
     }
 
-    const options = combineOptions(sdkOptions, getConfigOptions);
-
     try {
       return evaluateOverrides<T[K]>(
         config.value as T[K],
         config.overrides,
-        options.context,
-        options.logger
+        { ...sdkOptions.context, ...(getConfigOptions?.context ?? {}) },
+        sdkOptions.logger
       );
     } catch (error) {
-      options.logger.error(
+      sdkOptions.logger.error(
         `Replane: error evaluating overrides for config ${String(configName)}:`,
         error
       );
@@ -701,74 +593,108 @@ async function _createReplaneClient<T extends Configs = Record<string, unknown>>
     }
   }
 
-  let isClientClosed = false;
-
-  const close = () => {
-    if (isClientClosed) return;
-    isClientClosed = true;
-
-    unsubscribeFromEvents();
-
-    storage.close();
-  };
+  const close = () => storage.close();
 
   const initializationTimeoutId = setTimeout(() => {
-    close();
+    if (sdkOptions.fallbacks.length === 0) {
+      // no fallbacks, we have nothing to work with
+      close();
 
-    configsInitialized.reject(
-      new ReplaneError({
-        message: "Replane client initialization timed out",
-        code: ReplaneErrorCode.Timeout,
-      })
-    );
-  }, sdkOptions.timeoutMs);
+      clientReady.reject(
+        new ReplaneError({
+          message: "Replane client initialization timed out",
+          code: ReplaneErrorCode.Timeout,
+        })
+      );
 
-  configsInitialized.promise.then(() => {
-    clearTimeout(initializationTimeoutId);
-  });
+      return;
+    }
 
-  await configsInitialized.promise;
+    const missingRequiredConfigs: string[] = [];
+    for (const requiredConfigName of sdkOptions.requiredConfigs) {
+      if (!configs.has(requiredConfigName)) {
+        missingRequiredConfigs.push(requiredConfigName);
+      }
+    }
+
+    if (missingRequiredConfigs.length > 0) {
+      close();
+      clientReady.reject(
+        new ReplaneError({
+          message: `Required configs are missing: ${missingRequiredConfigs.join(", ")}`,
+          code: ReplaneErrorCode.NotFound,
+        })
+      );
+
+      return;
+    }
+
+    clientReady.resolve();
+  }, sdkOptions.sdkInitializationTimeoutMs);
+
+  clientReady.promise.then(() => clearTimeout(initializationTimeoutId));
+
+  await clientReady.promise;
 
   return {
-    getConfig: (configName, getConfigOptions) => {
-      if (isClientClosed) {
-        throw new ReplaneError({
-          message: "Replane client is closed",
-          code: ReplaneErrorCode.Closed,
-        });
-      }
-      return getConfig(configName, getConfigOptions);
-    },
+    getConfig,
     close,
   };
 }
 
-function combineOptions<T extends Configs>(
-  defaults: ReplaneClientOptions<T>,
-  overrides: Partial<ReplaneClientOptions<T>>
-): ReplaneFinalOptions<T> {
+function toFinalOptions<T extends Configs>(defaults: ReplaneClientOptions<T>): ReplaneFinalOptions {
   return {
-    sdkKey: overrides.sdkKey ?? defaults.sdkKey,
-    baseUrl: (overrides.baseUrl ?? defaults.baseUrl).replace(/\/+$/, ""),
+    sdkKey: defaults.sdkKey,
+    baseUrl: defaults.baseUrl.replace(/\/+$/, ""),
     fetchFn:
-      overrides.fetchFn ??
       defaults.fetchFn ??
       // some browsers require binding the fetch function to window
       globalThis.fetch.bind(globalThis),
-    timeoutMs: overrides.timeoutMs ?? defaults.timeoutMs ?? 2000,
-    logger: overrides.logger ?? defaults.logger ?? console,
-    retries: overrides.retries ?? defaults.retries ?? 2,
-    retryDelayMs: overrides.retryDelayMs ?? defaults.retryDelayMs ?? 200,
+    requestTimeoutMs: defaults.requestTimeoutMs ?? 2000,
+    sdkInitializationTimeoutMs: defaults.sdkInitializationTimeoutMs ?? 5000,
+    logger: defaults.logger ?? console,
+    retryDelayMs: defaults.retryDelayMs ?? 200,
     context: {
       ...(defaults.context ?? {}),
-      ...(overrides.context ?? {}),
     },
-    requiredConfigs: overrides.requiredConfigs ?? defaults.requiredConfigs,
-    fallbackConfigs:
-      overrides.fallbackConfigs ??
-      defaults.fallbackConfigs ??
-      ({} as { [K in keyof T]: T[K] | undefined }),
+    requiredConfigs: Array.isArray(defaults.required)
+      ? defaults.required.map((name) => String(name))
+      : Object.entries(defaults.required ?? {})
+          .filter(([_, value]) => value !== undefined)
+          .map(([name]) => name),
+    fallbacks: Object.entries(defaults.fallbacks ?? {})
+      .filter(([_, value]) => value !== undefined)
+      .map(([name, value]) => ({
+        name,
+        overrides: [],
+        version: -1,
+        value,
+      })),
   };
+}
+
+async function fetchWithTimeout(
+  input: string | URL | Request,
+  init: RequestInit,
+  timeoutMs: number,
+  fetchFn: typeof fetch
+) {
+  if (!fetchFn) {
+    throw new Error("Global fetch is not available. Provide options.fetchFn.");
+  }
+  if (!timeoutMs) return fetchFn(input, init);
+  const timeoutController = new AbortController();
+  const t = setTimeout(() => timeoutController.abort(), timeoutMs);
+  const { signal, cleanUpSignals } = combineAbortSignals([init.signal, timeoutController.signal]);
+  try {
+    return await fetchFn(input, {
+      ...init,
+      signal,
+    });
+  } finally {
+    clearTimeout(t);
+    cleanUpSignals();
+  }
 }
 
 const SSE_DATA_PREFIX = "data:";
@@ -777,6 +703,7 @@ async function* fetchSse(params: {
   fetchFn: typeof fetch;
   url: string;
   timeoutMs: number;
+  body?: unknown;
   headers?: Record<string, string>;
   method?: string;
   signal?: AbortSignal;
@@ -792,6 +719,7 @@ async function* fetchSse(params: {
       {
         method: params.method ?? "GET",
         headers: { Accept: "text/event-stream", ...(params.headers ?? {}) },
+        body: params.body ? JSON.stringify(params.body) : undefined,
         signal,
       },
       params.timeoutMs,
@@ -847,7 +775,6 @@ async function* fetchSse(params: {
               const line = rawLine.slice(SSE_DATA_PREFIX.length).replace(/^\s/, "");
               dataLines.push(line);
             }
-            // Optionally handle event:, id:, retry: here if you need them
           }
 
           if (dataLines.length) {
@@ -935,90 +862,6 @@ function combineAbortSignals(signals: Array<AbortSignal | undefined | null>) {
   }
 
   return { signal: controller.signal, cleanUpSignals };
-}
-
-interface Observer<T> {
-  next: (value: T) => void;
-  throw: (error: unknown) => void;
-  complete: () => void;
-}
-
-type Unsubscribe = () => void;
-
-interface Observable<T> {
-  subscribe(observer: Observer<T>): Unsubscribe;
-}
-
-class Subject<T> implements Observable<T>, Observer<T> {
-  static fromAsyncIterable<T>(asyncIterable: AsyncIterable<T>): Subject<T> {
-    const subject = new Subject<T>();
-
-    (async () => {
-      try {
-        for await (const item of asyncIterable) {
-          subject.next(item);
-        }
-        subject.complete();
-      } catch (err) {
-        subject.throw(err);
-      }
-    })();
-
-    return subject;
-  }
-
-  private observers: Set<Observer<T>> = new Set();
-  private isComplete = false;
-
-  subscribe(observer: Observer<T>): Unsubscribe {
-    this.ensureActive();
-
-    // wrap the observer to have a unique reference
-    const observerWrapper: Observer<T> = {
-      next: (value) => observer.next(value),
-      throw: (error) => observer.throw(error),
-      complete: () => observer.complete(),
-    };
-
-    this.observers.add(observerWrapper);
-
-    return () => {
-      this.observers.delete(observerWrapper);
-    };
-  }
-
-  next(value: T): void {
-    this.ensureActive();
-
-    for (const observer of this.observers) {
-      observer.next(value);
-    }
-  }
-
-  throw(error: unknown): void {
-    this.ensureActive();
-
-    for (const observer of this.observers) {
-      observer.throw(error);
-    }
-  }
-
-  complete() {
-    if (this.isComplete) return;
-    this.isComplete = true;
-
-    for (const observer of this.observers) {
-      observer.complete();
-    }
-
-    this.observers.clear();
-  }
-
-  private ensureActive() {
-    if (this.isComplete) {
-      throw new Error("Subject already completed");
-    }
-  }
 }
 
 class Deferred<T> {

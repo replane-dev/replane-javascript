@@ -1,31 +1,26 @@
-export type ProjectEvent =
+export interface StartReplicationStreamBody {
+  currentConfigs: ConfigDto[];
+  requiredConfigs: string[];
+}
+
+export interface ConfigDto {
+  name: string;
+  overrides: RenderedOverride[];
+  version: number;
+  value: unknown;
+}
+
+export type ReplicationStreamRecord =
   | {
-      type: "config_created";
+      type: "config_change";
       configName: string;
       overrides: RenderedOverride[];
       version: number;
       value: unknown;
     }
   | {
-      type: "config_updated";
-      configName: string;
-      overrides: RenderedOverride[];
-      version: number;
-      value: unknown;
-    }
-  | {
-      type: "config_deleted";
-      configName: string;
-      version: number;
-    }
-  | {
-      type: "config_list";
-      configs: Array<{
-        name: string;
-        overrides: RenderedOverride[];
-        version: number;
-        value: unknown;
-      }>;
+      type: "init";
+      configs: ConfigDto[];
     };
 
 interface PropertyCondition {
