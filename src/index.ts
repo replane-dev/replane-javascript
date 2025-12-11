@@ -449,9 +449,30 @@ export interface ConfigWatcher<T> {
   close(): void;
 }
 
+type MapConfig<T extends Configs> = {
+  [K in keyof T]: {
+    name: K;
+    value: T[K];
+  };
+}[keyof T];
+
 export interface ReplaneClient<T extends Configs> {
   /** Get a config by its name. */
   getConfig<K extends keyof T>(configName: K, options?: GetConfigOptions): T[K];
+  /** Subscribe to config changes.
+   *  @param callback - A function to call when an config is changed. The callback will be called with the new config value.
+   *  @returns A function to unsubscribe from the config changes.
+   */
+  subscribe(callback: (config: MapConfig<T>) => void): () => void;
+  /** Subscribe to a specific config change.
+   *  @param configName - The name of the config to subscribe to.
+   *  @param callback - A function to call when the config is changed. The callback will be called with the new config value.
+   *  @returns A function to unsubscribe from the config changes.
+   */
+  subscribe<K extends keyof T>(
+    configName: K,
+    callback: (config: MapConfig<Pick<T, K>>) => void
+  ): () => void;
   /** Close the client and clean up resources. */
   close(): void;
 }
@@ -511,6 +532,9 @@ export function createInMemoryReplaneClient<T extends Configs = Record<string, u
       }
       return config;
     },
+    subscribe: () => {
+      return () => {};
+    },
     close: () => {},
   };
 }
@@ -521,11 +545,14 @@ async function _createReplaneClient<T extends Configs = Record<string, unknown>>
 ): Promise<ReplaneClient<T>> {
   if (!sdkOptions.sdkKey) throw new Error("SDK key is required");
 
-  let configs: Map<string, ConfigDto> = new Map(
+  const configs: Map<string, ConfigDto> = new Map(
     sdkOptions.fallbacks.map((config) => [config.name, config])
   );
 
   const clientReady = new Deferred<void>();
+
+  const configSubscriptions = new Map<keyof T, Set<(config: MapConfig<T>) => void>>();
+  const clientSubscriptions = new Set<(config: MapConfig<T>) => void>();
 
   (async () => {
     try {
@@ -543,19 +570,23 @@ async function _createReplaneClient<T extends Configs = Record<string, unknown>>
       });
 
       for await (const event of replicationStream) {
-        if (event.type === "init") {
-          configs = new Map(event.configs.map((config) => [config.name, config]));
+        const updatedConfigs: ConfigDto[] =
+          event.type === "config_change" ? [event] : event.configs;
+        for (const config of updatedConfigs) {
+          if (config.version <= (configs.get(config.name)?.version ?? -1)) continue; // ignore outdated changes
 
-          clientReady.resolve();
-        } else if (event.type === "config_change") {
-          configs.set(event.configName, {
-            name: event.configName,
-            overrides: event.overrides,
-            version: event.version,
-            value: event.value,
+          configs.set(config.name, {
+            name: config.name,
+            overrides: config.overrides,
+            version: config.version,
+            value: config.value,
           });
-        } else {
-          warnNever(event, sdkOptions.logger, "Replane: unknown event type in event stream");
+          for (const callback of clientSubscriptions) {
+            callback({ name: config.name as keyof T, value: config.value as T[keyof T] });
+          }
+          for (const callback of configSubscriptions.get(config.name as keyof T) ?? []) {
+            callback({ name: config.name as keyof T, value: config.value as T[keyof T] });
+          }
         }
       }
     } catch (error) {
@@ -592,6 +623,46 @@ async function _createReplaneClient<T extends Configs = Record<string, unknown>>
       return config.value as T[K];
     }
   }
+
+  const subscribe = (
+    callbackOrConfigName: keyof T | ((config: MapConfig<T>) => void),
+    callbackOrUndefined?: (config: MapConfig<T>) => void
+  ) => {
+    let configName: keyof T | undefined = undefined;
+    let callback: (config: MapConfig<T>) => void;
+    if (typeof callbackOrConfigName === "function") {
+      callback = callbackOrConfigName;
+    } else {
+      configName = callbackOrConfigName as keyof T;
+      if (callbackOrUndefined === undefined) {
+        throw new Error("callback is required when config name is provided");
+      }
+      callback = callbackOrUndefined!;
+    }
+
+    // Wrap the callback to ensure that we have a unique reference
+    callback = (...args: Parameters<typeof callback>) => {
+      callback(...args);
+    };
+
+    if (configName === undefined) {
+      clientSubscriptions.add(callback);
+      return () => {
+        clientSubscriptions.delete(callback);
+      };
+    }
+
+    if (!configSubscriptions.has(configName)) {
+      configSubscriptions.set(configName, new Set());
+    }
+    configSubscriptions.get(configName)!.add(callback);
+    return () => {
+      configSubscriptions.get(configName)?.delete(callback);
+      if (configSubscriptions.get(configName)?.size === 0) {
+        configSubscriptions.delete(configName);
+      }
+    };
+  };
 
   const close = () => storage.close();
 
@@ -638,6 +709,7 @@ async function _createReplaneClient<T extends Configs = Record<string, unknown>>
 
   return {
     getConfig,
+    subscribe: subscribe as ReplaneClient<T>["subscribe"],
     close,
   };
 }
