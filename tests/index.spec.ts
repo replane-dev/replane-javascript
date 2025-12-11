@@ -63,7 +63,7 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("config1")).toBe("value1");
+      expect(client.get("config1")).toBe("value1");
     });
 
     it("should fetch multiple configs", async () => {
@@ -81,10 +81,10 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("config1")).toBe("value1");
-      expect(client.getConfig("config2")).toBe(42);
-      expect(client.getConfig("config3")).toBe(true);
-      expect(client.getConfig("config4")).toEqual({ nested: "object" });
+      expect(client.get("config1")).toBe("value1");
+      expect(client.get("config2")).toBe(42);
+      expect(client.get("config3")).toBe(true);
+      expect(client.get("config4")).toEqual({ nested: "object" });
     });
 
     it("should throw ReplaneError when config not found", async () => {
@@ -98,8 +98,8 @@ describe("createReplaneClient", () => {
       const client = await clientPromise;
       await sync();
 
-      expect(() => client.getConfig("nonexistent")).toThrow(ReplaneError);
-      expect(() => client.getConfig("nonexistent")).toThrow("Config not found: nonexistent");
+      expect(() => client.get("nonexistent")).toThrow(ReplaneError);
+      expect(() => client.get("nonexistent")).toThrow("Config not found: nonexistent");
     });
 
     it("should handle config values of different types", async () => {
@@ -119,12 +119,12 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("string")).toBe("hello");
-      expect(client.getConfig("number")).toBe(123.45);
-      expect(client.getConfig("boolean")).toBe(false);
-      expect(client.getConfig("null")).toBe(null);
-      expect(client.getConfig("array")).toEqual([1, 2, 3]);
-      expect(client.getConfig("object")).toEqual({ key: "value" });
+      expect(client.get("string")).toBe("hello");
+      expect(client.get("number")).toBe(123.45);
+      expect(client.get("boolean")).toBe(false);
+      expect(client.get("null")).toBe(null);
+      expect(client.get("array")).toEqual([1, 2, 3]);
+      expect(client.get("object")).toEqual({ key: "value" });
     });
   });
 
@@ -139,17 +139,17 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("config1")).toBe("initial");
+      expect(client.get("config1")).toBe("initial");
 
       await connection.push({
         type: "config_change",
-        configName: "config1",
+        name: "config1",
         overrides: [],
         version: 2,
         value: "updated",
       });
       await sync();
-      expect(client.getConfig("config1")).toBe("updated");
+      expect(client.get("config1")).toBe("updated");
     });
 
     it("should add new config via config_change event", async () => {
@@ -165,13 +165,13 @@ describe("createReplaneClient", () => {
 
       await connection.push({
         type: "config_change",
-        configName: "config2",
+        name: "config2",
         overrides: [],
         version: 1,
         value: "value2",
       });
       await sync();
-      expect(client.getConfig("config2")).toBe("value2");
+      expect(client.get("config2")).toBe("value2");
     });
 
     it("should handle multiple config changes", async () => {
@@ -190,22 +190,22 @@ describe("createReplaneClient", () => {
 
       await connection.push({
         type: "config_change",
-        configName: "config1",
+        name: "config1",
         overrides: [],
         version: 2,
         value: "v1-updated",
       });
       await connection.push({
         type: "config_change",
-        configName: "config2",
+        name: "config2",
         overrides: [],
         version: 2,
         value: "v2-updated",
       });
       await sync();
 
-      expect(client.getConfig("config1")).toBe("v1-updated");
-      expect(client.getConfig("config2")).toBe("v2-updated");
+      expect(client.get("config1")).toBe("v1-updated");
+      expect(client.get("config2")).toBe("v2-updated");
     });
   });
 
@@ -233,7 +233,7 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("feature")).toBe("prod-value");
+      expect(client.get("feature")).toBe("prod-value");
     });
 
     it("should return base value when condition does not match", async () => {
@@ -259,7 +259,7 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("feature")).toBe("default-value");
+      expect(client.get("feature")).toBe("default-value");
     });
 
     it("should return base value when context property is undefined", async () => {
@@ -285,7 +285,7 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("feature")).toBe("default-value");
+      expect(client.get("feature")).toBe("default-value");
     });
 
     it("should use first matching override when multiple overrides exist", async () => {
@@ -316,7 +316,7 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("feature")).toBe("staging-value");
+      expect(client.get("feature")).toBe("staging-value");
     });
   });
 
@@ -344,7 +344,7 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("feature")).toBe("na-value");
+      expect(client.get("feature")).toBe("na-value");
     });
 
     it("should not match when value is not in array", async () => {
@@ -370,7 +370,7 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("feature")).toBe("default");
+      expect(client.get("feature")).toBe("default");
     });
   });
 
@@ -400,7 +400,7 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("feature")).toBe("non-na-value");
+      expect(client.get("feature")).toBe("non-na-value");
     });
 
     it("should not match when value is in array", async () => {
@@ -428,7 +428,7 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("feature")).toBe("default");
+      expect(client.get("feature")).toBe("default");
     });
   });
 
@@ -457,7 +457,7 @@ describe("createReplaneClient", () => {
 
         const client = await clientPromise;
         await sync();
-        expect(client.getConfig("feature")).toBe("minor-value");
+        expect(client.get("feature")).toBe("minor-value");
       });
 
       it("should not match when context value equals expected", async () => {
@@ -483,7 +483,7 @@ describe("createReplaneClient", () => {
 
         const client = await clientPromise;
         await sync();
-        expect(client.getConfig("feature")).toBe("default");
+        expect(client.get("feature")).toBe("default");
       });
 
       it("should compare strings lexicographically", async () => {
@@ -509,7 +509,7 @@ describe("createReplaneClient", () => {
 
         const client = await clientPromise;
         await sync();
-        expect(client.getConfig("feature")).toBe("override-value");
+        expect(client.get("feature")).toBe("override-value");
       });
     });
 
@@ -537,7 +537,7 @@ describe("createReplaneClient", () => {
 
         const client = await clientPromise;
         await sync();
-        expect(client.getConfig("feature")).toBe("override-value");
+        expect(client.get("feature")).toBe("override-value");
       });
 
       it("should match when context value is less than expected", async () => {
@@ -563,7 +563,7 @@ describe("createReplaneClient", () => {
 
         const client = await clientPromise;
         await sync();
-        expect(client.getConfig("feature")).toBe("override-value");
+        expect(client.get("feature")).toBe("override-value");
       });
     });
 
@@ -591,7 +591,7 @@ describe("createReplaneClient", () => {
 
         const client = await clientPromise;
         await sync();
-        expect(client.getConfig("feature")).toBe("adult-value");
+        expect(client.get("feature")).toBe("adult-value");
       });
 
       it("should not match when context value equals expected", async () => {
@@ -617,7 +617,7 @@ describe("createReplaneClient", () => {
 
         const client = await clientPromise;
         await sync();
-        expect(client.getConfig("feature")).toBe("default");
+        expect(client.get("feature")).toBe("default");
       });
     });
 
@@ -645,7 +645,7 @@ describe("createReplaneClient", () => {
 
         const client = await clientPromise;
         await sync();
-        expect(client.getConfig("feature")).toBe("override-value");
+        expect(client.get("feature")).toBe("override-value");
       });
 
       it("should match when context value is greater than expected", async () => {
@@ -671,7 +671,7 @@ describe("createReplaneClient", () => {
 
         const client = await clientPromise;
         await sync();
-        expect(client.getConfig("feature")).toBe("override-value");
+        expect(client.get("feature")).toBe("override-value");
       });
     });
   });
@@ -709,7 +709,7 @@ describe("createReplaneClient", () => {
 
         const client = await clientPromise;
         await sync();
-        expect(client.getConfig("feature")).toBe("override-value");
+        expect(client.get("feature")).toBe("override-value");
       });
 
       it("should not match when one condition is false", async () => {
@@ -743,7 +743,7 @@ describe("createReplaneClient", () => {
 
         const client = await clientPromise;
         await sync();
-        expect(client.getConfig("feature")).toBe("default");
+        expect(client.get("feature")).toBe("default");
       });
 
       it("should return unknown when one condition is unknown and others are true", async () => {
@@ -777,7 +777,7 @@ describe("createReplaneClient", () => {
 
         const client = await clientPromise;
         await sync();
-        expect(client.getConfig("feature")).toBe("default");
+        expect(client.get("feature")).toBe("default");
       });
     });
 
@@ -813,7 +813,7 @@ describe("createReplaneClient", () => {
 
         const client = await clientPromise;
         await sync();
-        expect(client.getConfig("feature")).toBe("override-value");
+        expect(client.get("feature")).toBe("override-value");
       });
 
       it("should not match when all conditions are false", async () => {
@@ -847,7 +847,7 @@ describe("createReplaneClient", () => {
 
         const client = await clientPromise;
         await sync();
-        expect(client.getConfig("feature")).toBe("default");
+        expect(client.get("feature")).toBe("default");
       });
     });
 
@@ -880,7 +880,7 @@ describe("createReplaneClient", () => {
 
         const client = await clientPromise;
         await sync();
-        expect(client.getConfig("feature")).toBe("non-prod-value");
+        expect(client.get("feature")).toBe("non-prod-value");
       });
 
       it("should not match when inner condition is true", async () => {
@@ -911,7 +911,7 @@ describe("createReplaneClient", () => {
 
         const client = await clientPromise;
         await sync();
-        expect(client.getConfig("feature")).toBe("default");
+        expect(client.get("feature")).toBe("default");
       });
 
       it("should return unknown when inner condition is unknown", async () => {
@@ -942,7 +942,7 @@ describe("createReplaneClient", () => {
 
         const client = await clientPromise;
         await sync();
-        expect(client.getConfig("feature")).toBe("default");
+        expect(client.get("feature")).toBe("default");
       });
     });
 
@@ -973,7 +973,7 @@ describe("createReplaneClient", () => {
 
         const client = await clientPromise;
         await sync();
-        expect(client.getConfig("feature")).toBe("admin-prod-value");
+        expect(client.get("feature")).toBe("admin-prod-value");
       });
 
       it("should not match if any condition fails in override", async () => {
@@ -1002,7 +1002,7 @@ describe("createReplaneClient", () => {
 
         const client = await clientPromise;
         await sync();
-        expect(client.getConfig("feature")).toBe("default");
+        expect(client.get("feature")).toBe("default");
       });
     });
   });
@@ -1041,7 +1041,7 @@ describe("createReplaneClient", () => {
       const client = await clientPromise;
       await sync();
       // With 100% rollout, should always match
-      expect(client.getConfig("feature")).toBe("in-segment");
+      expect(client.get("feature")).toBe("in-segment");
     });
 
     it("should return unknown when segmentation property is undefined", async () => {
@@ -1075,7 +1075,7 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("feature")).toBe("default");
+      expect(client.get("feature")).toBe("default");
     });
 
     it("should return unknown when segmentation property is null", async () => {
@@ -1109,7 +1109,7 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("feature")).toBe("default");
+      expect(client.get("feature")).toBe("default");
     });
 
     it("should not match when percentage is 0", async () => {
@@ -1143,7 +1143,7 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("feature")).toBe("default");
+      expect(client.get("feature")).toBe("default");
     });
   });
 
@@ -1171,8 +1171,8 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("feature")).toBe("default");
-      expect(client.getConfig("feature", { context: { env: "staging" } })).toBe("staging-value");
+      expect(client.get("feature")).toBe("default");
+      expect(client.get("feature", { context: { env: "staging" } })).toBe("staging-value");
     });
 
     it("should merge per-request context with client context", async () => {
@@ -1206,8 +1206,8 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("feature")).toBe("default");
-      expect(client.getConfig("feature", { context: { role: "admin" } })).toBe("admin-value");
+      expect(client.get("feature")).toBe("default");
+      expect(client.get("feature", { context: { role: "admin" } })).toBe("admin-value");
     });
 
     it("should allow per-request context to override client context", async () => {
@@ -1233,8 +1233,8 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("feature")).toBe("prod-value");
-      expect(client.getConfig("feature", { context: { env: "development" } })).toBe("default");
+      expect(client.get("feature")).toBe("prod-value");
+      expect(client.get("feature", { context: { env: "development" } })).toBe("default");
     });
   });
 
@@ -1262,7 +1262,7 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("feature")).toBe("override-value");
+      expect(client.get("feature")).toBe("override-value");
     });
 
     it("should cast string 'true' to boolean when context is boolean", async () => {
@@ -1288,7 +1288,7 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("feature")).toBe("override-value");
+      expect(client.get("feature")).toBe("override-value");
     });
 
     it("should cast string 'false' to boolean when context is boolean", async () => {
@@ -1314,7 +1314,7 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("feature")).toBe("override-value");
+      expect(client.get("feature")).toBe("override-value");
     });
 
     it("should cast number to boolean when context is boolean", async () => {
@@ -1340,7 +1340,7 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("feature")).toBe("override-value");
+      expect(client.get("feature")).toBe("override-value");
     });
 
     it("should cast number to string when context is string", async () => {
@@ -1366,7 +1366,7 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("feature")).toBe("override-value");
+      expect(client.get("feature")).toBe("override-value");
     });
 
     it("should cast boolean to string when context is string", async () => {
@@ -1392,7 +1392,7 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("feature")).toBe("override-value");
+      expect(client.get("feature")).toBe("override-value");
     });
   });
 
@@ -1409,14 +1409,14 @@ describe("createReplaneClient", () => {
     });
 
     it("should use fallbacks and timeout when server does not respond", async () => {
-      clientPromise = createClient({
+      clientPromise = createClient<Record<string, unknown>>({
         fallbacks: { config1: "fallback-value" },
         sdkInitializationTimeoutMs: 50,
       });
 
       // Don't push any events - let it timeout
       const client = await clientPromise;
-      expect(client.getConfig("config1")).toBe("fallback-value");
+      expect(client.get("config1")).toBe("fallback-value");
     });
 
     it("should throw timeout error when no fallbacks and server does not respond", async () => {
@@ -1445,12 +1445,12 @@ describe("createReplaneClient", () => {
       });
 
       const client = await clientPromise;
-      expect(client.getConfig("config1")).toBe("fallback1");
-      expect(client.getConfig("config2")).toBe("fallback2");
+      expect(client.get("config1")).toBe("fallback1");
+      expect(client.get("config2")).toBe("fallback2");
     });
 
     it("should override fallbacks with server values", async () => {
-      clientPromise = createClient({
+      clientPromise = createClient<Record<string, unknown>>({
         fallbacks: { config1: "fallback-value" },
       });
       const connection = await mockServer.acceptConnection();
@@ -1461,18 +1461,18 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("config1")).toBe("server-value");
+      expect(client.get("config1")).toBe("server-value");
     });
 
     it("should accept required as object format", async () => {
-      clientPromise = createClient({
+      clientPromise = createClient<Record<string, unknown>>({
         fallbacks: { config1: "fallback1", config2: "fallback2" },
         required: { config1: true, config2: true },
         sdkInitializationTimeoutMs: 50,
       });
 
       const client = await clientPromise;
-      expect(client.getConfig("config1")).toBe("fallback1");
+      expect(client.get("config1")).toBe("fallback1");
     });
 
     it("should handle empty required array", async () => {
@@ -1483,7 +1483,7 @@ describe("createReplaneClient", () => {
       });
 
       const client = await clientPromise;
-      expect(client.getConfig("config1")).toBe("fallback1");
+      expect(client.get("config1")).toBe("fallback1");
     });
   });
 
@@ -1500,7 +1500,446 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("config1")).toBe("value1");
+      expect(client.get("config1")).toBe("value1");
+    });
+  });
+
+  describe("subscribe", () => {
+    describe("subscribe to all configs", () => {
+      it("should receive updates for any config change", async () => {
+        clientPromise = createClient();
+        const connection = await mockServer.acceptConnection();
+        await connection.push({
+          type: "init",
+          configs: [
+            { name: "config1", overrides: [], version: 1, value: "value1" },
+            { name: "config2", overrides: [], version: 1, value: "value2" },
+          ],
+        });
+
+        const client = await clientPromise;
+        await sync();
+
+        const updates: Array<{ name: string; value: unknown }> = [];
+        const unsubscribe = client.subscribe((config) => {
+          updates.push({ name: String(config.name), value: config.value });
+        });
+
+        await connection.push({
+          type: "config_change",
+          name: "config1",
+          overrides: [],
+          version: 2,
+          value: "updated1",
+        });
+        await sync();
+
+        await connection.push({
+          type: "config_change",
+          name: "config2",
+          overrides: [],
+          version: 2,
+          value: "updated2",
+        });
+        await sync();
+
+        expect(updates).toEqual([
+          { name: "config1", value: "updated1" },
+          { name: "config2", value: "updated2" },
+        ]);
+
+        unsubscribe();
+      });
+
+      it("should not receive updates after unsubscribe", async () => {
+        clientPromise = createClient();
+        const connection = await mockServer.acceptConnection();
+        await connection.push({
+          type: "init",
+          configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
+        });
+
+        const client = await clientPromise;
+        await sync();
+
+        const updates: Array<{ name: string; value: unknown }> = [];
+        const unsubscribe = client.subscribe((config) => {
+          updates.push({ name: String(config.name), value: config.value });
+        });
+
+        await connection.push({
+          type: "config_change",
+          name: "config1",
+          overrides: [],
+          version: 2,
+          value: "updated1",
+        });
+        await sync();
+
+        unsubscribe();
+
+        await connection.push({
+          type: "config_change",
+          name: "config1",
+          overrides: [],
+          version: 3,
+          value: "updated2",
+        });
+        await sync();
+
+        expect(updates).toEqual([{ name: "config1", value: "updated1" }]);
+      });
+
+      it("should support multiple subscribers", async () => {
+        clientPromise = createClient();
+        const connection = await mockServer.acceptConnection();
+        await connection.push({
+          type: "init",
+          configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
+        });
+
+        const client = await clientPromise;
+        await sync();
+
+        const updates1: Array<{ name: string; value: unknown }> = [];
+        const updates2: Array<{ name: string; value: unknown }> = [];
+
+        const unsubscribe1 = client.subscribe((config) => {
+          updates1.push({ name: String(config.name), value: config.value });
+        });
+
+        const unsubscribe2 = client.subscribe((config) => {
+          updates2.push({ name: String(config.name), value: config.value });
+        });
+
+        await connection.push({
+          type: "config_change",
+          name: "config1",
+          overrides: [],
+          version: 2,
+          value: "updated",
+        });
+        await sync();
+
+        expect(updates1).toEqual([{ name: "config1", value: "updated" }]);
+        expect(updates2).toEqual([{ name: "config1", value: "updated" }]);
+
+        unsubscribe1();
+        unsubscribe2();
+      });
+    });
+
+    describe("subscribe to specific config", () => {
+      it("should receive updates only for subscribed config", async () => {
+        clientPromise = createClient();
+        const connection = await mockServer.acceptConnection();
+        await connection.push({
+          type: "init",
+          configs: [
+            { name: "config1", overrides: [], version: 1, value: "value1" },
+            { name: "config2", overrides: [], version: 1, value: "value2" },
+          ],
+        });
+
+        const client = await clientPromise;
+        await sync();
+
+        const updates: Array<{ name: string; value: unknown }> = [];
+        const unsubscribe = client.subscribe("config1", (config) => {
+          updates.push({ name: String(config.name), value: config.value });
+        });
+
+        await connection.push({
+          type: "config_change",
+          name: "config1",
+          overrides: [],
+          version: 2,
+          value: "updated1",
+        });
+        await sync();
+
+        await connection.push({
+          type: "config_change",
+          name: "config2",
+          overrides: [],
+          version: 2,
+          value: "updated2",
+        });
+        await sync();
+
+        expect(updates).toEqual([{ name: "config1", value: "updated1" }]);
+
+        unsubscribe();
+      });
+
+      it("should not receive updates after unsubscribe from specific config", async () => {
+        clientPromise = createClient();
+        const connection = await mockServer.acceptConnection();
+        await connection.push({
+          type: "init",
+          configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
+        });
+
+        const client = await clientPromise;
+        await sync();
+
+        const updates: Array<{ name: string; value: unknown }> = [];
+        const unsubscribe = client.subscribe("config1", (config) => {
+          updates.push({ name: String(config.name), value: config.value });
+        });
+
+        await connection.push({
+          type: "config_change",
+          name: "config1",
+          overrides: [],
+          version: 2,
+          value: "updated1",
+        });
+        await sync();
+
+        unsubscribe();
+
+        await connection.push({
+          type: "config_change",
+          name: "config1",
+          overrides: [],
+          version: 3,
+          value: "updated2",
+        });
+        await sync();
+
+        expect(updates).toEqual([{ name: "config1", value: "updated1" }]);
+      });
+
+      it("should support multiple subscribers to the same config", async () => {
+        clientPromise = createClient();
+        const connection = await mockServer.acceptConnection();
+        await connection.push({
+          type: "init",
+          configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
+        });
+
+        const client = await clientPromise;
+        await sync();
+
+        const updates1: Array<{ name: string; value: unknown }> = [];
+        const updates2: Array<{ name: string; value: unknown }> = [];
+
+        const unsubscribe1 = client.subscribe("config1", (config) => {
+          updates1.push({ name: String(config.name), value: config.value });
+        });
+
+        const unsubscribe2 = client.subscribe("config1", (config) => {
+          updates2.push({ name: String(config.name), value: config.value });
+        });
+
+        await connection.push({
+          type: "config_change",
+          name: "config1",
+          overrides: [],
+          version: 2,
+          value: "updated",
+        });
+        await sync();
+
+        expect(updates1).toEqual([{ name: "config1", value: "updated" }]);
+        expect(updates2).toEqual([{ name: "config1", value: "updated" }]);
+
+        unsubscribe1();
+        unsubscribe2();
+      });
+
+      it("should support multiple subscribers to different configs", async () => {
+        clientPromise = createClient();
+        const connection = await mockServer.acceptConnection();
+        await connection.push({
+          type: "init",
+          configs: [
+            { name: "config1", overrides: [], version: 1, value: "value1" },
+            { name: "config2", overrides: [], version: 1, value: "value2" },
+          ],
+        });
+
+        const client = await clientPromise;
+        await sync();
+
+        const updates1: Array<{ name: string; value: unknown }> = [];
+        const updates2: Array<{ name: string; value: unknown }> = [];
+
+        const unsubscribe1 = client.subscribe("config1", (config) => {
+          updates1.push({ name: String(config.name), value: config.value });
+        });
+
+        const unsubscribe2 = client.subscribe("config2", (config) => {
+          updates2.push({ name: String(config.name), value: config.value });
+        });
+
+        await connection.push({
+          type: "config_change",
+          name: "config1",
+          overrides: [],
+          version: 2,
+          value: "updated1",
+        });
+        await sync();
+
+        await connection.push({
+          type: "config_change",
+          name: "config2",
+          overrides: [],
+          version: 2,
+          value: "updated2",
+        });
+        await sync();
+
+        expect(updates1).toEqual([{ name: "config1", value: "updated1" }]);
+        expect(updates2).toEqual([{ name: "config2", value: "updated2" }]);
+
+        unsubscribe1();
+        unsubscribe2();
+      });
+
+      it("should clean up config subscription map when last subscriber unsubscribes", async () => {
+        clientPromise = createClient();
+        const connection = await mockServer.acceptConnection();
+        await connection.push({
+          type: "init",
+          configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
+        });
+
+        const client = await clientPromise;
+        await sync();
+
+        const unsubscribe1 = client.subscribe("config1", () => {});
+        const unsubscribe2 = client.subscribe("config1", () => {});
+
+        unsubscribe1();
+        unsubscribe2();
+
+        // Subscribe again to verify the map was cleaned up and recreated
+        const updates: Array<{ name: string; value: unknown }> = [];
+        const unsubscribe3 = client.subscribe("config1", (config) => {
+          updates.push({ name: String(config.name), value: config.value });
+        });
+
+        await connection.push({
+          type: "config_change",
+          name: "config1",
+          overrides: [],
+          version: 2,
+          value: "updated",
+        });
+        await sync();
+
+        expect(updates).toEqual([{ name: "config1", value: "updated" }]);
+
+        unsubscribe3();
+      });
+    });
+
+    describe("subscribe with new configs", () => {
+      it("should receive updates when new config is added via config_change", async () => {
+        clientPromise = createClient();
+        const connection = await mockServer.acceptConnection();
+        await connection.push({
+          type: "init",
+          configs: [{ name: "config1", overrides: [], version: 1, value: "value1" }],
+        });
+
+        const client = await clientPromise;
+        await sync();
+
+        const updates: Array<{ name: string; value: unknown }> = [];
+        const unsubscribe = client.subscribe((config) => {
+          updates.push({ name: String(config.name), value: config.value });
+        });
+
+        await connection.push({
+          type: "config_change",
+          name: "config2",
+          overrides: [],
+          version: 1,
+          value: "value2",
+        });
+        await sync();
+
+        expect(updates).toEqual([{ name: "config2", value: "value2" }]);
+
+        unsubscribe();
+      });
+    });
+
+    describe("subscribe with batch updates", () => {
+      it("should receive multiple updates for multiple configs", async () => {
+        clientPromise = createClient();
+        const connection = await mockServer.acceptConnection();
+        await connection.push({
+          type: "init",
+          configs: [
+            { name: "config1", overrides: [], version: 1, value: "value1" },
+            { name: "config2", overrides: [], version: 1, value: "value2" },
+            { name: "config3", overrides: [], version: 1, value: "value3" },
+          ],
+        });
+
+        const client = await clientPromise;
+        await sync();
+
+        const updates: Array<{ name: string; value: unknown }> = [];
+        const unsubscribe = client.subscribe((config) => {
+          updates.push({ name: String(config.name), value: config.value });
+        });
+
+        await connection.push({
+          type: "config_change",
+          name: "config1",
+          overrides: [],
+          version: 2,
+          value: "updated1",
+        });
+        await connection.push({
+          type: "config_change",
+          name: "config2",
+          overrides: [],
+          version: 2,
+          value: "updated2",
+        });
+        await connection.push({
+          type: "config_change",
+          name: "config3",
+          overrides: [],
+          version: 2,
+          value: "updated3",
+        });
+        await sync();
+
+        expect(updates).toEqual([
+          { name: "config1", value: "updated1" },
+          { name: "config2", value: "updated2" },
+          { name: "config3", value: "updated3" },
+        ]);
+
+        unsubscribe();
+      });
+    });
+
+    describe("subscribe error handling", () => {
+      it("should throw error when callback is not provided for specific config subscription", async () => {
+        clientPromise = createClient();
+        const connection = await mockServer.acceptConnection();
+        await connection.push({
+          type: "init",
+          configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
+        });
+
+        const client = await clientPromise;
+        await sync();
+
+        expect(() => {
+          // @ts-expect-error Testing error case
+          client.subscribe("config1");
+        }).toThrow("callback is required when config name is provided");
+      });
     });
   });
 
@@ -1520,7 +1959,7 @@ describe("createReplaneClient", () => {
 
       const client = await clientPromise;
       await sync();
-      expect(client.getConfig("config1")).toBe("initial");
+      expect(client.get("config1")).toBe("initial");
 
       client.close();
       await sync();
@@ -1531,7 +1970,7 @@ describe("createReplaneClient", () => {
       // This shouldn't update the config
       await connection.push({
         type: "config_change",
-        configName: "config1",
+        name: "config1",
         overrides: [],
         version: 2,
         value: "updated",
@@ -1539,7 +1978,7 @@ describe("createReplaneClient", () => {
       await sync();
 
       // Config should still be initial since client is closed
-      expect(client.getConfig("config1")).toBe("initial");
+      expect(client.get("config1")).toBe("initial");
     });
   });
 });
@@ -1552,9 +1991,9 @@ describe("createInMemoryReplaneClient", () => {
       config3: true,
     });
 
-    expect(client.getConfig("config1")).toBe("value1");
-    expect(client.getConfig("config2")).toBe(42);
-    expect(client.getConfig("config3")).toBe(true);
+    expect(client.get("config1")).toBe("value1");
+    expect(client.get("config2")).toBe(42);
+    expect(client.get("config3")).toBe(true);
   });
 
   it("should throw ReplaneError when config not found", () => {
@@ -1562,8 +2001,8 @@ describe("createInMemoryReplaneClient", () => {
       config1: "value1",
     });
 
-    expect(() => client.getConfig("nonexistent" as never)).toThrow(ReplaneError);
-    expect(() => client.getConfig("nonexistent" as never)).toThrow("Config not found: nonexistent");
+    expect(() => client.get("nonexistent" as never)).toThrow(ReplaneError);
+    expect(() => client.get("nonexistent" as never)).toThrow("Config not found: nonexistent");
   });
 
   it("should handle complex values", () => {
@@ -1573,9 +2012,9 @@ describe("createInMemoryReplaneClient", () => {
       null: null,
     });
 
-    expect(client.getConfig("array")).toEqual([1, 2, 3]);
-    expect(client.getConfig("object")).toEqual({ nested: { deep: "value" } });
-    expect(client.getConfig("null")).toBe(null);
+    expect(client.get("array")).toEqual([1, 2, 3]);
+    expect(client.get("object")).toEqual({ nested: { deep: "value" } });
+    expect(client.get("null")).toBe(null);
   });
 
   it("should have a no-op close method", () => {
@@ -1583,7 +2022,7 @@ describe("createInMemoryReplaneClient", () => {
 
     expect(() => client.close()).not.toThrow();
     // Config should still work after close
-    expect(client.getConfig("config1")).toBe("value1");
+    expect(client.get("config1")).toBe("value1");
   });
 });
 

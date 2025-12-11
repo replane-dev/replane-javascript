@@ -46,27 +46,27 @@ interface PasswordRequirements {
   requireSymbol: boolean;
 }
 
-const client = await createReplaneClient<Configs>({
+const configs = await createReplaneClient<Configs>({
   // Each SDK key belongs to one project only
   sdkKey: process.env.REPLANE_SDK_KEY!,
   baseUrl: "https://replane.my-hosting.com",
 });
 
 // Get a config value (knows about latest updates via SSE)
-const featureFlag = client.getConfig("new-onboarding"); // Typed as boolean
+const featureFlag = configs.get("new-onboarding"); // Typed as boolean
 
 if (featureFlag) {
   console.log("New onboarding enabled!");
 }
 
 // Typed config - no need to specify type again
-const passwordReqs = client.getConfig("password-requirements");
+const passwordReqs = configs.get("password-requirements");
 
 // Use the value directly
 const { minLength } = passwordReqs; // TypeScript knows this is PasswordRequirements
 
 // With context for override evaluation
-const enabled = client.getConfig("billing-enabled", {
+const enabled = configs.get("billing-enabled", {
   context: {
     userId: "user-123",
     plan: "premium",
@@ -79,35 +79,35 @@ if (enabled) {
 }
 
 // When done, clean up resources
-client.close();
+configs.close();
 ```
 
 ## API
 
 ### `createReplaneClient<T>(options)`
 
-Returns a promise resolving to an object: `{ getConfig, close }`.
+Returns a promise resolving to an object: `{ get, subscribe, close }`.
 
 Type parameter `T` defines the shape of your configs (a mapping of config names to their value types).
 
-`close()` stops the client and cleans up resources. After calling it, any subsequent call to `getConfig` will throw. It is safe to call multiple times (no‑op after the first call).
+`close()` stops the configs client and cleans up resources. After calling it, any subsequent call to `get` will throw. It is safe to call multiple times (no‑op after the first call).
 
 #### Options
 
 - `baseUrl` (string) – Replane origin (no trailing slash needed).
 - `sdkKey` (string) – SDK key for authorization. Required. **Note:** Each SDK key is tied to a specific project and can only access configs from that project. To access configs from multiple projects, create multiple SDK keys and initialize separate client instances.
-- `requiredConfigs` (object) – mark specific configs as required. If any required config is missing, the client will throw an error during initialization. Optional.
-- `fallbackConfigs` (object) – fallback values to use if the initial request to fetch configs fails. Allows the client to start even when the API is unavailable. Use explicit `undefined` for configs without fallbacks. Optional.
-- `context` (object) – default context for all config evaluations. Can be overridden per-request in `getConfig()`. Optional.
+- `required` (object or array) – mark specific configs as required. If any required config is missing, the client will throw an error during initialization. Can be an object with boolean values or an array of config names. Optional.
+- `fallbacks` (object) – fallback values to use if the initial request to fetch configs fails. Allows the client to start even when the API is unavailable. Optional.
+- `context` (object) – default context for all config evaluations. Can be overridden per-request in `get()`. Optional.
 - `fetchFn` (function) – custom fetch (e.g. `undici.fetch` or mocked fetch in tests). Optional.
 - `timeoutMs` (number) – abort the request after N ms. Default: 2000.
 - `retries` (number) – number of retry attempts on failures (5xx or network errors). Default: 2.
 - `retryDelayMs` (number) – base delay between retries in ms (a small jitter is applied). Default: 200.
 - `logger` (object) – custom logger with `debug`, `info`, `warn`, `error` methods. Default: `console`.
 
-### `client.getConfig<K>(name, options?)`
+### `configs.get<K>(name, options?)`
 
-Gets the current config value. The client maintains an up-to-date cache that receives realtime updates via Server-Sent Events (SSE) in the background.
+Gets the current config value. The configs client maintains an up-to-date cache that receives realtime updates via Server-Sent Events (SSE) in the background.
 
 Parameters:
 
@@ -119,8 +119,7 @@ Returns the config value of type `T[K]` (synchronous). The return type is automa
 
 Notes:
 
-- The client receives realtime updates via SSE in the background.
-- Values are automatically refreshed every 60 seconds as a fallback.
+- The configs client receives realtime updates via SSE in the background.
 - If the config is not found, throws a `ReplaneError` with code `not_found`.
 - Context-based overrides are evaluated automatically based on context.
 
@@ -132,21 +131,81 @@ interface Configs {
   "max-connections": number;
 }
 
-const client = await createReplaneClient<Configs>({
+const configs = await createReplaneClient<Configs>({
   sdkKey: "your-sdk-key",
   baseUrl: "https://replane.my-host.com",
 });
 
 // Get value without context - TypeScript knows this is boolean
-const enabled = client.getConfig("billing-enabled");
+const enabled = configs.get("billing-enabled");
 
 // Get value with context for override evaluation
-const userEnabled = client.getConfig("billing-enabled", {
+const userEnabled = configs.get("billing-enabled", {
   context: { userId: "user-123", plan: "premium" },
 });
 
 // Clean up when done
-client.close();
+configs.close();
+```
+
+### `configs.subscribe(callback)` or `configs.subscribe(configName, callback)`
+
+Subscribe to config changes and receive real-time updates when configs are modified.
+
+**Two overloads:**
+
+1. **Subscribe to all config changes:**
+
+   ```ts
+   const unsubscribe = configs.subscribe((config) => {
+     console.log(`Config ${config.name} changed to:`, config.value);
+   });
+   ```
+
+2. **Subscribe to a specific config:**
+   ```ts
+   const unsubscribe = configs.subscribe("billing-enabled", (config) => {
+     console.log(`billing-enabled changed to:`, config.value);
+   });
+   ```
+
+Parameters:
+
+- `callback` (function) – Function called when any config changes. Receives an object with `{ name, value }`.
+- `configName` (K extends keyof T) – Optional. If provided, only changes to this specific config will trigger the callback.
+
+Returns a function to unsubscribe from the config changes.
+
+Example:
+
+```ts
+interface Configs {
+  "feature-flag": boolean;
+  "max-connections": number;
+}
+
+const configs = await createReplaneClient<Configs>({
+  sdkKey: "your-sdk-key",
+  baseUrl: "https://replane.my-host.com",
+});
+
+// Subscribe to all config changes
+const unsubscribeAll = configs.subscribe((config) => {
+  console.log(`Config ${config.name} updated:`, config.value);
+});
+
+// Subscribe to a specific config
+const unsubscribeFeature = configs.subscribe("feature-flag", (config) => {
+  console.log("Feature flag changed:", config.value);
+  // config.value is typed as boolean
+});
+
+// Later: unsubscribe when done
+unsubscribeAll();
+unsubscribeFeature();
+
+// Clean up when done
+configs.close();
 ```
 
 ### `createInMemoryReplaneClient(initialData)`
@@ -157,11 +216,11 @@ Parameters:
 
 - `initialData` (object) – map of config name to value.
 
-Returns a promise resolving to the same client shape as `createReplaneClient` (`{ getConfig, close }`).
+Returns the same client shape as `createReplaneClient` (`{ get, subscribe, close }`).
 
 Notes:
 
-- `getConfig(name)` resolves to the value from `initialData`.
+- `get(name)` resolves to the value from `initialData`.
 - If a name is missing, it throws a `ReplaneError` (`Config not found: <name>`).
 - The client works as usual but doesn't receive SSE updates (values remain whatever is in-memory).
 
@@ -175,34 +234,34 @@ interface Configs {
   "max-items": { value: number; ttl: number };
 }
 
-const client = await createInMemoryReplaneClient<Configs>({
+const configs = createInMemoryReplaneClient<Configs>({
   "feature-a": true,
   "max-items": { value: 10, ttl: 3600 },
 });
 
-const featureA = client.getConfig("feature-a"); // TypeScript knows this is boolean
+const featureA = configs.get("feature-a"); // TypeScript knows this is boolean
 console.log(featureA); // true
 
-const maxItems = client.getConfig("max-items"); // TypeScript knows the type
+const maxItems = configs.get("max-items"); // TypeScript knows the type
 console.log(maxItems); // { value: 10, ttl: 3600 }
 
-client.close();
+configs.close();
 ```
 
-### `client.close()`
+### `configs.close()`
 
-Gracefully shuts down the client and cleans up resources. Subsequent method calls will throw. Use this in environments where you manage resource lifecycles explicitly (e.g. shutting down a server or worker).
+Gracefully shuts down the configs client and cleans up resources. Subsequent method calls will throw. Use this in environments where you manage resource lifecycles explicitly (e.g. shutting down a server or worker).
 
 ```ts
 // During shutdown
-client.close();
+configs.close();
 ```
 
 ### Errors
 
 `createReplaneClient` throws if the initial request to fetch configs fails with non‑2xx HTTP responses and network errors. A `ReplaneError` is thrown for HTTP failures; other errors may be thrown for network/parse issues.
 
-The client receives realtime updates via SSE in the background. SSE connection errors are logged and automatically retried, but don't affect `getConfig` calls (which return the last known value).
+The configs client receives realtime updates via SSE in the background. SSE connection errors are logged and automatically retried, but don't affect `get` calls (which return the last known value).
 
 ## Environment notes
 
@@ -223,12 +282,12 @@ interface Configs {
   layout: LayoutConfig;
 }
 
-const client = await createReplaneClient<Configs>({
+const configs = await createReplaneClient<Configs>({
   sdkKey: process.env.REPLANE_SDK_KEY!,
   baseUrl: "https://replane.my-host.com",
 });
 
-const layout = client.getConfig("layout"); // TypeScript knows this is LayoutConfig
+const layout = configs.get("layout"); // TypeScript knows this is LayoutConfig
 console.log(layout); // { variant: "a", ttl: 3600 }
 ```
 
@@ -239,7 +298,7 @@ interface Configs {
   "advanced-features": boolean;
 }
 
-const client = await createReplaneClient<Configs>({
+const configs = await createReplaneClient<Configs>({
   sdkKey: process.env.REPLANE_SDK_KEY!,
   baseUrl: "https://replane.my-host.com",
 });
@@ -247,12 +306,12 @@ const client = await createReplaneClient<Configs>({
 // Config has base value `false` but override: if `plan === "premium"` then `true`
 
 // Free user
-const freeUserEnabled = client.getConfig("advanced-features", {
+const freeUserEnabled = configs.get("advanced-features", {
   context: { plan: "free" },
 }); // false
 
 // Premium user
-const premiumUserEnabled = client.getConfig("advanced-features", {
+const premiumUserEnabled = configs.get("advanced-features", {
   context: { plan: "premium" },
 }); // true
 ```
@@ -264,7 +323,7 @@ interface Configs {
   "feature-flag": boolean;
 }
 
-const client = await createReplaneClient<Configs>({
+const configs = await createReplaneClient<Configs>({
   sdkKey: process.env.REPLANE_SDK_KEY!,
   baseUrl: "https://replane.my-host.com",
   context: {
@@ -274,8 +333,8 @@ const client = await createReplaneClient<Configs>({
 });
 
 // This context is used for all configs unless overridden
-const value1 = client.getConfig("feature-flag"); // Uses client-level context
-const value2 = client.getConfig("feature-flag", {
+const value1 = configs.get("feature-flag"); // Uses client-level context
+const value2 = configs.get("feature-flag", {
   context: { userId: "user-321" },
 }); // Merges with client context
 ```
@@ -283,7 +342,7 @@ const value2 = client.getConfig("feature-flag", {
 ### Custom fetch (tests)
 
 ```ts
-const client = await createReplaneClient({
+const configs = await createReplaneClient({
   sdkKey: "TKN",
   baseUrl: "https://api",
   fetchFn: mockFetch,
@@ -299,18 +358,20 @@ interface Configs {
   "optional-feature": boolean;
 }
 
-const client = await createReplaneClient<Configs>({
+const configs = await createReplaneClient<Configs>({
   sdkKey: process.env.REPLANE_SDK_KEY!,
   baseUrl: "https://replane.my-host.com",
-  requiredConfigs: {
+  required: {
     "api-key": true,
     "database-url": true,
     "optional-feature": false, // Not required
   },
 });
 
+// Alternative: use an array
+// required: ["api-key", "database-url"]
+
 // If any required config is missing, initialization will throw
-// Required configs that are deleted won't be removed (warning logged instead)
 ```
 
 ### Fallback configs
@@ -322,19 +383,19 @@ interface Configs {
   "timeout-ms": number;
 }
 
-const client = await createReplaneClient<Configs>({
+const configs = await createReplaneClient<Configs>({
   sdkKey: process.env.REPLANE_SDK_KEY!,
   baseUrl: "https://replane.my-host.com",
-  fallbackConfigs: {
+  fallbacks: {
     "feature-flag": false, // Use false if fetch fails
     "max-connections": 10, // Use 10 if fetch fails
-    "timeout-ms": undefined, // No fallback - client.getConfig('timeout-ms') will throw if the initial fetch failed
+    "timeout-ms": 5000, // Use 5s if fetch fails
   },
 });
 
 // If the initial fetch fails, fallback values are used
-// Once the client connects, it will receive realtime updates
-const maxConnections = client.getConfig("max-connections"); // 10 (or real value)
+// Once the configs client connects, it will receive realtime updates
+const maxConnections = configs.get("max-connections"); // 10 (or real value)
 ```
 
 ### Multiple projects
@@ -350,20 +411,62 @@ interface ProjectBConfigs {
   "api-rate-limit": number;
 }
 
-// Each project needs its own SDK key and client instance
-const projectAClient = await createReplaneClient<ProjectAConfigs>({
+// Each project needs its own SDK key and configs client instance
+const projectAConfigs = await createReplaneClient<ProjectAConfigs>({
   sdkKey: process.env.PROJECT_A_SDK_KEY!,
   baseUrl: "https://replane.my-host.com",
 });
 
-const projectBClient = await createReplaneClient<ProjectBConfigs>({
+const projectBConfigs = await createReplaneClient<ProjectBConfigs>({
   sdkKey: process.env.PROJECT_B_SDK_KEY!,
   baseUrl: "https://replane.my-host.com",
 });
 
-// Each client only accesses configs from its respective project
-const featureA = projectAClient.getConfig("feature-flag"); // boolean
-const featureB = projectBClient.getConfig("feature-flag"); // boolean
+// Each configs client only accesses configs from its respective project
+const featureA = projectAConfigs.get("feature-flag"); // boolean
+const featureB = projectBConfigs.get("feature-flag"); // boolean
+```
+
+### Subscriptions
+
+```ts
+interface Configs {
+  "feature-flag": boolean;
+  "max-users": number;
+}
+
+const configs = await createReplaneClient<Configs>({
+  sdkKey: process.env.REPLANE_SDK_KEY!,
+  baseUrl: "https://replane.my-host.com",
+});
+
+// Subscribe to all config changes
+const unsubscribeAll = configs.subscribe((config) => {
+  console.log(`Config ${config.name} changed:`, config.value);
+
+  // React to specific config changes
+  if (config.name === "feature-flag") {
+    console.log("Feature flag updated:", config.value);
+  }
+});
+
+// Subscribe to a specific config only
+const unsubscribeFeature = configs.subscribe("feature-flag", (config) => {
+  console.log("Feature flag changed:", config.value);
+  // config.value is automatically typed as boolean
+});
+
+// Subscribe to multiple specific configs
+const unsubscribeMaxUsers = configs.subscribe("max-users", (config) => {
+  console.log("Max users changed:", config.value);
+  // config.value is automatically typed as number
+});
+
+// Cleanup
+unsubscribeAll();
+unsubscribeFeature();
+unsubscribeMaxUsers();
+configs.close();
 ```
 
 ## Roadmap

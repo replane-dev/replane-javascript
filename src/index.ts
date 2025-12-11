@@ -341,11 +341,18 @@ export type ReplaneContext = Record<string, unknown>;
 
 export interface ReplaneClientOptions<T extends Configs> {
   /**
-   * Base URL of the Replane API (no trailing slash).
+   * Base URL of the Replane instance (no trailing slash).
+   * @example
+   * "https://app.replane.dev"
+   *
+   * @example
+   * "https://replane.yourdomain.com"
    */
   baseUrl: string;
   /**
    * Project SDK key for authorization.
+   * @example
+   * "rp_XXXXXXXXX"
    */
   sdkKey: string;
   /**
@@ -361,10 +368,10 @@ export interface ReplaneClientOptions<T extends Configs> {
    * Optional timeout in ms for the SDK initialization.
    * @default 5000
    */
-  sdkInitializationTimeoutMs?: number;
+  initializationTimeoutMs?: number;
   /**
    * Delay between retries in ms.
-   * @default 100
+   * @default 200
    */
   retryDelayMs?: number;
   /**
@@ -373,7 +380,7 @@ export interface ReplaneClientOptions<T extends Configs> {
   logger?: ReplaneLogger;
   /**
    * Default context for all config evaluations.
-   * Can be overridden per-request in `client.watchConfig()` and `watcher.getValue()`.
+   * Can be overridden per-request in `client.get()`.
    */
   context?: ReplaneContext;
 
@@ -401,7 +408,8 @@ export interface ReplaneClientOptions<T extends Configs> {
     | Array<keyof T>;
 
   /**
-   * Fallback configs to use if the initial request to fetch configs fails.
+   * Fallback values to use if the initial request to fetch configs fails.
+   * When provided, all configs must be specified.
    * @example
    * {
    *   fallbacks: {
@@ -419,7 +427,7 @@ interface ReplaneFinalOptions {
   baseUrl: string;
   fetchFn: typeof fetch;
   requestTimeoutMs: number;
-  sdkInitializationTimeoutMs: number;
+  initializationTimeoutMs: number;
   sdkKey: string;
   logger: ReplaneLogger;
   retryDelayMs: number;
@@ -442,13 +450,6 @@ export interface GetConfigOptions {
   context?: ReplaneContext;
 }
 
-export interface ConfigWatcher<T> {
-  /** Current config value (or fallback if not found). */
-  getValue(context?: ReplaneContext): T;
-  /** Stop watching for changes. */
-  close(): void;
-}
-
 type MapConfig<T extends Configs> = {
   [K in keyof T]: {
     name: K;
@@ -458,7 +459,7 @@ type MapConfig<T extends Configs> = {
 
 export interface ReplaneClient<T extends Configs> {
   /** Get a config by its name. */
-  getConfig<K extends keyof T>(configName: K, options?: GetConfigOptions): T[K];
+  get<K extends keyof T>(configName: K, options?: GetConfigOptions): T[K];
   /** Subscribe to config changes.
    *  @param callback - A function to call when an config is changed. The callback will be called with the new config value.
    *  @returns A function to unsubscribe from the config changes.
@@ -522,7 +523,7 @@ export function createInMemoryReplaneClient<T extends Configs = Record<string, u
   initialData: T
 ): ReplaneClient<T> {
   return {
-    getConfig: (configName) => {
+    get: (configName) => {
       const config = initialData[configName];
       if (config === undefined) {
         throw new ReplaneError({
@@ -588,6 +589,8 @@ async function _createReplaneClient<T extends Configs = Record<string, unknown>>
             callback({ name: config.name as keyof T, value: config.value as T[keyof T] });
           }
         }
+
+        clientReady.resolve();
       }
     } catch (error) {
       sdkOptions.logger.error("Replane: error initializing client:", error);
@@ -595,10 +598,7 @@ async function _createReplaneClient<T extends Configs = Record<string, unknown>>
     }
   })();
 
-  function getConfig<K extends keyof T>(
-    configName: K,
-    getConfigOptions: GetConfigOptions = {}
-  ): T[K] {
+  function get<K extends keyof T>(configName: K, getConfigOptions: GetConfigOptions = {}): T[K] {
     const config = configs.get(String(configName));
 
     if (config === undefined) {
@@ -641,8 +641,9 @@ async function _createReplaneClient<T extends Configs = Record<string, unknown>>
     }
 
     // Wrap the callback to ensure that we have a unique reference
+    const originalCallback = callback;
     callback = (...args: Parameters<typeof callback>) => {
-      callback(...args);
+      originalCallback(...args);
     };
 
     if (configName === undefined) {
@@ -701,14 +702,14 @@ async function _createReplaneClient<T extends Configs = Record<string, unknown>>
     }
 
     clientReady.resolve();
-  }, sdkOptions.sdkInitializationTimeoutMs);
+  }, sdkOptions.initializationTimeoutMs);
 
   clientReady.promise.then(() => clearTimeout(initializationTimeoutId));
 
   await clientReady.promise;
 
   return {
-    getConfig,
+    get,
     subscribe: subscribe as ReplaneClient<T>["subscribe"],
     close,
   };
@@ -723,7 +724,7 @@ function toFinalOptions<T extends Configs>(defaults: ReplaneClientOptions<T>): R
       // some browsers require binding the fetch function to window
       globalThis.fetch.bind(globalThis),
     requestTimeoutMs: defaults.requestTimeoutMs ?? 2000,
-    sdkInitializationTimeoutMs: defaults.sdkInitializationTimeoutMs ?? 5000,
+    initializationTimeoutMs: defaults.initializationTimeoutMs ?? 5000,
     logger: defaults.logger ?? console,
     retryDelayMs: defaults.retryDelayMs ?? 200,
     context: {
