@@ -4,38 +4,16 @@ import type { ReplicationStreamRecord, StartReplicationStreamBody } from "../src
 export function createFetchMock(
   handler: (req: Request, signal?: AbortSignal) => Response | Promise<Response>
 ) {
-  const fetchFn = async (input: RequestInfo | URL, init?: RequestInit) => {
-    // Check if already aborted
-    if (init?.signal?.aborted) {
+  return async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+    const signal = init?.signal ?? undefined;
+
+    if (signal?.aborted) {
       throw new DOMException("The operation was aborted.", "AbortError");
     }
 
-    // Normalize to a real Request object
     const req = input instanceof Request ? input : new Request(input.toString(), init);
-
-    // Create a promise that rejects when the signal is aborted
-    const abortPromise = init?.signal
-      ? new Promise<never>((_, reject) => {
-          init.signal!.addEventListener("abort", () => {
-            reject(new DOMException("The operation was aborted.", "AbortError"));
-          });
-        })
-      : null;
-
-    // Race between the handler and the abort signal
-    const handlerPromise = handler(req, init?.signal ?? undefined);
-    const res = abortPromise
-      ? await Promise.race([handlerPromise, abortPromise])
-      : await handlerPromise;
-
-    if (!(res instanceof Response)) {
-      throw new Error("Mock handler must return a Response");
-    }
-
-    return res;
+    return handler(req, signal);
   };
-
-  return fetchFn;
 }
 
 export interface ReplaneServerMockHandler {
@@ -46,19 +24,10 @@ export interface ReplaneServerMockHandler {
 }
 
 export function createReplaneServerMock(handler: ReplaneServerMockHandler) {
-  const fetchFn = createFetchMock(async (req, signal) => {
-    if (typeof req === "string") {
-      return new Response("Invalid request", { status: 400 });
-    }
-
-    if (req instanceof URL) {
-      return new Response("Invalid request", { status: 400 });
-    }
-
+  return createFetchMock(async (req, signal) => {
     const url = new URL(req.url);
-    const method = req.method;
 
-    if (method !== "POST") {
+    if (req.method !== "POST") {
       return new Response("Method not allowed", { status: 405 });
     }
 
@@ -74,11 +43,7 @@ export function createReplaneServerMock(handler: ReplaneServerMockHandler) {
 
     const body = (await req.json()) as StartReplicationStreamBody;
 
-    if (!Array.isArray(body.currentConfigs)) {
-      return new Response("Invalid request", { status: 400 });
-    }
-
-    if (!Array.isArray(body.requiredConfigs)) {
+    if (!Array.isArray(body.currentConfigs) || !Array.isArray(body.requiredConfigs)) {
       return new Response("Invalid request", { status: 400 });
     }
 
@@ -86,36 +51,25 @@ export function createReplaneServerMock(handler: ReplaneServerMockHandler) {
 
     const sseStream = new ReadableStream<SseEvent>({
       async start(controller) {
-        // Handle abort signal
-        const onAbort = () => {
-          controller.close();
-        };
-        signal?.addEventListener("abort", onAbort);
+        signal?.addEventListener("abort", () => controller.close(), { once: true });
 
         try {
           controller.enqueue({ type: "connected" });
           controller.enqueue({ type: "ping" });
-          controller.enqueue({ type: "ping" });
 
           for await (const event of replicationStream) {
-            if (signal?.aborted) {
-              break;
-            }
+            if (signal?.aborted) break;
             controller.enqueue({ type: "data", data: JSON.stringify(event) });
             controller.enqueue({ type: "ping" });
           }
 
           if (!signal?.aborted) {
-            controller.enqueue({ type: "ping" });
-            controller.enqueue({ type: "ping" });
             controller.close();
           }
         } catch (error) {
           if (!signal?.aborted) {
             controller.error(error);
           }
-        } finally {
-          signal?.removeEventListener("abort", onAbort);
         }
       },
     }).pipeThrough(new SseEncoderStream());
@@ -129,7 +83,6 @@ export function createReplaneServerMock(handler: ReplaneServerMockHandler) {
       },
     });
   });
-  return fetchFn;
 }
 
 type SseEvent = { type: "data"; data: string } | { type: "ping" } | { type: "connected" };
@@ -165,28 +118,20 @@ export class MockReplaneServerController {
     const self = this;
 
     this.fetchFn = createReplaneServerMock({
-      startReplicationStream: async function* (
-        body: StartReplicationStreamBody,
-        signal?: AbortSignal
-      ) {
+      startReplicationStream: async function* (body, signal) {
         const connection = new MockReplaneServerConnection(body, signal);
-        await self.reportConnection(connection);
-
+        self.knownConnections.add(connection);
+        await self.connections.push(connection);
         yield* connection.events;
       },
     });
   }
 
   async acceptConnection(): Promise<MockReplaneServerConnection> {
-    return await this.connections.get();
+    return this.connections.get();
   }
 
-  async reportConnection(connection: MockReplaneServerConnection) {
-    this.knownConnections.add(connection);
-    await this.connections.push(connection);
-  }
-
-  async close() {
+  close() {
     for (const connection of this.knownConnections) {
       connection.close();
     }
@@ -197,26 +142,16 @@ export class MockReplaneServerController {
 
 export class MockReplaneServerConnection {
   private readonly _events = new Channel<ReplicationStreamRecord>();
-  private readonly _signal?: AbortSignal;
   private _closed = false;
 
   constructor(
     private readonly _body: StartReplicationStreamBody,
-    signal?: AbortSignal
+    private readonly _signal?: AbortSignal
   ) {
-    this._signal = signal;
-
-    // Close the channel when the signal is aborted
-    if (signal) {
-      if (signal.aborted) {
-        this._closed = true;
-        this._events.close();
-      } else {
-        signal.addEventListener("abort", () => {
-          this._closed = true;
-          this._events.close();
-        });
-      }
+    if (_signal?.aborted) {
+      this.close();
+    } else {
+      _signal?.addEventListener("abort", () => this.close(), { once: true });
     }
   }
 
@@ -229,7 +164,7 @@ export class MockReplaneServerConnection {
   }
 
   get aborted(): boolean {
-    return this._closed || (this._signal?.aborted ?? false);
+    return this._closed;
   }
 
   get closed(): boolean {
@@ -245,20 +180,17 @@ export class MockReplaneServerConnection {
   }
 
   async push(event: ReplicationStreamRecord) {
-    if (this._closed || this._signal?.aborted) {
-      return;
-    }
+    if (this._closed) return;
     await this._events.push(event);
   }
 
   async throw(error: Error) {
-    if (this._closed || this._signal?.aborted) {
-      return;
-    }
+    if (this._closed) return;
     await this._events.throw(error);
   }
 
   close() {
+    if (this._closed) return;
     this._closed = true;
     this._events.close();
   }
