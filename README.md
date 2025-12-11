@@ -20,11 +20,11 @@ You need: given a token + config name + optional context -> watch the value with
 ## Installation
 
 ```bash
-npm install replane-sdk
+npm install @replanejs/sdk
 # or
-pnpm add replane-sdk
+pnpm add @replanejs/sdk
 # or
-yarn add replane-sdk
+yarn add @replanejs/sdk
 ```
 
 ## Quick start
@@ -32,7 +32,7 @@ yarn add replane-sdk
 > **Important:** Each SDK key is tied to a specific project. The client can only access configs from the project that the SDK key belongs to. If you need configs from multiple projects, create separate SDK keys and initialize separate clients—one per project.
 
 ```ts
-import { createReplaneClient } from "replane-sdk";
+import { createReplaneClient } from "@replanejs/sdk";
 
 // Define your config types
 interface Configs {
@@ -168,7 +168,7 @@ Notes:
 Example:
 
 ```ts
-import { createInMemoryReplaneClient } from "replane-sdk";
+import { createInMemoryReplaneClient } from "@replanejs/sdk";
 
 interface Configs {
   "feature-a": boolean;
