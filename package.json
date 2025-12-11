@@ -1,6 +1,6 @@
 {
   "name": "@replanejs/sdk",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "description": "Replane JavaScript SDK.",
   "type": "module",
   "license": "MIT",
