@@ -1,7 +1,7 @@
 {
-  "name": "replane-sdk",
+  "name": "@replanejs/sdk",
   "version": "0.5.5",
-  "description": "Replane TypeScript SDK.",
+  "description": "Replane JavaScript SDK.",
   "type": "module",
   "license": "MIT",
   "homepage": "https://github.com/replane-dev/replane-javascript#readme",
