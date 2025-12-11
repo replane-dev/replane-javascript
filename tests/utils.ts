@@ -72,7 +72,7 @@ export function createReplaneServerMock(handler: ReplaneServerMockHandler) {
       });
     }
 
-    const body = JSON.parse(await req.json()) as StartReplicationStreamBody;
+    const body = (await req.json()) as StartReplicationStreamBody;
 
     if (!Array.isArray(body.currentConfigs)) {
       return new Response("Invalid request", { status: 400 });
@@ -198,18 +198,25 @@ export class MockReplaneServerController {
 export class MockReplaneServerConnection {
   private readonly _events = new Channel<ReplicationStreamRecord>();
   private readonly _signal?: AbortSignal;
+  private _closed = false;
 
   constructor(
-    private readonly body: StartReplicationStreamBody,
+    private readonly _body: StartReplicationStreamBody,
     signal?: AbortSignal
   ) {
     this._signal = signal;
 
     // Close the channel when the signal is aborted
     if (signal) {
-      signal.addEventListener("abort", () => {
+      if (signal.aborted) {
+        this._closed = true;
         this._events.close();
-      });
+      } else {
+        signal.addEventListener("abort", () => {
+          this._closed = true;
+          this._events.close();
+        });
+      }
     }
   }
 
@@ -217,29 +224,42 @@ export class MockReplaneServerConnection {
     return this._signal;
   }
 
+  get hasSignal(): boolean {
+    return this._signal !== undefined;
+  }
+
   get aborted(): boolean {
-    return this._signal?.aborted ?? false;
+    return this._closed || (this._signal?.aborted ?? false);
+  }
+
+  get closed(): boolean {
+    return this._closed;
   }
 
   get events(): AsyncIterable<ReplicationStreamRecord> {
     return this._events;
   }
 
+  get requestBody(): StartReplicationStreamBody {
+    return this._body;
+  }
+
   async push(event: ReplicationStreamRecord) {
-    if (this._signal?.aborted) {
+    if (this._closed || this._signal?.aborted) {
       return;
     }
     await this._events.push(event);
   }
 
   async throw(error: Error) {
-    if (this._signal?.aborted) {
+    if (this._closed || this._signal?.aborted) {
       return;
     }
     await this._events.throw(error);
   }
 
   close() {
+    this._closed = true;
     this._events.close();
   }
 }

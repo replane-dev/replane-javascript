@@ -1508,6 +1508,11 @@ describe("createReplaneClient", () => {
     it("should stop receiving updates after close", async () => {
       clientPromise = createClient();
       const connection = await mockServer.acceptConnection();
+
+      // Verify signal is passed to the mock
+      expect(connection.hasSignal).toBe(true);
+      expect(connection.aborted).toBe(false);
+
       await connection.push({
         type: "init",
         configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
@@ -1519,6 +1524,9 @@ describe("createReplaneClient", () => {
 
       client.close();
       await sync();
+
+      // Verify signal was aborted after close
+      expect(connection.aborted).toBe(true);
 
       // This shouldn't update the config
       await connection.push({

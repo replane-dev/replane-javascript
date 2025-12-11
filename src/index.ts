@@ -685,7 +685,11 @@ async function fetchWithTimeout(
   if (!timeoutMs) return fetchFn(input, init);
   const timeoutController = new AbortController();
   const t = setTimeout(() => timeoutController.abort(), timeoutMs);
-  const { signal, cleanUpSignals } = combineAbortSignals([init.signal, timeoutController.signal]);
+  // Note: We intentionally don't call cleanUpSignals() here because for streaming
+  // responses (like SSE), the connection remains open after the response headers
+  // are received. The abort signal needs to remain connected so that close() can
+  // propagate the abort through the signal chain.
+  const { signal } = combineAbortSignals([init.signal, timeoutController.signal]);
   try {
     return await fetchFn(input, {
       ...init,
@@ -693,7 +697,6 @@ async function fetchWithTimeout(
     });
   } finally {
     clearTimeout(t);
-    cleanUpSignals();
   }
 }
 
@@ -703,7 +706,7 @@ async function* fetchSse(params: {
   fetchFn: typeof fetch;
   url: string;
   timeoutMs: number;
-  body?: unknown;
+  body?: string;
   headers?: Record<string, string>;
   method?: string;
   signal?: AbortSignal;
@@ -719,7 +722,7 @@ async function* fetchSse(params: {
       {
         method: params.method ?? "GET",
         headers: { Accept: "text/event-stream", ...(params.headers ?? {}) },
-        body: params.body ? JSON.stringify(params.body) : undefined,
+        body: params.body,
         signal,
       },
       params.timeoutMs,
