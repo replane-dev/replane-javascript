@@ -90,7 +90,7 @@ Returns a promise resolving to an object: `{ get, subscribe, close }`.
 
 Type parameter `T` defines the shape of your configs (a mapping of config names to their value types).
 
-`close()` stops the configs client and cleans up resources. After calling it, any subsequent call to `get` will throw. It is safe to call multiple times (no‑op after the first call).
+`close()` stops the configs client and cleans up resources. It is safe to call multiple times (no‑op after the first call).
 
 #### Options
 
