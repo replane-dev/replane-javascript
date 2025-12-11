@@ -1411,7 +1411,7 @@ describe("createReplaneClient", () => {
     it("should use fallbacks and timeout when server does not respond", async () => {
       clientPromise = createClient<Record<string, unknown>>({
         fallbacks: { config1: "fallback-value" },
-        sdkInitializationTimeoutMs: 50,
+        initializationTimeoutMs: 50,
       });
 
       // Don't push any events - let it timeout
@@ -1421,7 +1421,7 @@ describe("createReplaneClient", () => {
 
     it("should throw timeout error when no fallbacks and server does not respond", async () => {
       clientPromise = createClient({
-        sdkInitializationTimeoutMs: 50,
+        initializationTimeoutMs: 50,
       });
 
       await expect(clientPromise).rejects.toThrow("Replane client initialization timed out");
@@ -1431,7 +1431,7 @@ describe("createReplaneClient", () => {
       clientPromise = createClient({
         fallbacks: { config1: "fallback-value" },
         required: ["config1", "config2"],
-        sdkInitializationTimeoutMs: 50,
+        initializationTimeoutMs: 50,
       });
 
       await expect(clientPromise).rejects.toThrow("Required configs are missing: config2");
@@ -1441,7 +1441,7 @@ describe("createReplaneClient", () => {
       clientPromise = createClient({
         fallbacks: { config1: "fallback1", config2: "fallback2" },
         required: ["config1", "config2"],
-        sdkInitializationTimeoutMs: 50,
+        initializationTimeoutMs: 50,
       });
 
       const client = await clientPromise;
@@ -1468,7 +1468,7 @@ describe("createReplaneClient", () => {
       clientPromise = createClient<Record<string, unknown>>({
         fallbacks: { config1: "fallback1", config2: "fallback2" },
         required: { config1: true, config2: true },
-        sdkInitializationTimeoutMs: 50,
+        initializationTimeoutMs: 50,
       });
 
       const client = await clientPromise;
@@ -1479,7 +1479,7 @@ describe("createReplaneClient", () => {
       clientPromise = createClient({
         fallbacks: { config1: "fallback1" },
         required: [],
-        sdkInitializationTimeoutMs: 50,
+        initializationTimeoutMs: 50,
       });
 
       const client = await clientPromise;
