@@ -1,7 +1,7 @@
 {
   "name": "@replanejs/sdk",
   "version": "0.5.9",
-  "description": "Replane JavaScript SDK.",
+  "description": "Dynamic configuration SDK for browser and server environments (Node.js, Deno, Bun). Powered by Replane.",
   "type": "module",
   "license": "MIT",
   "homepage": "https://github.com/replane-dev/replane-javascript#readme",
@@ -34,7 +34,8 @@
     "replane",
     "config",
     "configuration",
-    "sdk",
+    "dynamic configuration",
+    "remote config",
     "feature-flags"
   ],
   "sideEffects": false,
