@@ -1981,6 +1981,126 @@ describe("createReplaneClient", () => {
       expect(client.get("config1")).toBe("initial");
     });
   });
+
+  describe("inactivity timeout", () => {
+    async function waitFor(
+      condition: () => boolean,
+      timeoutMs: number = 1000,
+      intervalMs: number = 10
+    ): Promise<void> {
+      const start = Date.now();
+      while (!condition()) {
+        if (Date.now() - start > timeoutMs) {
+          throw new Error("waitFor timed out");
+        }
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      }
+    }
+
+    it("should reconnect when no events are received within inactivity timeout", async () => {
+      const inactivityTimeoutMs = 50;
+      clientPromise = createClient({ inactivityTimeoutMs });
+
+      // First connection
+      const connection1 = await mockServer.acceptConnection();
+      await connection1.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
+      });
+
+      const client = await clientPromise;
+      await sync();
+      expect(client.get("config1")).toBe("initial");
+
+      // Wait for connection to be aborted due to inactivity
+      await waitFor(() => connection1.aborted, inactivityTimeoutMs + 100);
+      expect(connection1.aborted).toBe(true);
+
+      // Client should reconnect - accept the new connection
+      const connection2 = await mockServer.acceptConnection();
+      await connection2.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], version: 2, value: "reconnected" }],
+      });
+      await sync();
+
+      expect(client.get("config1")).toBe("reconnected");
+
+      client.close();
+    });
+
+    it("should reset inactivity timer when ping is received", async () => {
+      const inactivityTimeoutMs = 100;
+      clientPromise = createClient({ inactivityTimeoutMs });
+
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
+      });
+
+      const client = await clientPromise;
+      await sync();
+      expect(client.get("config1")).toBe("initial");
+
+      // Wait for some time, but less than inactivity timeout
+      await new Promise((resolve) => setTimeout(resolve, inactivityTimeoutMs / 2));
+      expect(connection.aborted).toBe(false);
+
+      // Send a ping to reset the timer
+      await connection.ping();
+      await sync();
+
+      // Wait again, but less than inactivity timeout from the ping
+      await new Promise((resolve) => setTimeout(resolve, inactivityTimeoutMs / 2));
+      expect(connection.aborted).toBe(false);
+
+      // Now wait past the inactivity timeout from the ping
+      await waitFor(() => connection.aborted, inactivityTimeoutMs + 50);
+      expect(connection.aborted).toBe(true);
+
+      client.close();
+    });
+
+    it("should reset inactivity timer when data event is received", async () => {
+      const inactivityTimeoutMs = 100;
+      clientPromise = createClient({ inactivityTimeoutMs });
+
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
+      });
+
+      const client = await clientPromise;
+      await sync();
+
+      // Wait for some time, but less than inactivity timeout
+      await new Promise((resolve) => setTimeout(resolve, inactivityTimeoutMs / 2));
+      expect(connection.aborted).toBe(false);
+
+      // Send a config change to reset the timer
+      await connection.push({
+        type: "config_change",
+        name: "config1",
+        overrides: [],
+        version: 2,
+        value: "updated",
+      });
+      await sync();
+      expect(client.get("config1")).toBe("updated");
+
+      // Wait again, but less than inactivity timeout from the event
+      await new Promise((resolve) => setTimeout(resolve, inactivityTimeoutMs / 2));
+      expect(connection.aborted).toBe(false);
+
+      // Now wait past the inactivity timeout from the event
+      await waitFor(() => connection.aborted, inactivityTimeoutMs + 50);
+      expect(connection.aborted).toBe(true);
+
+      client.close();
+    });
+  });
 });
 
 describe("createInMemoryReplaneClient", () => {

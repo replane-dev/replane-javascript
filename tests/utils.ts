@@ -20,7 +20,7 @@ export interface ReplaneServerMockHandler {
   startReplicationStream: (
     body: StartReplicationStreamBody,
     signal?: AbortSignal
-  ) => AsyncIterable<ReplicationStreamRecord>;
+  ) => AsyncIterable<MockConnectionEvent>;
 }
 
 export function createReplaneServerMock(handler: ReplaneServerMockHandler) {
@@ -59,8 +59,11 @@ export function createReplaneServerMock(handler: ReplaneServerMockHandler) {
 
           for await (const event of replicationStream) {
             if (signal?.aborted) break;
-            controller.enqueue({ type: "data", data: JSON.stringify(event) });
-            controller.enqueue({ type: "ping" });
+            if (event.type === "ping") {
+              controller.enqueue({ type: "ping" });
+            } else {
+              controller.enqueue({ type: "data", data: JSON.stringify(event.record) });
+            }
           }
 
           if (!signal?.aborted) {
@@ -122,7 +125,9 @@ export class MockReplaneServerController {
         const connection = new MockReplaneServerConnection(body, signal);
         self.knownConnections.add(connection);
         await self.connections.push(connection);
-        yield* connection.events;
+        for await (const event of connection.events) {
+          yield event;
+        }
       },
     });
   }
@@ -140,8 +145,12 @@ export class MockReplaneServerController {
   }
 }
 
+type MockConnectionEvent =
+  | { type: "data"; record: ReplicationStreamRecord }
+  | { type: "ping" };
+
 export class MockReplaneServerConnection {
-  private readonly _events = new Channel<ReplicationStreamRecord>();
+  private readonly _events = new Channel<MockConnectionEvent>();
   private _closed = false;
 
   constructor(
@@ -171,7 +180,7 @@ export class MockReplaneServerConnection {
     return this._closed;
   }
 
-  get events(): AsyncIterable<ReplicationStreamRecord> {
+  get events(): AsyncIterable<MockConnectionEvent> {
     return this._events;
   }
 
@@ -181,7 +190,12 @@ export class MockReplaneServerConnection {
 
   async push(event: ReplicationStreamRecord) {
     if (this._closed) return;
-    await this._events.push(event);
+    await this._events.push({ type: "data", record: event });
+  }
+
+  async ping() {
+    if (this._closed) return;
+    await this._events.push({ type: "ping" });
   }
 
   async throw(error: Error) {

@@ -296,31 +296,58 @@ class ReplaneRemoteStorage implements ReplaneStorage {
   private async *startReplicationStreamImpl(
     options: StartReplicationStreamReplaneStorageOptions
   ): AsyncIterable<ReplicationStreamRecord> {
-    const rawEvents = fetchSse({
-      fetchFn: options.fetchFn,
-      headers: {
-        Authorization: this.getAuthHeader(options),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(options.getBody()),
-      timeoutMs: options.requestTimeoutMs,
-      method: "POST",
-      signal: options.signal,
-      url: this.getApiEndpoint(`/sdk/v1/replication/stream`, options),
-      onConnect: options.onConnect,
-    });
+    // Create an abort controller for inactivity timeout
+    const inactivityAbortController = new AbortController();
+    const { signal: combinedSignal, cleanUpSignals } = options.signal
+      ? combineAbortSignals([options.signal, inactivityAbortController.signal])
+      : { signal: inactivityAbortController.signal, cleanUpSignals: () => {} };
 
-    for await (const rawEvent of rawEvents) {
-      const event = JSON.parse(rawEvent);
-      if (
-        typeof event === "object" &&
-        event !== null &&
-        "type" in event &&
-        typeof event.type === "string" &&
-        (SUPPORTED_REPLICATION_STREAM_RECORD_TYPES as unknown as string[]).includes(event.type)
-      ) {
-        yield event as ReplicationStreamRecord;
+    let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const resetInactivityTimer = () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(() => {
+        inactivityAbortController.abort();
+      }, options.inactivityTimeoutMs);
+    };
+
+    try {
+      const rawEvents = fetchSse({
+        fetchFn: options.fetchFn,
+        headers: {
+          Authorization: this.getAuthHeader(options),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(options.getBody()),
+        timeoutMs: options.requestTimeoutMs,
+        method: "POST",
+        signal: combinedSignal,
+        url: this.getApiEndpoint(`/sdk/v1/replication/stream`, options),
+        onConnect: () => {
+          resetInactivityTimer();
+          options.onConnect?.();
+        },
+      });
+
+      for await (const sseEvent of rawEvents) {
+        resetInactivityTimer();
+
+        if (sseEvent.type === "ping") continue;
+
+        const event = JSON.parse(sseEvent.payload);
+        if (
+          typeof event === "object" &&
+          event !== null &&
+          "type" in event &&
+          typeof event.type === "string" &&
+          (SUPPORTED_REPLICATION_STREAM_RECORD_TYPES as unknown as string[]).includes(event.type)
+        ) {
+          yield event as ReplicationStreamRecord;
+        }
       }
+    } finally {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      cleanUpSignals();
     }
   }
 
@@ -375,6 +402,12 @@ export interface ReplaneClientOptions<T extends Configs> {
    */
   retryDelayMs?: number;
   /**
+   * Timeout in ms for SSE connection inactivity.
+   * If no events (including pings) are received within this time, the connection will be re-established.
+   * @default 60000
+   */
+  inactivityTimeoutMs?: number;
+  /**
    * Optional logger (defaults to console).
    */
   logger?: ReplaneLogger;
@@ -428,6 +461,7 @@ interface ReplaneFinalOptions {
   fetchFn: typeof fetch;
   requestTimeoutMs: number;
   initializationTimeoutMs: number;
+  inactivityTimeoutMs: number;
   sdkKey: string;
   logger: ReplaneLogger;
   retryDelayMs: number;
@@ -725,6 +759,7 @@ function toFinalOptions<T extends Configs>(defaults: ReplaneClientOptions<T>): R
       globalThis.fetch.bind(globalThis),
     requestTimeoutMs: defaults.requestTimeoutMs ?? 2000,
     initializationTimeoutMs: defaults.initializationTimeoutMs ?? 5000,
+    inactivityTimeoutMs: defaults.inactivityTimeoutMs ?? 60_000,
     logger: defaults.logger ?? console,
     retryDelayMs: defaults.retryDelayMs ?? 200,
     context: {
@@ -775,6 +810,8 @@ async function fetchWithTimeout(
 
 const SSE_DATA_PREFIX = "data:";
 
+type SseEvent = { type: "ping" } | { type: "data"; payload: string };
+
 async function* fetchSse(params: {
   fetchFn: typeof fetch;
   url: string;
@@ -784,7 +821,7 @@ async function* fetchSse(params: {
   method?: string;
   signal?: AbortSignal;
   onConnect?: () => void;
-}) {
+}): AsyncGenerator<SseEvent> {
   const abortController = new AbortController();
   const { signal, cleanUpSignals } = params.signal
     ? combineAbortSignals([params.signal, abortController.signal])
@@ -841,10 +878,15 @@ async function* fetchSse(params: {
         for (const frame of frames) {
           // Parse lines inside a single SSE event frame
           const dataLines: string[] = [];
+          let isPing = false;
 
           for (const rawLine of frame.split(/\r?\n/)) {
             if (!rawLine) continue;
-            if (rawLine.startsWith(":")) continue; // comment/keepalive
+            if (rawLine.startsWith(":")) {
+              // comment/keepalive - treat as ping
+              isPing = true;
+              continue;
+            }
 
             if (rawLine.startsWith(SSE_DATA_PREFIX)) {
               // Keep leading space after "data:" if present per spec
@@ -855,7 +897,9 @@ async function* fetchSse(params: {
 
           if (dataLines.length) {
             const payload = dataLines.join("\n");
-            yield payload;
+            yield { type: "data", payload };
+          } else if (isPing) {
+            yield { type: "ping" };
           }
         }
       }
