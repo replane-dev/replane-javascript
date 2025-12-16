@@ -332,9 +332,9 @@ class ReplaneRemoteStorage implements ReplaneStorage {
       for await (const sseEvent of rawEvents) {
         resetInactivityTimer();
 
-        if (sseEvent.type === "ping") continue;
+        if (sseEvent.type === "comment") continue;
 
-        const event = JSON.parse(sseEvent.payload);
+        const event = JSON.parse(sseEvent.data);
         if (
           typeof event === "object" &&
           event !== null &&
@@ -404,7 +404,7 @@ export interface ReplaneClientOptions<T extends Configs> {
   /**
    * Timeout in ms for SSE connection inactivity.
    * If no events (including pings) are received within this time, the connection will be re-established.
-   * @default 60000
+   * @default 30000
    */
   inactivityTimeoutMs?: number;
   /**
@@ -759,7 +759,7 @@ function toFinalOptions<T extends Configs>(defaults: ReplaneClientOptions<T>): R
       globalThis.fetch.bind(globalThis),
     requestTimeoutMs: defaults.requestTimeoutMs ?? 2000,
     initializationTimeoutMs: defaults.initializationTimeoutMs ?? 5000,
-    inactivityTimeoutMs: defaults.inactivityTimeoutMs ?? 60_000,
+    inactivityTimeoutMs: defaults.inactivityTimeoutMs ?? 30_000,
     logger: defaults.logger ?? console,
     retryDelayMs: defaults.retryDelayMs ?? 200,
     context: {
@@ -810,7 +810,7 @@ async function fetchWithTimeout(
 
 const SSE_DATA_PREFIX = "data:";
 
-type SseEvent = { type: "ping" } | { type: "data"; payload: string };
+type SseEvent = { type: "comment"; comment: string } | { type: "data"; data: string };
 
 async function* fetchSse(params: {
   fetchFn: typeof fetch;
@@ -878,13 +878,13 @@ async function* fetchSse(params: {
         for (const frame of frames) {
           // Parse lines inside a single SSE event frame
           const dataLines: string[] = [];
-          let isPing = false;
+          let comment: string | null = null;
 
           for (const rawLine of frame.split(/\r?\n/)) {
             if (!rawLine) continue;
             if (rawLine.startsWith(":")) {
-              // comment/keepalive - treat as ping
-              isPing = true;
+              // comment/keepalive
+              comment = rawLine.slice(1);
               continue;
             }
 
@@ -896,10 +896,10 @@ async function* fetchSse(params: {
           }
 
           if (dataLines.length) {
-            const payload = dataLines.join("\n");
-            yield { type: "data", payload };
-          } else if (isPing) {
-            yield { type: "ping" };
+            const data = dataLines.join("\n");
+            yield { type: "data", data };
+          } else if (comment !== null) {
+            yield { type: "comment", comment };
           }
         }
       }
