@@ -6,7 +6,6 @@ export interface StartReplicationStreamBody {
 export interface ConfigDto {
   name: string;
   overrides: RenderedOverride[];
-  version: number;
   value: unknown;
 }
 
@@ -15,7 +14,6 @@ export type ReplicationStreamRecord =
       type: "config_change";
       name: string;
       overrides: RenderedOverride[];
-      version: number;
       value: unknown;
     }
   | {

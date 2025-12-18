@@ -58,7 +58,7 @@ describe("createReplaneClient", () => {
       const connection = await mockServer.acceptConnection();
       await connection.push({
         type: "init",
-        configs: [{ name: "config1", overrides: [], version: 1, value: "value1" }],
+        configs: [{ name: "config1", overrides: [], value: "value1" }],
       });
 
       const client = await clientPromise;
@@ -72,10 +72,10 @@ describe("createReplaneClient", () => {
       await connection.push({
         type: "init",
         configs: [
-          { name: "config1", overrides: [], version: 1, value: "value1" },
-          { name: "config2", overrides: [], version: 1, value: 42 },
-          { name: "config3", overrides: [], version: 1, value: true },
-          { name: "config4", overrides: [], version: 1, value: { nested: "object" } },
+          { name: "config1", overrides: [], value: "value1" },
+          { name: "config2", overrides: [], value: 42 },
+          { name: "config3", overrides: [], value: true },
+          { name: "config4", overrides: [], value: { nested: "object" } },
         ],
       });
 
@@ -92,7 +92,7 @@ describe("createReplaneClient", () => {
       const connection = await mockServer.acceptConnection();
       await connection.push({
         type: "init",
-        configs: [{ name: "config1", overrides: [], version: 1, value: "value1" }],
+        configs: [{ name: "config1", overrides: [], value: "value1" }],
       });
 
       const client = await clientPromise;
@@ -108,12 +108,12 @@ describe("createReplaneClient", () => {
       await connection.push({
         type: "init",
         configs: [
-          { name: "string", overrides: [], version: 1, value: "hello" },
-          { name: "number", overrides: [], version: 1, value: 123.45 },
-          { name: "boolean", overrides: [], version: 1, value: false },
-          { name: "null", overrides: [], version: 1, value: null },
-          { name: "array", overrides: [], version: 1, value: [1, 2, 3] },
-          { name: "object", overrides: [], version: 1, value: { key: "value" } },
+          { name: "string", overrides: [], value: "hello" },
+          { name: "number", overrides: [], value: 123.45 },
+          { name: "boolean", overrides: [], value: false },
+          { name: "null", overrides: [], value: null },
+          { name: "array", overrides: [], value: [1, 2, 3] },
+          { name: "object", overrides: [], value: { key: "value" } },
         ],
       });
 
@@ -134,7 +134,7 @@ describe("createReplaneClient", () => {
       const connection = await mockServer.acceptConnection();
       await connection.push({
         type: "init",
-        configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
+        configs: [{ name: "config1", overrides: [], value: "initial" }],
       });
 
       const client = await clientPromise;
@@ -145,7 +145,6 @@ describe("createReplaneClient", () => {
         type: "config_change",
         name: "config1",
         overrides: [],
-        version: 2,
         value: "updated",
       });
       await sync();
@@ -157,7 +156,7 @@ describe("createReplaneClient", () => {
       const connection = await mockServer.acceptConnection();
       await connection.push({
         type: "init",
-        configs: [{ name: "config1", overrides: [], version: 1, value: "value1" }],
+        configs: [{ name: "config1", overrides: [], value: "value1" }],
       });
 
       const client = await clientPromise;
@@ -167,7 +166,6 @@ describe("createReplaneClient", () => {
         type: "config_change",
         name: "config2",
         overrides: [],
-        version: 1,
         value: "value2",
       });
       await sync();
@@ -180,8 +178,8 @@ describe("createReplaneClient", () => {
       await connection.push({
         type: "init",
         configs: [
-          { name: "config1", overrides: [], version: 1, value: "v1" },
-          { name: "config2", overrides: [], version: 1, value: "v2" },
+          { name: "config1", overrides: [], value: "v1" },
+          { name: "config2", overrides: [], value: "v2" },
         ],
       });
 
@@ -192,14 +190,12 @@ describe("createReplaneClient", () => {
         type: "config_change",
         name: "config1",
         overrides: [],
-        version: 2,
         value: "v1-updated",
       });
       await connection.push({
         type: "config_change",
         name: "config2",
         overrides: [],
-        version: 2,
         value: "v2-updated",
       });
       await sync();
@@ -225,7 +221,6 @@ describe("createReplaneClient", () => {
                 value: "prod-value",
               },
             ],
-            version: 1,
             value: "default-value",
           },
         ],
@@ -251,7 +246,6 @@ describe("createReplaneClient", () => {
                 value: "prod-value",
               },
             ],
-            version: 1,
             value: "default-value",
           },
         ],
@@ -277,7 +271,6 @@ describe("createReplaneClient", () => {
                 value: "override-value",
               },
             ],
-            version: 1,
             value: "default-value",
           },
         ],
@@ -308,7 +301,6 @@ describe("createReplaneClient", () => {
                 value: "staging-value",
               },
             ],
-            version: 1,
             value: "default-value",
           },
         ],
@@ -336,7 +328,6 @@ describe("createReplaneClient", () => {
                 value: "na-value",
               },
             ],
-            version: 1,
             value: "default",
           },
         ],
@@ -362,7 +353,6 @@ describe("createReplaneClient", () => {
                 value: "na-value",
               },
             ],
-            version: 1,
             value: "default",
           },
         ],
@@ -392,7 +382,6 @@ describe("createReplaneClient", () => {
                 value: "non-na-value",
               },
             ],
-            version: 1,
             value: "default",
           },
         ],
@@ -420,7 +409,6 @@ describe("createReplaneClient", () => {
                 value: "non-na-value",
               },
             ],
-            version: 1,
             value: "default",
           },
         ],
@@ -449,7 +437,6 @@ describe("createReplaneClient", () => {
                   value: "minor-value",
                 },
               ],
-              version: 1,
               value: "default",
             },
           ],
@@ -475,7 +462,6 @@ describe("createReplaneClient", () => {
                   value: "minor-value",
                 },
               ],
-              version: 1,
               value: "default",
             },
           ],
@@ -501,7 +487,6 @@ describe("createReplaneClient", () => {
                   value: "override-value",
                 },
               ],
-              version: 1,
               value: "default",
             },
           ],
@@ -529,7 +514,6 @@ describe("createReplaneClient", () => {
                   value: "override-value",
                 },
               ],
-              version: 1,
               value: "default",
             },
           ],
@@ -555,7 +539,6 @@ describe("createReplaneClient", () => {
                   value: "override-value",
                 },
               ],
-              version: 1,
               value: "default",
             },
           ],
@@ -583,7 +566,6 @@ describe("createReplaneClient", () => {
                   value: "adult-value",
                 },
               ],
-              version: 1,
               value: "default",
             },
           ],
@@ -609,7 +591,6 @@ describe("createReplaneClient", () => {
                   value: "adult-value",
                 },
               ],
-              version: 1,
               value: "default",
             },
           ],
@@ -637,7 +618,6 @@ describe("createReplaneClient", () => {
                   value: "override-value",
                 },
               ],
-              version: 1,
               value: "default",
             },
           ],
@@ -663,7 +643,6 @@ describe("createReplaneClient", () => {
                   value: "override-value",
                 },
               ],
-              version: 1,
               value: "default",
             },
           ],
@@ -701,7 +680,6 @@ describe("createReplaneClient", () => {
                   value: "override-value",
                 },
               ],
-              version: 1,
               value: "default",
             },
           ],
@@ -735,7 +713,6 @@ describe("createReplaneClient", () => {
                   value: "override-value",
                 },
               ],
-              version: 1,
               value: "default",
             },
           ],
@@ -769,7 +746,6 @@ describe("createReplaneClient", () => {
                   value: "override-value",
                 },
               ],
-              version: 1,
               value: "default",
             },
           ],
@@ -805,7 +781,6 @@ describe("createReplaneClient", () => {
                   value: "override-value",
                 },
               ],
-              version: 1,
               value: "default",
             },
           ],
@@ -839,7 +814,6 @@ describe("createReplaneClient", () => {
                   value: "override-value",
                 },
               ],
-              version: 1,
               value: "default",
             },
           ],
@@ -872,7 +846,6 @@ describe("createReplaneClient", () => {
                   value: "non-prod-value",
                 },
               ],
-              version: 1,
               value: "default",
             },
           ],
@@ -903,7 +876,6 @@ describe("createReplaneClient", () => {
                   value: "non-prod-value",
                 },
               ],
-              version: 1,
               value: "default",
             },
           ],
@@ -934,7 +906,6 @@ describe("createReplaneClient", () => {
                   value: "non-prod-value",
                 },
               ],
-              version: 1,
               value: "default",
             },
           ],
@@ -965,7 +936,6 @@ describe("createReplaneClient", () => {
                   value: "admin-prod-value",
                 },
               ],
-              version: 1,
               value: "default",
             },
           ],
@@ -994,7 +964,6 @@ describe("createReplaneClient", () => {
                   value: "admin-prod-value",
                 },
               ],
-              version: 1,
               value: "default",
             },
           ],
@@ -1032,7 +1001,6 @@ describe("createReplaneClient", () => {
                 value: "in-segment",
               },
             ],
-            version: 1,
             value: "default",
           },
         ],
@@ -1067,7 +1035,6 @@ describe("createReplaneClient", () => {
                 value: "in-segment",
               },
             ],
-            version: 1,
             value: "default",
           },
         ],
@@ -1101,7 +1068,6 @@ describe("createReplaneClient", () => {
                 value: "in-segment",
               },
             ],
-            version: 1,
             value: "default",
           },
         ],
@@ -1135,7 +1101,6 @@ describe("createReplaneClient", () => {
                 value: "in-segment",
               },
             ],
-            version: 1,
             value: "default",
           },
         ],
@@ -1163,7 +1128,6 @@ describe("createReplaneClient", () => {
                 value: "staging-value",
               },
             ],
-            version: 1,
             value: "default",
           },
         ],
@@ -1198,7 +1162,6 @@ describe("createReplaneClient", () => {
                 value: "admin-value",
               },
             ],
-            version: 1,
             value: "default",
           },
         ],
@@ -1225,7 +1188,6 @@ describe("createReplaneClient", () => {
                 value: "prod-value",
               },
             ],
-            version: 1,
             value: "default",
           },
         ],
@@ -1254,7 +1216,6 @@ describe("createReplaneClient", () => {
                 value: "override-value",
               },
             ],
-            version: 1,
             value: "default",
           },
         ],
@@ -1280,7 +1241,6 @@ describe("createReplaneClient", () => {
                 value: "override-value",
               },
             ],
-            version: 1,
             value: "default",
           },
         ],
@@ -1306,7 +1266,6 @@ describe("createReplaneClient", () => {
                 value: "override-value",
               },
             ],
-            version: 1,
             value: "default",
           },
         ],
@@ -1332,7 +1291,6 @@ describe("createReplaneClient", () => {
                 value: "override-value",
               },
             ],
-            version: 1,
             value: "default",
           },
         ],
@@ -1358,7 +1316,6 @@ describe("createReplaneClient", () => {
                 value: "override-value",
               },
             ],
-            version: 1,
             value: "default",
           },
         ],
@@ -1384,7 +1341,6 @@ describe("createReplaneClient", () => {
                 value: "override-value",
               },
             ],
-            version: 1,
             value: "default",
           },
         ],
@@ -1456,7 +1412,7 @@ describe("createReplaneClient", () => {
       const connection = await mockServer.acceptConnection();
       await connection.push({
         type: "init",
-        configs: [{ name: "config1", overrides: [], version: 1, value: "server-value" }],
+        configs: [{ name: "config1", overrides: [], value: "server-value" }],
       });
 
       const client = await clientPromise;
@@ -1495,7 +1451,7 @@ describe("createReplaneClient", () => {
       const connection = await mockServer.acceptConnection();
       await connection.push({
         type: "init",
-        configs: [{ name: "config1", overrides: [], version: 1, value: "value1" }],
+        configs: [{ name: "config1", overrides: [], value: "value1" }],
       });
 
       const client = await clientPromise;
@@ -1512,8 +1468,8 @@ describe("createReplaneClient", () => {
         await connection.push({
           type: "init",
           configs: [
-            { name: "config1", overrides: [], version: 1, value: "value1" },
-            { name: "config2", overrides: [], version: 1, value: "value2" },
+            { name: "config1", overrides: [], value: "value1" },
+            { name: "config2", overrides: [], value: "value2" },
           ],
         });
 
@@ -1529,7 +1485,6 @@ describe("createReplaneClient", () => {
           type: "config_change",
           name: "config1",
           overrides: [],
-          version: 2,
           value: "updated1",
         });
         await sync();
@@ -1538,7 +1493,6 @@ describe("createReplaneClient", () => {
           type: "config_change",
           name: "config2",
           overrides: [],
-          version: 2,
           value: "updated2",
         });
         await sync();
@@ -1556,7 +1510,7 @@ describe("createReplaneClient", () => {
         const connection = await mockServer.acceptConnection();
         await connection.push({
           type: "init",
-          configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
+          configs: [{ name: "config1", overrides: [], value: "initial" }],
         });
 
         const client = await clientPromise;
@@ -1571,7 +1525,6 @@ describe("createReplaneClient", () => {
           type: "config_change",
           name: "config1",
           overrides: [],
-          version: 2,
           value: "updated1",
         });
         await sync();
@@ -1582,7 +1535,6 @@ describe("createReplaneClient", () => {
           type: "config_change",
           name: "config1",
           overrides: [],
-          version: 3,
           value: "updated2",
         });
         await sync();
@@ -1595,7 +1547,7 @@ describe("createReplaneClient", () => {
         const connection = await mockServer.acceptConnection();
         await connection.push({
           type: "init",
-          configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
+          configs: [{ name: "config1", overrides: [], value: "initial" }],
         });
 
         const client = await clientPromise;
@@ -1616,7 +1568,6 @@ describe("createReplaneClient", () => {
           type: "config_change",
           name: "config1",
           overrides: [],
-          version: 2,
           value: "updated",
         });
         await sync();
@@ -1636,8 +1587,8 @@ describe("createReplaneClient", () => {
         await connection.push({
           type: "init",
           configs: [
-            { name: "config1", overrides: [], version: 1, value: "value1" },
-            { name: "config2", overrides: [], version: 1, value: "value2" },
+            { name: "config1", overrides: [], value: "value1" },
+            { name: "config2", overrides: [], value: "value2" },
           ],
         });
 
@@ -1653,7 +1604,6 @@ describe("createReplaneClient", () => {
           type: "config_change",
           name: "config1",
           overrides: [],
-          version: 2,
           value: "updated1",
         });
         await sync();
@@ -1662,7 +1612,6 @@ describe("createReplaneClient", () => {
           type: "config_change",
           name: "config2",
           overrides: [],
-          version: 2,
           value: "updated2",
         });
         await sync();
@@ -1677,7 +1626,7 @@ describe("createReplaneClient", () => {
         const connection = await mockServer.acceptConnection();
         await connection.push({
           type: "init",
-          configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
+          configs: [{ name: "config1", overrides: [], value: "initial" }],
         });
 
         const client = await clientPromise;
@@ -1692,7 +1641,6 @@ describe("createReplaneClient", () => {
           type: "config_change",
           name: "config1",
           overrides: [],
-          version: 2,
           value: "updated1",
         });
         await sync();
@@ -1703,7 +1651,6 @@ describe("createReplaneClient", () => {
           type: "config_change",
           name: "config1",
           overrides: [],
-          version: 3,
           value: "updated2",
         });
         await sync();
@@ -1716,7 +1663,7 @@ describe("createReplaneClient", () => {
         const connection = await mockServer.acceptConnection();
         await connection.push({
           type: "init",
-          configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
+          configs: [{ name: "config1", overrides: [], value: "initial" }],
         });
 
         const client = await clientPromise;
@@ -1737,7 +1684,6 @@ describe("createReplaneClient", () => {
           type: "config_change",
           name: "config1",
           overrides: [],
-          version: 2,
           value: "updated",
         });
         await sync();
@@ -1755,8 +1701,8 @@ describe("createReplaneClient", () => {
         await connection.push({
           type: "init",
           configs: [
-            { name: "config1", overrides: [], version: 1, value: "value1" },
-            { name: "config2", overrides: [], version: 1, value: "value2" },
+            { name: "config1", overrides: [], value: "value1" },
+            { name: "config2", overrides: [], value: "value2" },
           ],
         });
 
@@ -1778,7 +1724,6 @@ describe("createReplaneClient", () => {
           type: "config_change",
           name: "config1",
           overrides: [],
-          version: 2,
           value: "updated1",
         });
         await sync();
@@ -1787,7 +1732,6 @@ describe("createReplaneClient", () => {
           type: "config_change",
           name: "config2",
           overrides: [],
-          version: 2,
           value: "updated2",
         });
         await sync();
@@ -1804,7 +1748,7 @@ describe("createReplaneClient", () => {
         const connection = await mockServer.acceptConnection();
         await connection.push({
           type: "init",
-          configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
+          configs: [{ name: "config1", overrides: [], value: "initial" }],
         });
 
         const client = await clientPromise;
@@ -1826,7 +1770,6 @@ describe("createReplaneClient", () => {
           type: "config_change",
           name: "config1",
           overrides: [],
-          version: 2,
           value: "updated",
         });
         await sync();
@@ -1843,7 +1786,7 @@ describe("createReplaneClient", () => {
         const connection = await mockServer.acceptConnection();
         await connection.push({
           type: "init",
-          configs: [{ name: "config1", overrides: [], version: 1, value: "value1" }],
+          configs: [{ name: "config1", overrides: [], value: "value1" }],
         });
 
         const client = await clientPromise;
@@ -1858,7 +1801,6 @@ describe("createReplaneClient", () => {
           type: "config_change",
           name: "config2",
           overrides: [],
-          version: 1,
           value: "value2",
         });
         await sync();
@@ -1876,9 +1818,9 @@ describe("createReplaneClient", () => {
         await connection.push({
           type: "init",
           configs: [
-            { name: "config1", overrides: [], version: 1, value: "value1" },
-            { name: "config2", overrides: [], version: 1, value: "value2" },
-            { name: "config3", overrides: [], version: 1, value: "value3" },
+            { name: "config1", overrides: [], value: "value1" },
+            { name: "config2", overrides: [], value: "value2" },
+            { name: "config3", overrides: [], value: "value3" },
           ],
         });
 
@@ -1894,21 +1836,18 @@ describe("createReplaneClient", () => {
           type: "config_change",
           name: "config1",
           overrides: [],
-          version: 2,
           value: "updated1",
         });
         await connection.push({
           type: "config_change",
           name: "config2",
           overrides: [],
-          version: 2,
           value: "updated2",
         });
         await connection.push({
           type: "config_change",
           name: "config3",
           overrides: [],
-          version: 2,
           value: "updated3",
         });
         await sync();
@@ -1929,7 +1868,7 @@ describe("createReplaneClient", () => {
         const connection = await mockServer.acceptConnection();
         await connection.push({
           type: "init",
-          configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
+          configs: [{ name: "config1", overrides: [], value: "initial" }],
         });
 
         const client = await clientPromise;
@@ -1954,7 +1893,7 @@ describe("createReplaneClient", () => {
 
       await connection.push({
         type: "init",
-        configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
+        configs: [{ name: "config1", overrides: [], value: "initial" }],
       });
 
       const client = await clientPromise;
@@ -1972,133 +1911,12 @@ describe("createReplaneClient", () => {
         type: "config_change",
         name: "config1",
         overrides: [],
-        version: 2,
         value: "updated",
       });
       await sync();
 
       // Config should still be initial since client is closed
       expect(client.get("config1")).toBe("initial");
-    });
-  });
-
-  describe("inactivity timeout", () => {
-    async function waitFor(
-      condition: () => boolean,
-      timeoutMs: number = 1000,
-      intervalMs: number = 10
-    ): Promise<void> {
-      const start = Date.now();
-      while (!condition()) {
-        if (Date.now() - start > timeoutMs) {
-          throw new Error("waitFor timed out");
-        }
-        await new Promise((resolve) => setTimeout(resolve, intervalMs));
-      }
-    }
-
-    it("should reconnect when no events are received within inactivity timeout", async () => {
-      const inactivityTimeoutMs = 50;
-      clientPromise = createClient({ inactivityTimeoutMs });
-
-      // First connection
-      const connection1 = await mockServer.acceptConnection();
-      await connection1.push({
-        type: "init",
-        configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
-      });
-
-      const client = await clientPromise;
-      await sync();
-      expect(client.get("config1")).toBe("initial");
-
-      // Wait for connection to be aborted due to inactivity
-      await waitFor(() => connection1.aborted, inactivityTimeoutMs + 100);
-      expect(connection1.aborted).toBe(true);
-
-      // Client should reconnect - accept the new connection
-      const connection2 = await mockServer.acceptConnection();
-      await connection2.push({
-        type: "init",
-        configs: [{ name: "config1", overrides: [], version: 2, value: "reconnected" }],
-      });
-      await sync();
-
-      expect(client.get("config1")).toBe("reconnected");
-
-      client.close();
-    });
-
-    it("should reset inactivity timer when ping is received", async () => {
-      const inactivityTimeoutMs = 100;
-      clientPromise = createClient({ inactivityTimeoutMs });
-
-      const connection = await mockServer.acceptConnection();
-      await connection.push({
-        type: "init",
-        configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
-      });
-
-      const client = await clientPromise;
-      await sync();
-      expect(client.get("config1")).toBe("initial");
-
-      // Wait for some time, but less than inactivity timeout
-      await new Promise((resolve) => setTimeout(resolve, inactivityTimeoutMs / 2));
-      expect(connection.aborted).toBe(false);
-
-      // Send a ping to reset the timer
-      await connection.ping();
-      await sync();
-
-      // Wait again, but less than inactivity timeout from the ping
-      await new Promise((resolve) => setTimeout(resolve, inactivityTimeoutMs / 2));
-      expect(connection.aborted).toBe(false);
-
-      // Now wait past the inactivity timeout from the ping
-      await waitFor(() => connection.aborted, inactivityTimeoutMs + 50);
-      expect(connection.aborted).toBe(true);
-
-      client.close();
-    });
-
-    it("should reset inactivity timer when data event is received", async () => {
-      const inactivityTimeoutMs = 100;
-      clientPromise = createClient({ inactivityTimeoutMs });
-
-      const connection = await mockServer.acceptConnection();
-      await connection.push({
-        type: "init",
-        configs: [{ name: "config1", overrides: [], version: 1, value: "initial" }],
-      });
-
-      const client = await clientPromise;
-      await sync();
-
-      // Wait for some time, but less than inactivity timeout
-      await new Promise((resolve) => setTimeout(resolve, inactivityTimeoutMs / 2));
-      expect(connection.aborted).toBe(false);
-
-      // Send a config change to reset the timer
-      await connection.push({
-        type: "config_change",
-        name: "config1",
-        overrides: [],
-        version: 2,
-        value: "updated",
-      });
-      await sync();
-      expect(client.get("config1")).toBe("updated");
-
-      // Wait again, but less than inactivity timeout from the event
-      await new Promise((resolve) => setTimeout(resolve, inactivityTimeoutMs / 2));
-      expect(connection.aborted).toBe(false);
-
-      // Now wait past the inactivity timeout from the event
-      await waitFor(() => connection.aborted, inactivityTimeoutMs + 50);
-      expect(connection.aborted).toBe(true);
-
-      client.close();
     });
   });
 });

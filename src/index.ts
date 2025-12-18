@@ -597,7 +597,6 @@ async function _createReplaneClient<T extends Configs = Record<string, unknown>>
           currentConfigs: [...configs.values()].map((config) => ({
             name: config.name,
             overrides: config.overrides,
-            version: config.version,
             value: config.value,
           })),
           requiredConfigs: sdkOptions.requiredConfigs,
@@ -608,12 +607,9 @@ async function _createReplaneClient<T extends Configs = Record<string, unknown>>
         const updatedConfigs: ConfigDto[] =
           event.type === "config_change" ? [event] : event.configs;
         for (const config of updatedConfigs) {
-          if (config.version <= (configs.get(config.name)?.version ?? -1)) continue; // ignore outdated changes
-
           configs.set(config.name, {
             name: config.name,
             overrides: config.overrides,
-            version: config.version,
             value: config.value,
           });
           for (const callback of clientSubscriptions) {
