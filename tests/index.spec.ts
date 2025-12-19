@@ -143,9 +143,7 @@ describe("createReplaneClient", () => {
 
       await connection.push({
         type: "config_change",
-        name: "config1",
-        overrides: [],
-        value: "updated",
+        config: { name: "config1", overrides: [], value: "updated" },
       });
       await sync();
       expect(client.get("config1")).toBe("updated");
@@ -164,9 +162,7 @@ describe("createReplaneClient", () => {
 
       await connection.push({
         type: "config_change",
-        name: "config2",
-        overrides: [],
-        value: "value2",
+        config: { name: "config2", overrides: [], value: "value2" },
       });
       await sync();
       expect(client.get("config2")).toBe("value2");
@@ -188,15 +184,11 @@ describe("createReplaneClient", () => {
 
       await connection.push({
         type: "config_change",
-        name: "config1",
-        overrides: [],
-        value: "v1-updated",
+        config: { name: "config1", overrides: [], value: "v1-updated" },
       });
       await connection.push({
         type: "config_change",
-        name: "config2",
-        overrides: [],
-        value: "v2-updated",
+        config: { name: "config2", overrides: [], value: "v2-updated" },
       });
       await sync();
 
@@ -1483,17 +1475,13 @@ describe("createReplaneClient", () => {
 
         await connection.push({
           type: "config_change",
-          name: "config1",
-          overrides: [],
-          value: "updated1",
+          config: { name: "config1", overrides: [], value: "updated1" },
         });
         await sync();
 
         await connection.push({
           type: "config_change",
-          name: "config2",
-          overrides: [],
-          value: "updated2",
+          config: { name: "config2", overrides: [], value: "updated2" },
         });
         await sync();
 
@@ -1523,9 +1511,7 @@ describe("createReplaneClient", () => {
 
         await connection.push({
           type: "config_change",
-          name: "config1",
-          overrides: [],
-          value: "updated1",
+          config: { name: "config1", overrides: [], value: "updated1" },
         });
         await sync();
 
@@ -1533,9 +1519,7 @@ describe("createReplaneClient", () => {
 
         await connection.push({
           type: "config_change",
-          name: "config1",
-          overrides: [],
-          value: "updated2",
+          config: { name: "config1", overrides: [], value: "updated2" },
         });
         await sync();
 
@@ -1566,9 +1550,7 @@ describe("createReplaneClient", () => {
 
         await connection.push({
           type: "config_change",
-          name: "config1",
-          overrides: [],
-          value: "updated",
+          config: { name: "config1", overrides: [], value: "updated" },
         });
         await sync();
 
@@ -1602,17 +1584,13 @@ describe("createReplaneClient", () => {
 
         await connection.push({
           type: "config_change",
-          name: "config1",
-          overrides: [],
-          value: "updated1",
+          config: { name: "config1", overrides: [], value: "updated1" },
         });
         await sync();
 
         await connection.push({
           type: "config_change",
-          name: "config2",
-          overrides: [],
-          value: "updated2",
+          config: { name: "config2", overrides: [], value: "updated2" },
         });
         await sync();
 
@@ -1639,9 +1617,7 @@ describe("createReplaneClient", () => {
 
         await connection.push({
           type: "config_change",
-          name: "config1",
-          overrides: [],
-          value: "updated1",
+          config: { name: "config1", overrides: [], value: "updated1" },
         });
         await sync();
 
@@ -1649,9 +1625,7 @@ describe("createReplaneClient", () => {
 
         await connection.push({
           type: "config_change",
-          name: "config1",
-          overrides: [],
-          value: "updated2",
+          config: { name: "config1", overrides: [], value: "updated2" },
         });
         await sync();
 
@@ -1682,9 +1656,7 @@ describe("createReplaneClient", () => {
 
         await connection.push({
           type: "config_change",
-          name: "config1",
-          overrides: [],
-          value: "updated",
+          config: { name: "config1", overrides: [], value: "updated" },
         });
         await sync();
 
@@ -1722,17 +1694,13 @@ describe("createReplaneClient", () => {
 
         await connection.push({
           type: "config_change",
-          name: "config1",
-          overrides: [],
-          value: "updated1",
+          config: { name: "config1", overrides: [], value: "updated1" },
         });
         await sync();
 
         await connection.push({
           type: "config_change",
-          name: "config2",
-          overrides: [],
-          value: "updated2",
+          config: { name: "config2", overrides: [], value: "updated2" },
         });
         await sync();
 
@@ -1768,9 +1736,7 @@ describe("createReplaneClient", () => {
 
         await connection.push({
           type: "config_change",
-          name: "config1",
-          overrides: [],
-          value: "updated",
+          config: { name: "config1", overrides: [], value: "updated" },
         });
         await sync();
 
@@ -1799,9 +1765,7 @@ describe("createReplaneClient", () => {
 
         await connection.push({
           type: "config_change",
-          name: "config2",
-          overrides: [],
-          value: "value2",
+          config: { name: "config2", overrides: [], value: "value2" },
         });
         await sync();
 
@@ -1834,21 +1798,15 @@ describe("createReplaneClient", () => {
 
         await connection.push({
           type: "config_change",
-          name: "config1",
-          overrides: [],
-          value: "updated1",
+          config: { name: "config1", overrides: [], value: "updated1" },
         });
         await connection.push({
           type: "config_change",
-          name: "config2",
-          overrides: [],
-          value: "updated2",
+          config: { name: "config2", overrides: [], value: "updated2" },
         });
         await connection.push({
           type: "config_change",
-          name: "config3",
-          overrides: [],
-          value: "updated3",
+          config: { name: "config3", overrides: [], value: "updated3" },
         });
         await sync();
 
@@ -1909,9 +1867,7 @@ describe("createReplaneClient", () => {
       // This shouldn't update the config
       await connection.push({
         type: "config_change",
-        name: "config1",
-        overrides: [],
-        value: "updated",
+        config: { name: "config1", overrides: [], value: "updated" },
       });
       await sync();
 

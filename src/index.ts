@@ -605,7 +605,7 @@ async function _createReplaneClient<T extends Configs = Record<string, unknown>>
 
       for await (const event of replicationStream) {
         const updatedConfigs: ConfigDto[] =
-          event.type === "config_change" ? [event] : event.configs;
+          event.type === "config_change" ? [event.config] : event.configs;
         for (const config of updatedConfigs) {
           configs.set(config.name, {
             name: config.name,

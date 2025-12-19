@@ -12,9 +12,7 @@ export interface ConfigDto {
 export type ReplicationStreamRecord =
   | {
       type: "config_change";
-      name: string;
-      overrides: RenderedOverride[];
-      value: unknown;
+      config: ConfigDto;
     }
   | {
       type: "init";
