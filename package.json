@@ -1,6 +1,6 @@
 {
   "name": "@replanejs/sdk",
-  "version": "0.5.12",
+  "version": "0.6.0",
   "description": "Dynamic configuration SDK for browser and server environments (Node.js, Deno, Bun). Powered by Replane.",
   "type": "module",
   "license": "MIT",
