@@ -364,7 +364,7 @@ class ReplaneRemoteStorage implements ReplaneStorage {
   }
 }
 
-export type ReplaneContext = Record<string, unknown>;
+export type ReplaneContext = Record<string, string | number | boolean | null | undefined>;
 
 export interface ReplaneClientOptions<T extends Configs> {
   /**
