@@ -3,7 +3,6 @@ import {
   evaluateOverrides,
   evaluateCondition,
   castToContextType,
-  type EvaluationResult,
 } from "../src/evaluation";
 import type { RenderedCondition, RenderedOverride } from "../src/types";
 import type { ReplaneLogger } from "../src/client-types";

@@ -1,7 +1,7 @@
 import { Component, StrictMode, useState, useCallback } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, act, waitFor } from "@testing-library/react";
+import { render, screen, act } from "@testing-library/react";
 import { ReplaneNextProvider } from "../src/provider";
 import { useReplane, useConfig } from "@replanejs/react";
 import type { ReplaneClient, ReplaneSnapshot } from "@replanejs/sdk";
