@@ -2,12 +2,7 @@ import { Suspense, Component, useState, useCallback, StrictMode } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act, waitFor } from "@testing-library/react";
-import {
-  ReplaneProvider,
-  useReplane,
-  useConfig,
-  clearSuspenseCache,
-} from "../src/index";
+import { ReplaneProvider, useReplane, useConfig, clearSuspenseCache } from "../src/index";
 import type { ReplaneClient, ReplaneClientOptions } from "@replanejs/sdk";
 import * as sdk from "@replanejs/sdk";
 
@@ -269,9 +264,7 @@ describe("ReplaneProvider with options prop - Loading States", () => {
       rejectClient = reject;
     });
 
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockReturnValue(clientPromise);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockReturnValue(clientPromise);
 
     clearSuspenseCache();
   });
@@ -396,9 +389,7 @@ describe("ReplaneProvider with options prop - Client Lifecycle", () => {
 
   it("calls createReplaneClient with correct options", async () => {
     const mockClient = createMockClient();
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     render(
       <ReplaneProvider options={defaultTestOptions}>
@@ -413,9 +404,7 @@ describe("ReplaneProvider with options prop - Client Lifecycle", () => {
 
   it("provides initialized client to children via context", async () => {
     const mockClient = createMockClient({ test: "value" });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let capturedClient: ReplaneClient<any> | null = null;
@@ -439,9 +428,7 @@ describe("ReplaneProvider with options prop - Client Lifecycle", () => {
 
   it("closes client on unmount after successful initialization", async () => {
     const mockClient = createMockClient();
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     const { unmount } = render(
       <ReplaneProvider options={defaultTestOptions}>
@@ -467,9 +454,7 @@ describe("ReplaneProvider with options prop - Client Lifecycle", () => {
       resolveClient = resolve;
     });
 
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockReturnValue(clientPromise);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockReturnValue(clientPromise);
 
     const { unmount } = render(
       <ReplaneProvider
@@ -494,9 +479,7 @@ describe("ReplaneProvider with options prop - Client Lifecycle", () => {
 
   it("does not call createReplaneClient multiple times on re-render", async () => {
     const mockClient = createMockClient();
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     const { rerender } = render(
       <ReplaneProvider options={defaultTestOptions}>
@@ -544,9 +527,7 @@ describe("ReplaneProvider with options prop - Error Handling", () => {
 
   it("calls onError callback when initialization fails", async () => {
     const error = new Error("Network error");
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockRejectedValue(error);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockRejectedValue(error);
 
     const onError = vi.fn();
 
@@ -562,9 +543,7 @@ describe("ReplaneProvider with options prop - Error Handling", () => {
   });
 
   it("calls onError with wrapped error for non-Error rejections", async () => {
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockRejectedValue("string error");
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockRejectedValue("string error");
 
     const onError = vi.fn();
 
@@ -583,9 +562,7 @@ describe("ReplaneProvider with options prop - Error Handling", () => {
   });
 
   it("does not render children after error", async () => {
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockRejectedValue(new Error("Failed"));
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockRejectedValue(new Error("Failed"));
 
     render(
       <ReplaneProvider
@@ -632,9 +609,7 @@ describe("ReplaneProvider with suspense", () => {
       resolveClient = resolve;
     });
 
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockReturnValue(clientPromise);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockReturnValue(clientPromise);
 
     render(
       <Suspense fallback={<div data-testid="fallback">Suspending...</div>}>
@@ -660,9 +635,7 @@ describe("ReplaneProvider with suspense", () => {
 
   it("provides client to children when using suspense", async () => {
     const mockClient = createMockClient({ test: "suspenseValue" });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let capturedClient: ReplaneClient<any> | null = null;
@@ -688,9 +661,7 @@ describe("ReplaneProvider with suspense", () => {
 
   it("caches client based on baseUrl and sdkKey", async () => {
     const mockClient = createMockClient();
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     // First render
     const { unmount } = render(
@@ -775,9 +746,7 @@ describe("ReplaneProvider with suspense", () => {
 
   it("throws to error boundary when initialization fails with suspense", async () => {
     const error = new Error("Suspense init failed");
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockRejectedValue(error);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockRejectedValue(error);
 
     const onError = vi.fn();
 
@@ -822,9 +791,7 @@ describe("clearSuspenseCache", () => {
 
   it("clears all cache entries when called without options", async () => {
     const mockClient = createMockClient();
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     // First render to populate cache
     const { unmount } = render(
@@ -861,9 +828,7 @@ describe("clearSuspenseCache", () => {
 
   it("clears only specific cache entry when options provided", async () => {
     const mockClient = createMockClient();
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const options1: ReplaneClientOptions<any> = {
@@ -970,7 +935,7 @@ describe("useReplane hook", () => {
 
   it("returns same context reference across renders", () => {
     const client = createMockClient();
-    const contexts: ReturnType<typeof useReplane>[] = [];
+    const contexts: ReturnType<typeof useReplane<Record<string, unknown>>>[] = [];
 
     function TestComponent() {
       const context = useReplane();

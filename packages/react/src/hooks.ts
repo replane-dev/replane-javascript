@@ -10,7 +10,7 @@ export function useReplane<T extends object = Record<string, unknown>>(): Replan
   return context as ReplaneContextValue<T>;
 }
 
-export function useConfig <T>(
+export function useConfig<T>(
   name: string,
   options?: { context?: Record<string, string | number | boolean | null> }
 ): T {
