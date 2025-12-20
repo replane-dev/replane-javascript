@@ -39,10 +39,10 @@ importers:
   packages/next:
     dependencies:
       '@replanejs/react':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../react
       '@replanejs/sdk':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../sdk
     devDependencies:
       '@testing-library/jest-dom':
@@ -85,7 +85,7 @@ importers:
   packages/react:
     dependencies:
       '@replanejs/sdk':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../sdk
     devDependencies:
       '@testing-library/jest-dom':
@@ -146,7 +146,7 @@ importers:
   packages/svelte:
     dependencies:
       '@replanejs/sdk':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../sdk
     devDependencies:
       '@sveltejs/package':
