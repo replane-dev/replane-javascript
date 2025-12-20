@@ -2,8 +2,7 @@ import { useContext, useSyncExternalStore } from "react";
 import { ReplaneContext } from "./context";
 import type { ReplaneContextValue } from "./types";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function useReplane<T extends Record<string, unknown> = any>(): ReplaneContextValue<T> {
+export function useReplane<T extends object = Record<string, unknown>>(): ReplaneContextValue<T> {
   const context = useContext(ReplaneContext);
   if (!context) {
     throw new Error("useReplane must be used within a ReplaneProvider");
@@ -11,7 +10,7 @@ export function useReplane<T extends Record<string, unknown> = any>(): ReplaneCo
   return context as ReplaneContextValue<T>;
 }
 
-export function useConfig<T>(
+export function useConfig <T>(
   name: string,
   options?: { context?: Record<string, string | number | boolean | null> }
 ): T {

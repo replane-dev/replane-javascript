@@ -41,7 +41,7 @@ describe("createReplaneClient", () => {
     mockServer.close();
   });
 
-  function createClient<T extends Record<string, unknown>>(
+  function createClient<T extends Record<string, unknown> = Record<string, unknown>>(
     options: Partial<Parameters<typeof createReplaneClient<T>>[0]> = {}
   ) {
     return createReplaneClient<T>({
@@ -1377,7 +1377,7 @@ describe("createReplaneClient", () => {
     });
 
     it("should throw error when required config is missing from fallbacks", async () => {
-      clientPromise = createClient({
+      clientPromise = createClient<Record<string, unknown>>({
         fallbacks: { config1: "fallback-value" },
         required: ["config1", "config2"],
         initializationTimeoutMs: 50,
@@ -1387,7 +1387,7 @@ describe("createReplaneClient", () => {
     });
 
     it("should succeed when all required configs are in fallbacks", async () => {
-      clientPromise = createClient({
+      clientPromise = createClient<Record<string, unknown>>({
         fallbacks: { config1: "fallback1", config2: "fallback2" },
         required: ["config1", "config2"],
         initializationTimeoutMs: 50,
@@ -1425,7 +1425,7 @@ describe("createReplaneClient", () => {
     });
 
     it("should handle empty required array", async () => {
-      clientPromise = createClient({
+      clientPromise = createClient<Record<string, unknown>>({
         fallbacks: { config1: "fallback1" },
         required: [],
         initializationTimeoutMs: 50,
@@ -1961,7 +1961,7 @@ describe("restoreReplaneClient", () => {
 
   describe("snapshot-only mode (no connection)", () => {
     it("should restore configs from snapshot", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           { name: "config1", value: "value1", overrides: [] },
           { name: "config2", value: 42, overrides: [] },
@@ -1975,7 +1975,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should handle different value types", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           { name: "string", value: "hello", overrides: [] },
           { name: "number", value: 123.45, overrides: [] },
@@ -1997,7 +1997,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should throw ReplaneError when config not found", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "value1", overrides: [] }],
       };
 
@@ -2008,7 +2008,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should have a no-op close method", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "value1", overrides: [] }],
       };
 
@@ -2019,7 +2019,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should return snapshot via getSnapshot", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           { name: "config1", value: "value1", overrides: [] },
           { name: "config2", value: 42, overrides: [] },
@@ -2045,7 +2045,7 @@ describe("restoreReplaneClient", () => {
 
   describe("context handling", () => {
     it("should use context from snapshot", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           {
             name: "feature",
@@ -2068,7 +2068,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should override snapshot context with options context", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           {
             name: "feature",
@@ -2096,7 +2096,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should allow per-request context override", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           {
             name: "feature",
@@ -2120,7 +2120,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should merge per-request context with client context", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           {
             name: "feature",
@@ -2152,7 +2152,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should include context in getSnapshot result", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "value1", overrides: [] }],
         context: { env: "production" },
       };
@@ -2164,7 +2164,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should include overridden context in getSnapshot result", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "value1", overrides: [] }],
         context: { env: "production" },
       };
@@ -2178,7 +2178,7 @@ describe("restoreReplaneClient", () => {
 
   describe("overrides evaluation", () => {
     it("should evaluate equals operator", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           {
             name: "feature",
@@ -2200,7 +2200,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should evaluate in operator", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           {
             name: "feature",
@@ -2222,7 +2222,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should evaluate not_in operator", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           {
             name: "feature",
@@ -2244,7 +2244,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should evaluate comparison operators", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           {
             name: "feature",
@@ -2266,7 +2266,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should evaluate and condition", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           {
             name: "feature",
@@ -2296,7 +2296,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should evaluate or condition", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           {
             name: "feature",
@@ -2326,7 +2326,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should evaluate not condition", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           {
             name: "feature",
@@ -2353,7 +2353,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should evaluate segmentation condition", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           {
             name: "feature",
@@ -2383,7 +2383,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should return base value when no override matches", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           {
             name: "feature",
@@ -2405,7 +2405,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should use first matching override when multiple exist", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           {
             name: "feature",
@@ -2434,7 +2434,7 @@ describe("restoreReplaneClient", () => {
 
   describe("subscribe functionality (snapshot-only)", () => {
     it("should not receive updates in snapshot-only mode", async () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "initial", overrides: [] }],
       };
 
@@ -2453,7 +2453,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should allow subscribing to specific config", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "value1", overrides: [] }],
       };
 
@@ -2470,7 +2470,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should throw error when callback is not provided for specific config subscription", () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "value1", overrides: [] }],
       };
 
@@ -2497,7 +2497,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should restore from snapshot and connect for live updates", async () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
@@ -2528,7 +2528,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should receive config changes via streaming", async () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "initial", overrides: [] }],
       };
 
@@ -2561,7 +2561,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should add new configs via config_change", async () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "value1", overrides: [] }],
       };
 
@@ -2594,7 +2594,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should notify subscribers on config updates", async () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "initial", overrides: [] }],
       };
 
@@ -2634,7 +2634,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should notify specific config subscribers", async () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           { name: "config1", value: "value1", overrides: [] },
           { name: "config2", value: "value2", overrides: [] },
@@ -2686,7 +2686,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should stop receiving updates after close", async () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "initial", overrides: [] }],
       };
 
@@ -2726,7 +2726,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should not receive updates after unsubscribe", async () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "initial", overrides: [] }],
       };
 
@@ -2767,7 +2767,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should include updated configs in getSnapshot", async () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
@@ -2800,7 +2800,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should strip trailing slashes from base URL", async () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "value1", overrides: [] }],
       };
 
@@ -2827,7 +2827,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should use context for override evaluation with live updates", async () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           {
             name: "feature",
@@ -2883,7 +2883,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should support multiple subscribers", async () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "initial", overrides: [] }],
       };
 
@@ -2937,7 +2937,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should be immediately available without waiting for server (non-blocking)", async () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
@@ -2963,7 +2963,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should fallback to snapshot when server never responds", async () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
@@ -2993,7 +2993,7 @@ describe("restoreReplaneClient", () => {
     it("should continue working after connection error and use snapshot", async () => {
       const failingFetch = vi.fn().mockRejectedValue(new Error("Network error"));
 
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
@@ -3027,7 +3027,7 @@ describe("restoreReplaneClient", () => {
     it("should log error when connection fails but continue serving snapshot", async () => {
       const failingFetch = vi.fn().mockRejectedValue(new Error("Connection refused"));
 
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           { name: "config1", value: "value1", overrides: [] },
           { name: "config2", value: "value2", overrides: [] },
@@ -3058,7 +3058,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should use default timeout values when not specified", async () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "value1", overrides: [] }],
       };
 
@@ -3098,7 +3098,7 @@ describe("restoreReplaneClient", () => {
         return mockServer.fetchFn(url, init);
       });
 
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
@@ -3135,7 +3135,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should handle inactivity timeout and reconnect", async () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
@@ -3177,7 +3177,7 @@ describe("restoreReplaneClient", () => {
     });
 
     it("should send current configs in request body when reconnecting", async () => {
-      const snapshot: ReplaneSnapshot = {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           { name: "config1", value: "snapshot-value1", overrides: [] },
           {

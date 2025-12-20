@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { createReplaneClient } from "@replanejs/sdk";
 import type { ReplaneClient, ReplaneClientOptions } from "@replanejs/sdk";
 
-type ClientState<T extends Record<string, unknown>> =
+type ClientState<T extends object> =
   | { status: "loading"; client: null; error: null }
   | { status: "ready"; client: ReplaneClient<T>; error: null }
   | { status: "error"; client: null; error: Error };
 
 // Cache for suspense promise tracking
-const suspenseCache = new Map<
+const suspenseCache = new  Map<
   string,
   {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -19,7 +19,7 @@ const suspenseCache = new Map<
   }
 >();
 
-function getCacheKey<T extends Record<string, unknown>>(options: ReplaneClientOptions<T>): string {
+function getCacheKey<T extends object>(options: ReplaneClientOptions<T>): string {
   return `${options.baseUrl}:${options.sdkKey}`;
 }
 
@@ -28,7 +28,7 @@ function getCacheKey<T extends Record<string, unknown>>(options: ReplaneClientOp
  * Handles loading state and cleanup.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function useReplaneClient<T extends Record<string, unknown> = any>(
+export function useReplaneClient<T extends object = any>(
   options: ReplaneClientOptions<T>,
   onError?: (error: Error) => void
 ): ClientState<T> {
@@ -82,7 +82,7 @@ export function useReplaneClient<T extends Record<string, unknown> = any>(
  * Throws a promise while loading, throws error on failure.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function useReplaneClientSuspense<T extends Record<string, unknown> = any>(
+export function useReplaneClientSuspense<T extends object = any>(
   options: ReplaneClientOptions<T>
 ): ReplaneClient<T> {
   const cacheKey = getCacheKey(options);
@@ -124,7 +124,7 @@ export function useReplaneClientSuspense<T extends Record<string, unknown> = any
  * Clear the suspense cache for a specific options configuration.
  * Useful for testing or when you need to force re-initialization.
  */
-export function clearSuspenseCache<T extends Record<string, unknown>>(options?: ReplaneClientOptions<T>): void {
+export function clearSuspenseCache<T extends object>(options?: ReplaneClientOptions<T>): void {
   if (options) {
     suspenseCache.delete(getCacheKey(options));
   } else {

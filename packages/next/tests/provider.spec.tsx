@@ -11,7 +11,7 @@ import * as sdk from "@replanejs/sdk";
 // Test Utilities
 // ============================================================================
 
-function createMockSnapshot<T extends Record<string, unknown>>(configs: T): ReplaneSnapshot<T> {
+function createMockSnapshot<T extends object>(configs: T): ReplaneSnapshot<T> {
   return {
     configs: Object.entries(configs).map(([name, value]) => ({
       name,
@@ -21,33 +21,43 @@ function createMockSnapshot<T extends Record<string, unknown>>(configs: T): Repl
   };
 }
 
-function createMockClient(
-  configs: Record<string, unknown> = {}
-): ReplaneClient<Record<string, unknown>> & {
-  _updateConfig: (name: string, value: unknown) => void;
+type InferConfigNamePair<T extends object> = {
+  [K in keyof T]: {
+    name: K;
+    value: T[K];
+  };
+}[keyof T];
+
+function createMockClient<T extends object>(
+  configs: T
+): ReplaneClient<T> & {
+  _updateConfig: <K extends keyof T>(name: K, value: T[K]) => void;
 } {
-  const subscribers = new Map<string, Set<() => void>>();
+  const subscribers = new Map<keyof T, Set<(config: InferConfigNamePair<T>) => void>>();
   const globalSubscribers = new Set<() => void>();
-  const currentConfigs: Record<string, unknown> = { ...configs };
+  const currentConfigs: T = { ...configs };
 
   return {
-    get: vi.fn((name: string) => currentConfigs[name]),
+    get: vi.fn(<K extends keyof T>(name: K) => currentConfigs[name]),
     subscribe: vi.fn(
-      (nameOrCallback: string | (() => void), callback?: () => void) => {
+      (
+        nameOrCallback: string | (() => void),
+        callback?: (config: InferConfigNamePair<T>) => void
+      ) => {
         if (typeof nameOrCallback === "function") {
           globalSubscribers.add(nameOrCallback);
           return () => globalSubscribers.delete(nameOrCallback);
         }
         const name = nameOrCallback;
-        if (!subscribers.has(name)) {
-          subscribers.set(name, new Set());
+        if (!subscribers.has(name as keyof T)) {
+          subscribers.set(name as keyof T, new Set());
         }
-        subscribers.get(name)!.add(callback!);
+        subscribers.get(name as keyof T)!.add(callback!);
         return () => {
-          subscribers.get(name)?.delete(callback!);
+          subscribers.get(name as keyof T)?.delete(callback!);
         };
       }
-    ),
+    ) as ReplaneClient<T>["subscribe"],
     close: vi.fn(),
     getSnapshot: vi.fn(() => ({
       configs: Object.entries(currentConfigs).map(([name, value]) => ({
@@ -56,13 +66,11 @@ function createMockClient(
         overrides: [],
       })),
     })),
-    _updateConfig: (name: string, value: unknown) => {
+    _updateConfig: <K extends keyof T>(name: K, value: T[K]) => {
       currentConfigs[name] = value;
-      subscribers.get(name)?.forEach((cb) => cb());
+      subscribers.get(name)?.forEach((cb) => cb({ name, value }));
       globalSubscribers.forEach((cb) => cb());
     },
-  } as unknown as ReplaneClient<Record<string, unknown>> & {
-    _updateConfig: (name: string, value: unknown) => void;
   };
 }
 
@@ -111,9 +119,7 @@ describe("ReplaneNextProvider - Basic Rendering", () => {
 
   beforeEach(() => {
     mockClient = createMockClient({ feature: true, count: 42 });
-    mockRestoreClient = vi
-      .spyOn(sdk, "restoreReplaneClient")
-      .mockReturnValue(mockClient);
+    mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
   });
 
   afterEach(() => {
@@ -191,9 +197,7 @@ describe("ReplaneNextProvider - Client Creation", () => {
 
   beforeEach(() => {
     mockClient = createMockClient({ feature: true });
-    mockRestoreClient = vi
-      .spyOn(sdk, "restoreReplaneClient")
-      .mockReturnValue(mockClient);
+    mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
   });
 
   afterEach(() => {
@@ -297,11 +301,7 @@ describe("ReplaneNextProvider - Client Creation", () => {
     const context = { userId: "123" };
 
     render(
-      <ReplaneNextProvider
-        snapshot={snapshot}
-        connection={connection}
-        context={context}
-      >
+      <ReplaneNextProvider snapshot={snapshot} connection={connection} context={context}>
         <div>Content</div>
       </ReplaneNextProvider>
     );
@@ -331,9 +331,7 @@ describe("ReplaneNextProvider - Client Lifecycle", () => {
 
   beforeEach(() => {
     mockClient = createMockClient({ feature: true });
-    mockRestoreClient = vi
-      .spyOn(sdk, "restoreReplaneClient")
-      .mockReturnValue(mockClient);
+    mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
   });
 
   afterEach(() => {
@@ -473,9 +471,7 @@ describe("ReplaneNextProvider - Context Stability", () => {
 
   beforeEach(() => {
     mockClient = createMockClient({ feature: true });
-    mockRestoreClient = vi
-      .spyOn(sdk, "restoreReplaneClient")
-      .mockReturnValue(mockClient);
+    mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
   });
 
   afterEach(() => {
@@ -537,7 +533,7 @@ describe("ReplaneNextProvider - useConfig Integration", () => {
     });
     mockRestoreClient = vi
       .spyOn(sdk, "restoreReplaneClient")
-      .mockReturnValue(mockClient);
+      .mockReturnValue(mockClient as ReplaneClient<object>);
 
     const snapshot = createMockSnapshot({
       feature: true,
@@ -573,7 +569,7 @@ describe("ReplaneNextProvider - useConfig Integration", () => {
     const mockClient = createMockClient({ counter: 0 });
     mockRestoreClient = vi
       .spyOn(sdk, "restoreReplaneClient")
-      .mockReturnValue(mockClient);
+      .mockReturnValue(mockClient as ReplaneClient<object>);
 
     const snapshot = createMockSnapshot({ counter: 0 });
 
@@ -601,7 +597,7 @@ describe("ReplaneNextProvider - useConfig Integration", () => {
     const mockClient = createMockClient({ shared: "initial" });
     mockRestoreClient = vi
       .spyOn(sdk, "restoreReplaneClient")
-      .mockReturnValue(mockClient);
+      .mockReturnValue(mockClient as ReplaneClient<object>);
 
     const snapshot = createMockSnapshot({ shared: "initial" });
 
@@ -642,9 +638,7 @@ describe("ReplaneNextProvider - Integration Scenarios", () => {
 
   beforeEach(() => {
     mockClient = createMockClient({ feature: true });
-    mockRestoreClient = vi
-      .spyOn(sdk, "restoreReplaneClient")
-      .mockReturnValue(mockClient);
+    mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
   });
 
   afterEach(() => {
@@ -752,9 +746,7 @@ describe("ReplaneNextProvider - Edge Cases", () => {
 
   beforeEach(() => {
     mockClient = createMockClient({});
-    mockRestoreClient = vi
-      .spyOn(sdk, "restoreReplaneClient")
-      .mockReturnValue(mockClient);
+    mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
   });
 
   afterEach(() => {
@@ -787,9 +779,7 @@ describe("ReplaneNextProvider - Edge Cases", () => {
     );
 
     expect(screen.getByTestId("content")).toBeInTheDocument();
-    expect(mockRestoreClient).toHaveBeenCalledWith(
-      expect.objectContaining({ snapshot })
-    );
+    expect(mockRestoreClient).toHaveBeenCalledWith(expect.objectContaining({ snapshot }));
   });
 
   it("handles complex nested config values in snapshot", () => {
@@ -857,11 +847,9 @@ describe("ReplaneNextProvider - Error Handling", () => {
 
   it("propagates errors from restoreReplaneClient", () => {
     const error = new Error("Failed to restore client");
-    mockRestoreClient = vi
-      .spyOn(sdk, "restoreReplaneClient")
-      .mockImplementation(() => {
-        throw error;
-      });
+    mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockImplementation(() => {
+      throw error;
+    });
 
     const snapshot = createMockSnapshot({ feature: true });
     const onError = vi.fn();
@@ -891,9 +879,7 @@ describe("ReplaneNextProvider - TypeScript Types", () => {
 
   beforeEach(() => {
     mockClient = createMockClient({ feature: true });
-    mockRestoreClient = vi
-      .spyOn(sdk, "restoreReplaneClient")
-      .mockReturnValue(mockClient);
+    mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
   });
 
   afterEach(() => {

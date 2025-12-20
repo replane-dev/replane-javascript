@@ -241,6 +241,11 @@ describe("getReplaneSnapshotScript", () => {
 // ReplaneScriptProvider - Basic Rendering
 // ============================================================================
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function asReplaneClient(value: unknown): any {
+  return value as ReplaneClient<Record<string, unknown>>;
+}
+
 describe("ReplaneScriptProvider - Basic Rendering", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockRestoreClient: any;
@@ -250,7 +255,7 @@ describe("ReplaneScriptProvider - Basic Rendering", () => {
     mockClient = createMockClient({ feature: true });
     mockRestoreClient = vi
       .spyOn(sdk, "restoreReplaneClient")
-      .mockReturnValue(mockClient);
+      .mockReturnValue(asReplaneClient(mockClient));
     setWindowSnapshot(undefined);
   });
 
@@ -328,7 +333,7 @@ describe("ReplaneScriptProvider - Snapshot Detection", () => {
     mockClient = createMockClient({ feature: true });
     mockRestoreClient = vi
       .spyOn(sdk, "restoreReplaneClient")
-      .mockReturnValue(mockClient);
+      .mockReturnValue(asReplaneClient(mockClient));
     setWindowSnapshot(undefined);
   });
 
@@ -392,7 +397,7 @@ describe("ReplaneScriptProvider - Client Creation", () => {
     mockClient = createMockClient({ feature: true });
     mockRestoreClient = vi
       .spyOn(sdk, "restoreReplaneClient")
-      .mockReturnValue(mockClient);
+      .mockReturnValue(asReplaneClient(mockClient));
     setWindowSnapshot(undefined);
   });
 
@@ -496,7 +501,7 @@ describe("ReplaneScriptProvider - Client Lifecycle", () => {
     mockClient = createMockClient({ feature: true });
     mockRestoreClient = vi
       .spyOn(sdk, "restoreReplaneClient")
-      .mockReturnValue(mockClient);
+      .mockReturnValue(asReplaneClient(mockClient));
     setWindowSnapshot(undefined);
   });
 
@@ -556,7 +561,7 @@ describe("ReplaneScriptProvider - useConfig Integration", () => {
     });
     mockRestoreClient = vi
       .spyOn(sdk, "restoreReplaneClient")
-      .mockReturnValue(mockClient);
+      .mockReturnValue(asReplaneClient(mockClient));
 
     const snapshot = createMockSnapshot({
       feature: true,
@@ -593,7 +598,7 @@ describe("ReplaneScriptProvider - useConfig Integration", () => {
     const mockClient = createMockClient({ counter: 0 });
     mockRestoreClient = vi
       .spyOn(sdk, "restoreReplaneClient")
-      .mockReturnValue(mockClient);
+      .mockReturnValue(asReplaneClient(mockClient));
 
     const snapshot = createMockSnapshot({ counter: 0 });
     setWindowSnapshot(snapshot);
@@ -632,7 +637,7 @@ describe("ReplaneScriptProvider - Fallback Behavior", () => {
     mockClient = createMockClient({ feature: true });
     mockRestoreClient = vi
       .spyOn(sdk, "restoreReplaneClient")
-      .mockReturnValue(mockClient);
+      .mockReturnValue(asReplaneClient(mockClient));
     setWindowSnapshot(undefined);
   });
 
@@ -718,7 +723,7 @@ describe("ReplaneScriptProvider - Edge Cases", () => {
     mockClient = createMockClient({});
     mockRestoreClient = vi
       .spyOn(sdk, "restoreReplaneClient")
-      .mockReturnValue(mockClient);
+      .mockReturnValue(asReplaneClient(mockClient));
     setWindowSnapshot(undefined);
   });
 
@@ -811,7 +816,7 @@ describe("Integration: getReplaneSnapshotScript + ReplaneScriptProvider", () => 
     });
     mockRestoreClient = vi
       .spyOn(sdk, "restoreReplaneClient")
-      .mockReturnValue(mockClient);
+      .mockReturnValue(asReplaneClient(mockClient));
     setWindowSnapshot(undefined);
   });
 

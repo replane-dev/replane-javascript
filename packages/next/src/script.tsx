@@ -8,9 +8,8 @@ import type { ReplaneConnectionOptions } from "./types";
 // Global variable name for the snapshot
 const REPLANE_SNAPSHOT_KEY = "__REPLANE_SNAPSHOT__";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyConfig = Record<string, any>;
-
+  
 declare global {
   interface Window {
     [REPLANE_SNAPSHOT_KEY]?: ReplaneSnapshot<AnyConfig>;
@@ -50,7 +49,7 @@ declare global {
  * }
  * ```
  */
-export function getReplaneSnapshotScript<T extends Record<string, unknown>>(snapshot: ReplaneSnapshot<T>): string {
+export function getReplaneSnapshotScript<T extends object = AnyConfig>(snapshot: ReplaneSnapshot<T>): string {
   // Escape script closing tags in JSON to prevent XSS
   const json = JSON.stringify(snapshot).replace(/<\/script>/gi, "<\\/script>");
   return `window.${REPLANE_SNAPSHOT_KEY}=${json};`;

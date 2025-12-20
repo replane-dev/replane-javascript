@@ -1,11 +1,9 @@
 import type { ConfigDto } from "./types";
 
 /**
- * Base type for config objects.
- * Uses Record<string, unknown> so that keyof Configs = string,
- * allowing untyped clients to accept any string config name.
+ * Base constraint for config objects.
  */
-export type Configs = Record<string, unknown>;
+export type Configs = object;
 
 /**
  * Context object for override evaluation.

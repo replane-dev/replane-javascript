@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { getReplaneSnapshot, getConfig } from "../src/server";
-import type { ReplaneClient, ReplaneSnapshot } from "@replanejs/sdk";
+import { createReplaneClient, type ReplaneClient, type ReplaneSnapshot } from "@replanejs/sdk";
 import * as sdk from "@replanejs/sdk";
 
 // ============================================================================
 // Test Utilities
 // ============================================================================
 
-function createMockSnapshot<T extends Record<string, unknown>>(configs: T): ReplaneSnapshot<T> {
+function createMockSnapshot<T extends object>(configs: T): ReplaneSnapshot<T> {
   return {
     configs: Object.entries(configs).map(([name, value]) => ({
       name,
@@ -19,7 +19,7 @@ function createMockSnapshot<T extends Record<string, unknown>>(configs: T): Repl
 
 function createMockClient(
   configs: Record<string, unknown> = {}
-): ReplaneClient<Record<string, unknown>> {
+): ReplaneClient<object> {
   const snapshot = createMockSnapshot(configs);
 
   return {
@@ -27,7 +27,7 @@ function createMockClient(
     subscribe: vi.fn(() => () => {}),
     close: vi.fn(),
     getSnapshot: vi.fn(() => snapshot),
-  } as unknown as ReplaneClient<Record<string, unknown>>;
+  } as unknown as ReplaneClient<object>;
 }
 
 // ============================================================================
@@ -188,10 +188,10 @@ describe("getReplaneSnapshot - Options", () => {
   it("passes required configs", async () => {
     const required = ["feature", "count"];
 
-    await getReplaneSnapshot({
+    await getReplaneSnapshot<Record<string, unknown>>({
       baseUrl: "https://api.replane.dev",
       sdkKey: "rp_test_key",
-      required,
+      required: required ,
     });
 
     expect(mockCreateClient).toHaveBeenCalledWith(
@@ -202,17 +202,17 @@ describe("getReplaneSnapshot - Options", () => {
   });
 
   it("passes required configs as object", async () => {
-    const required = { feature: true, count: 0 };
+    const required = { feature: true, count: false };
 
     await getReplaneSnapshot({
       baseUrl: "https://api.replane.dev",
       sdkKey: "rp_test_key",
-      required,
+      required: required ,
     });
 
     expect(mockCreateClient).toHaveBeenCalledWith(
       expect.objectContaining({
-        required: { feature: true, count: 0 },
+        required: { feature: true, count: false } ,
       })
     );
   });
@@ -239,7 +239,7 @@ describe("getReplaneSnapshot - Options", () => {
     const required = ["feature"];
     const fallbacks = { feature: false };
 
-    await getReplaneSnapshot({
+    await getReplaneSnapshot<Record<string, unknown>>({
       baseUrl: "https://api.replane.dev",
       sdkKey: "rp_test_key",
       fetchFn: customFetch,
@@ -311,7 +311,7 @@ describe("getReplaneSnapshot - Error Handling", () => {
       .mockRejectedValue(error);
 
     await expect(
-      getReplaneSnapshot({
+      getReplaneSnapshot<Record<string, unknown>>({
         baseUrl: "https://api.replane.dev",
         sdkKey: "rp_test_key",
         required: ["feature", "count"],
@@ -326,7 +326,7 @@ describe("getReplaneSnapshot - Error Handling", () => {
       .mockRejectedValue(error);
 
     await expect(
-      getReplaneSnapshot({
+      getReplaneSnapshot<Record<string, unknown>>({
         baseUrl: "https://api.replane.dev",
         sdkKey: "invalid_key",
       })
@@ -461,10 +461,10 @@ describe("getReplaneSnapshot - TypeScript Types", () => {
   });
 
   it("infers type from required configs object", async () => {
-    const snapshot = await getReplaneSnapshot({
+    const snapshot = await getReplaneSnapshot<Record<string, unknown>>({
       baseUrl: "https://api.replane.dev",
       sdkKey: "rp_test_key",
-      required: { feature: true, count: 0 },
+      required: { feature: true, count: false },
     });
 
     expect(snapshot).toBeDefined();
@@ -935,12 +935,12 @@ describe("Next.js Caching Integration", () => {
     await getReplaneSnapshot({
       baseUrl: "https://api.replane.dev",
       sdkKey: "rp_test_key",
-      fetchFn: nextFetch,
+      fetchFn: nextFetch as typeof fetch,
     });
 
     expect(mockCreateClient).toHaveBeenCalledWith(
       expect.objectContaining({
-        fetchFn: nextFetch,
+        fetchFn: nextFetch as typeof fetch,
       })
     );
   });
@@ -954,12 +954,12 @@ describe("Next.js Caching Integration", () => {
     await getReplaneSnapshot({
       baseUrl: "https://api.replane.dev",
       sdkKey: "rp_test_key",
-      fetchFn: isrFetch,
+      fetchFn: isrFetch as typeof fetch,
     });
 
     expect(mockCreateClient).toHaveBeenCalledWith(
       expect.objectContaining({
-        fetchFn: isrFetch,
+        fetchFn: isrFetch as typeof fetch,
       })
     );
   });
@@ -973,12 +973,12 @@ describe("Next.js Caching Integration", () => {
     await getReplaneSnapshot({
       baseUrl: "https://api.replane.dev",
       sdkKey: "rp_test_key",
-      fetchFn: taggedFetch,
+      fetchFn: taggedFetch as typeof fetch,
     });
 
     expect(mockCreateClient).toHaveBeenCalledWith(
       expect.objectContaining({
-        fetchFn: taggedFetch,
+        fetchFn: taggedFetch as typeof fetch,
       })
     );
   });

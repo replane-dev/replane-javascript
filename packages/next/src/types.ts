@@ -39,8 +39,7 @@ export interface ReplaneConnectionOptions {
 /**
  * Props for ReplaneNextProvider.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ReplaneNextProviderProps<T extends Record<string, unknown> = any> {
+export interface ReplaneNextProviderProps<T extends object = object> {
   /**
    * Serializable snapshot from the server.
    * Obtained from `getReplaneSnapshot()` in a Server Component or getServerSideProps.
