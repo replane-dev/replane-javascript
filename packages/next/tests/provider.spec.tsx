@@ -480,7 +480,7 @@ describe("ReplaneNextProvider - Context Stability", () => {
 
   it("maintains stable context value across re-renders with same client", () => {
     const snapshot = createMockSnapshot({ feature: true });
-    const contextValues: ReturnType<typeof useReplane>[] = [];
+    const contextValues: ReturnType<typeof useReplane<Record<string, unknown>>>[] = [];
 
     function TestComponent() {
       const context = useReplane();
