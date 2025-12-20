@@ -105,7 +105,8 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 // ============================================================================
 
 describe("ReplaneNextProvider - Basic Rendering", () => {
-  let mockRestoreClient: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockRestoreClient: any;
   let mockClient: ReturnType<typeof createMockClient>;
 
   beforeEach(() => {
@@ -184,7 +185,8 @@ describe("ReplaneNextProvider - Basic Rendering", () => {
 // ============================================================================
 
 describe("ReplaneNextProvider - Client Creation", () => {
-  let mockRestoreClient: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockRestoreClient: any;
   let mockClient: ReturnType<typeof createMockClient>;
 
   beforeEach(() => {
@@ -323,7 +325,8 @@ describe("ReplaneNextProvider - Client Creation", () => {
 // ============================================================================
 
 describe("ReplaneNextProvider - Client Lifecycle", () => {
-  let mockRestoreClient: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockRestoreClient: any;
   let mockClient: ReturnType<typeof createMockClient>;
 
   beforeEach(() => {
@@ -464,7 +467,8 @@ describe("ReplaneNextProvider - Client Lifecycle", () => {
 // ============================================================================
 
 describe("ReplaneNextProvider - Context Stability", () => {
-  let mockRestoreClient: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockRestoreClient: any;
   let mockClient: ReturnType<typeof createMockClient>;
 
   beforeEach(() => {
@@ -518,7 +522,8 @@ describe("ReplaneNextProvider - Context Stability", () => {
 // ============================================================================
 
 describe("ReplaneNextProvider - useConfig Integration", () => {
-  let mockRestoreClient: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockRestoreClient: any;
 
   afterEach(() => {
     mockRestoreClient?.mockRestore();
@@ -631,7 +636,8 @@ describe("ReplaneNextProvider - useConfig Integration", () => {
 // ============================================================================
 
 describe("ReplaneNextProvider - Integration Scenarios", () => {
-  let mockRestoreClient: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockRestoreClient: any;
   let mockClient: ReturnType<typeof createMockClient>;
 
   beforeEach(() => {
@@ -740,7 +746,8 @@ describe("ReplaneNextProvider - Integration Scenarios", () => {
 // ============================================================================
 
 describe("ReplaneNextProvider - Edge Cases", () => {
-  let mockRestoreClient: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockRestoreClient: any;
   let mockClient: ReturnType<typeof createMockClient>;
 
   beforeEach(() => {
@@ -841,7 +848,8 @@ describe("ReplaneNextProvider - Edge Cases", () => {
 // ============================================================================
 
 describe("ReplaneNextProvider - Error Handling", () => {
-  let mockRestoreClient: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockRestoreClient: any;
 
   afterEach(() => {
     mockRestoreClient?.mockRestore();
@@ -877,7 +885,8 @@ describe("ReplaneNextProvider - Error Handling", () => {
 // ============================================================================
 
 describe("ReplaneNextProvider - TypeScript Types", () => {
-  let mockRestoreClient: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockRestoreClient: any;
   let mockClient: ReturnType<typeof createMockClient>;
 
   beforeEach(() => {

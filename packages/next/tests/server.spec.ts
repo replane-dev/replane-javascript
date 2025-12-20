@@ -35,7 +35,8 @@ function createMockClient(
 // ============================================================================
 
 describe("getReplaneSnapshot - Basic Functionality", () => {
-  let mockCreateClient: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockCreateClient: any;
   let mockClient: ReturnType<typeof createMockClient>;
 
   beforeEach(() => {
@@ -109,7 +110,8 @@ describe("getReplaneSnapshot - Basic Functionality", () => {
 // ============================================================================
 
 describe("getReplaneSnapshot - Options", () => {
-  let mockCreateClient: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockCreateClient: any;
   let mockClient: ReturnType<typeof createMockClient>;
 
   beforeEach(() => {
@@ -266,7 +268,8 @@ describe("getReplaneSnapshot - Options", () => {
 // ============================================================================
 
 describe("getReplaneSnapshot - Error Handling", () => {
-  let mockCreateClient: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockCreateClient: any;
 
   afterEach(() => {
     mockCreateClient?.mockRestore();
@@ -336,7 +339,8 @@ describe("getReplaneSnapshot - Error Handling", () => {
 // ============================================================================
 
 describe("getReplaneSnapshot - Snapshot Content", () => {
-  let mockCreateClient: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockCreateClient: any;
 
   afterEach(() => {
     mockCreateClient?.mockRestore();
@@ -425,7 +429,8 @@ describe("getReplaneSnapshot - Snapshot Content", () => {
 // ============================================================================
 
 describe("getReplaneSnapshot - TypeScript Types", () => {
-  let mockCreateClient: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockCreateClient: any;
   let mockClient: ReturnType<typeof createMockClient>;
 
   beforeEach(() => {
@@ -471,7 +476,8 @@ describe("getReplaneSnapshot - TypeScript Types", () => {
 // ============================================================================
 
 describe("getConfig - Basic Functionality", () => {
-  let mockCreateClient: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockCreateClient: any;
   let mockClient: ReturnType<typeof createMockClient>;
 
   beforeEach(() => {
@@ -546,7 +552,8 @@ describe("getConfig - Basic Functionality", () => {
 // ============================================================================
 
 describe("getConfig - Options", () => {
-  let mockCreateClient: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockCreateClient: any;
   let mockClient: ReturnType<typeof createMockClient>;
 
   beforeEach(() => {
@@ -634,7 +641,8 @@ describe("getConfig - Options", () => {
 // ============================================================================
 
 describe("getConfig - Return Values", () => {
-  let mockCreateClient: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockCreateClient: any;
 
   afterEach(() => {
     mockCreateClient?.mockRestore();
@@ -798,7 +806,8 @@ describe("getConfig - Return Values", () => {
 // ============================================================================
 
 describe("getConfig - Error Handling", () => {
-  let mockCreateClient: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockCreateClient: any;
 
   afterEach(() => {
     mockCreateClient?.mockRestore();
@@ -856,7 +865,8 @@ describe("getConfig - Error Handling", () => {
 // ============================================================================
 
 describe("getConfig vs getReplaneSnapshot - Use Case Comparison", () => {
-  let mockCreateClient: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockCreateClient: any;
   let mockClient: ReturnType<typeof createMockClient>;
 
   beforeEach(() => {
@@ -901,7 +911,8 @@ describe("getConfig vs getReplaneSnapshot - Use Case Comparison", () => {
 // ============================================================================
 
 describe("Next.js Caching Integration", () => {
-  let mockCreateClient: ReturnType<typeof vi.spyOn>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockCreateClient: any;
   let mockClient: ReturnType<typeof createMockClient>;
 
   beforeEach(() => {
