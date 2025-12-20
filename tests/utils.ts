@@ -145,9 +145,7 @@ export class MockReplaneServerController {
   }
 }
 
-type MockConnectionEvent =
-  | { type: "data"; record: ReplicationStreamRecord }
-  | { type: "ping" };
+type MockConnectionEvent = { type: "data"; record: ReplicationStreamRecord } | { type: "ping" };
 
 export class MockReplaneServerConnection {
   private readonly _events = new Channel<MockConnectionEvent>();
