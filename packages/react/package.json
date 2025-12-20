@@ -1,0 +1,72 @@
+{
+  "name": "@replanejs/react",
+  "version": "0.1.0",
+  "description": "React SDK for Replane - feature flags and remote configuration",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "replane",
+    "react",
+    "feature-flags",
+    "remote-config",
+    "configuration",
+    "sdk"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/replane-dev/replane-javascript",
+    "directory": "packages/react"
+  },
+  "bugs": {
+    "url": "https://github.com/replane-dev/replane-javascript/issues"
+  },
+  "homepage": "https://github.com/replane-dev/replane-javascript#readme",
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  },
+  "dependencies": {
+    "@replanejs/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.1",
+    "@types/node": "^22.19.3",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.3.7",
+    "jsdom": "^27.3.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.3.1",
+    "tsdown": "^0.11.9",
+    "typescript": "^5.4.0",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

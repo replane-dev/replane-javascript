@@ -103,8 +103,8 @@ class SseEncoderStream extends TransformStream<SseEvent, Uint8Array> {
         } else if (chunk.type === "connected") {
           controller.enqueue(encoder.encode(": connected\n\n"));
         } else {
-          const _: never = chunk;
-          throw new Error(`Unknown SSE event type: ${JSON.stringify(chunk)}`);
+          const exhaustiveCheck: never = chunk;
+          throw new Error(`Unknown SSE event type: ${JSON.stringify(exhaustiveCheck)}`);
         }
       },
     });

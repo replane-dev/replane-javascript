@@ -2,9 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   createReplaneClient,
   createInMemoryReplaneClient,
-  ReplaneClient,
+  restoreReplaneClient,
   ReplaneError,
 } from "../src/index";
+import type { ReplaneClient, ReplaneSnapshot } from "../src/index";
 import { MockReplaneServerController } from "./utils";
 
 function sync() {
@@ -1941,5 +1942,1280 @@ describe("ReplaneError", () => {
     });
 
     expect(error.cause).toBe(cause);
+  });
+});
+
+describe("restoreReplaneClient", () => {
+  function sync() {
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  function createSilentLogger() {
+    return {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    };
+  }
+
+  describe("snapshot-only mode (no connection)", () => {
+    it("should restore configs from snapshot", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          { name: "config1", value: "value1", overrides: [] },
+          { name: "config2", value: 42, overrides: [] },
+        ],
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+
+      expect(client.get("config1")).toBe("value1");
+      expect(client.get("config2")).toBe(42);
+    });
+
+    it("should handle different value types", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          { name: "string", value: "hello", overrides: [] },
+          { name: "number", value: 123.45, overrides: [] },
+          { name: "boolean", value: false, overrides: [] },
+          { name: "null", value: null, overrides: [] },
+          { name: "array", value: [1, 2, 3], overrides: [] },
+          { name: "object", value: { key: "value" }, overrides: [] },
+        ],
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+
+      expect(client.get("string")).toBe("hello");
+      expect(client.get("number")).toBe(123.45);
+      expect(client.get("boolean")).toBe(false);
+      expect(client.get("null")).toBe(null);
+      expect(client.get("array")).toEqual([1, 2, 3]);
+      expect(client.get("object")).toEqual({ key: "value" });
+    });
+
+    it("should throw ReplaneError when config not found", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "value1", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+
+      expect(() => client.get("nonexistent")).toThrow(ReplaneError);
+      expect(() => client.get("nonexistent")).toThrow("Config not found: nonexistent");
+    });
+
+    it("should have a no-op close method", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "value1", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+
+      expect(() => client.close()).not.toThrow();
+      expect(client.get("config1")).toBe("value1");
+    });
+
+    it("should return snapshot via getSnapshot", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          { name: "config1", value: "value1", overrides: [] },
+          { name: "config2", value: 42, overrides: [] },
+        ],
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+      const returnedSnapshot = client.getSnapshot();
+
+      expect(returnedSnapshot.configs).toHaveLength(2);
+      expect(returnedSnapshot.configs).toContainEqual({
+        name: "config1",
+        value: "value1",
+        overrides: [],
+      });
+      expect(returnedSnapshot.configs).toContainEqual({
+        name: "config2",
+        value: 42,
+        overrides: [],
+      });
+    });
+  });
+
+  describe("context handling", () => {
+    it("should use context from snapshot", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          {
+            name: "feature",
+            value: "default",
+            overrides: [
+              {
+                name: "prod-override",
+                conditions: [{ operator: "equals", property: "env", value: "production" }],
+                value: "prod-value",
+              },
+            ],
+          },
+        ],
+        context: { env: "production" },
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+
+      expect(client.get("feature")).toBe("prod-value");
+    });
+
+    it("should override snapshot context with options context", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          {
+            name: "feature",
+            value: "default",
+            overrides: [
+              {
+                name: "prod-override",
+                conditions: [{ operator: "equals", property: "env", value: "production" }],
+                value: "prod-value",
+              },
+              {
+                name: "staging-override",
+                conditions: [{ operator: "equals", property: "env", value: "staging" }],
+                value: "staging-value",
+              },
+            ],
+          },
+        ],
+        context: { env: "production" },
+      };
+
+      const client = restoreReplaneClient({ snapshot, context: { env: "staging" } });
+
+      expect(client.get("feature")).toBe("staging-value");
+    });
+
+    it("should allow per-request context override", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          {
+            name: "feature",
+            value: "default",
+            overrides: [
+              {
+                name: "staging-override",
+                conditions: [{ operator: "equals", property: "env", value: "staging" }],
+                value: "staging-value",
+              },
+            ],
+          },
+        ],
+        context: { env: "production" },
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+
+      expect(client.get("feature")).toBe("default");
+      expect(client.get("feature", { context: { env: "staging" } })).toBe("staging-value");
+    });
+
+    it("should merge per-request context with client context", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          {
+            name: "feature",
+            value: "default",
+            overrides: [
+              {
+                name: "override",
+                conditions: [
+                  {
+                    operator: "and",
+                    conditions: [
+                      { operator: "equals", property: "env", value: "production" },
+                      { operator: "equals", property: "role", value: "admin" },
+                    ],
+                  },
+                ],
+                value: "admin-value",
+              },
+            ],
+          },
+        ],
+        context: { env: "production" },
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+
+      expect(client.get("feature")).toBe("default");
+      expect(client.get("feature", { context: { role: "admin" } })).toBe("admin-value");
+    });
+
+    it("should include context in getSnapshot result", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "value1", overrides: [] }],
+        context: { env: "production" },
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+      const returnedSnapshot = client.getSnapshot();
+
+      expect(returnedSnapshot.context).toEqual({ env: "production" });
+    });
+
+    it("should include overridden context in getSnapshot result", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "value1", overrides: [] }],
+        context: { env: "production" },
+      };
+
+      const client = restoreReplaneClient({ snapshot, context: { env: "staging" } });
+      const returnedSnapshot = client.getSnapshot();
+
+      expect(returnedSnapshot.context).toEqual({ env: "staging" });
+    });
+  });
+
+  describe("overrides evaluation", () => {
+    it("should evaluate equals operator", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          {
+            name: "feature",
+            value: "default",
+            overrides: [
+              {
+                name: "prod-override",
+                conditions: [{ operator: "equals", property: "env", value: "production" }],
+                value: "prod-value",
+              },
+            ],
+          },
+        ],
+        context: { env: "production" },
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+      expect(client.get("feature")).toBe("prod-value");
+    });
+
+    it("should evaluate in operator", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          {
+            name: "feature",
+            value: "default",
+            overrides: [
+              {
+                name: "na-override",
+                conditions: [{ operator: "in", property: "country", value: ["US", "CA", "MX"] }],
+                value: "na-value",
+              },
+            ],
+          },
+        ],
+        context: { country: "US" },
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+      expect(client.get("feature")).toBe("na-value");
+    });
+
+    it("should evaluate not_in operator", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          {
+            name: "feature",
+            value: "default",
+            overrides: [
+              {
+                name: "non-na-override",
+                conditions: [{ operator: "not_in", property: "country", value: ["US", "CA", "MX"] }],
+                value: "non-na-value",
+              },
+            ],
+          },
+        ],
+        context: { country: "UK" },
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+      expect(client.get("feature")).toBe("non-na-value");
+    });
+
+    it("should evaluate comparison operators", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          {
+            name: "feature",
+            value: "default",
+            overrides: [
+              {
+                name: "minor-override",
+                conditions: [{ operator: "less_than", property: "age", value: 18 }],
+                value: "minor-value",
+              },
+            ],
+          },
+        ],
+        context: { age: 16 },
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+      expect(client.get("feature")).toBe("minor-value");
+    });
+
+    it("should evaluate and condition", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          {
+            name: "feature",
+            value: "default",
+            overrides: [
+              {
+                name: "override",
+                conditions: [
+                  {
+                    operator: "and",
+                    conditions: [
+                      { operator: "equals", property: "env", value: "production" },
+                      { operator: "equals", property: "country", value: "US" },
+                    ],
+                  },
+                ],
+                value: "override-value",
+              },
+            ],
+          },
+        ],
+        context: { env: "production", country: "US" },
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+      expect(client.get("feature")).toBe("override-value");
+    });
+
+    it("should evaluate or condition", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          {
+            name: "feature",
+            value: "default",
+            overrides: [
+              {
+                name: "override",
+                conditions: [
+                  {
+                    operator: "or",
+                    conditions: [
+                      { operator: "equals", property: "env", value: "production" },
+                      { operator: "equals", property: "env", value: "staging" },
+                    ],
+                  },
+                ],
+                value: "override-value",
+              },
+            ],
+          },
+        ],
+        context: { env: "staging" },
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+      expect(client.get("feature")).toBe("override-value");
+    });
+
+    it("should evaluate not condition", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          {
+            name: "feature",
+            value: "default",
+            overrides: [
+              {
+                name: "override",
+                conditions: [
+                  {
+                    operator: "not",
+                    condition: { operator: "equals", property: "env", value: "production" },
+                  },
+                ],
+                value: "non-prod-value",
+              },
+            ],
+          },
+        ],
+        context: { env: "development" },
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+      expect(client.get("feature")).toBe("non-prod-value");
+    });
+
+    it("should evaluate segmentation condition", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          {
+            name: "feature",
+            value: "default",
+            overrides: [
+              {
+                name: "100-percent",
+                conditions: [
+                  {
+                    operator: "segmentation",
+                    property: "userId",
+                    fromPercentage: 0,
+                    toPercentage: 100,
+                    seed: "test-seed",
+                  },
+                ],
+                value: "in-segment",
+              },
+            ],
+          },
+        ],
+        context: { userId: "user-123" },
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+      expect(client.get("feature")).toBe("in-segment");
+    });
+
+    it("should return base value when no override matches", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          {
+            name: "feature",
+            value: "default",
+            overrides: [
+              {
+                name: "prod-override",
+                conditions: [{ operator: "equals", property: "env", value: "production" }],
+                value: "prod-value",
+              },
+            ],
+          },
+        ],
+        context: { env: "development" },
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+      expect(client.get("feature")).toBe("default");
+    });
+
+    it("should use first matching override when multiple exist", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          {
+            name: "feature",
+            value: "default",
+            overrides: [
+              {
+                name: "prod-override",
+                conditions: [{ operator: "equals", property: "env", value: "production" }],
+                value: "prod-value",
+              },
+              {
+                name: "staging-override",
+                conditions: [{ operator: "equals", property: "env", value: "staging" }],
+                value: "staging-value",
+              },
+            ],
+          },
+        ],
+        context: { env: "staging" },
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+      expect(client.get("feature")).toBe("staging-value");
+    });
+  });
+
+  describe("subscribe functionality (snapshot-only)", () => {
+    it("should not receive updates in snapshot-only mode", async () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "initial", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+
+      const updates: Array<{ name: string; value: unknown }> = [];
+      const unsubscribe = client.subscribe((config) => {
+        updates.push({ name: String(config.name), value: config.value });
+      });
+
+      await sync();
+
+      expect(updates).toEqual([]);
+
+      unsubscribe();
+    });
+
+    it("should allow subscribing to specific config", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "value1", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+
+      const updates: Array<{ name: string; value: unknown }> = [];
+      const unsubscribe = client.subscribe("config1", (config) => {
+        updates.push({ name: String(config.name), value: config.value });
+      });
+
+      expect(updates).toEqual([]);
+
+      unsubscribe();
+    });
+
+    it("should throw error when callback is not provided for specific config subscription", () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "value1", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+
+      expect(() => {
+        // @ts-expect-error Testing error case
+        client.subscribe("config1");
+      }).toThrow("callback is required when config name is provided");
+    });
+  });
+
+  describe("with connection (live updates)", () => {
+    let mockServer: MockReplaneServerController;
+    let silentLogger: ReturnType<typeof createSilentLogger>;
+
+    beforeEach(() => {
+      mockServer = new MockReplaneServerController();
+      silentLogger = createSilentLogger();
+    });
+
+    afterEach(() => {
+      mockServer.close();
+    });
+
+    it("should restore from snapshot and connect for live updates", async () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: mockServer.fetchFn,
+          logger: silentLogger,
+        },
+      });
+
+      // Should immediately have snapshot value
+      expect(client.get("config1")).toBe("snapshot-value");
+
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "server-value" }],
+      });
+      await sync();
+
+      // Should now have server value
+      expect(client.get("config1")).toBe("server-value");
+
+      client.close();
+    });
+
+    it("should receive config changes via streaming", async () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "initial", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: mockServer.fetchFn,
+          logger: silentLogger,
+        },
+      });
+
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "initial" }],
+      });
+      await sync();
+
+      await connection.push({
+        type: "config_change",
+        config: { name: "config1", overrides: [], value: "updated" },
+      });
+      await sync();
+
+      expect(client.get("config1")).toBe("updated");
+
+      client.close();
+    });
+
+    it("should add new configs via config_change", async () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "value1", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: mockServer.fetchFn,
+          logger: silentLogger,
+        },
+      });
+
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "value1" }],
+      });
+      await sync();
+
+      await connection.push({
+        type: "config_change",
+        config: { name: "config2", overrides: [], value: "value2" },
+      });
+      await sync();
+
+      expect(client.get("config2")).toBe("value2");
+
+      client.close();
+    });
+
+    it("should notify subscribers on config updates", async () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "initial", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: mockServer.fetchFn,
+          logger: silentLogger,
+        },
+      });
+
+      const updates: Array<{ name: string; value: unknown }> = [];
+      const unsubscribe = client.subscribe((config) => {
+        updates.push({ name: String(config.name), value: config.value });
+      });
+
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "init-value" }],
+      });
+      await sync();
+
+      await connection.push({
+        type: "config_change",
+        config: { name: "config1", overrides: [], value: "updated-value" },
+      });
+      await sync();
+
+      expect(updates).toContainEqual({ name: "config1", value: "init-value" });
+      expect(updates).toContainEqual({ name: "config1", value: "updated-value" });
+
+      unsubscribe();
+      client.close();
+    });
+
+    it("should notify specific config subscribers", async () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          { name: "config1", value: "value1", overrides: [] },
+          { name: "config2", value: "value2", overrides: [] },
+        ],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: mockServer.fetchFn,
+          logger: silentLogger,
+        },
+      });
+
+      const updates: Array<{ name: string; value: unknown }> = [];
+      const unsubscribe = client.subscribe("config1", (config) => {
+        updates.push({ name: String(config.name), value: config.value });
+      });
+
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "init",
+        configs: [
+          { name: "config1", overrides: [], value: "value1" },
+          { name: "config2", overrides: [], value: "value2" },
+        ],
+      });
+      await sync();
+
+      await connection.push({
+        type: "config_change",
+        config: { name: "config1", overrides: [], value: "updated1" },
+      });
+      await connection.push({
+        type: "config_change",
+        config: { name: "config2", overrides: [], value: "updated2" },
+      });
+      await sync();
+
+      // Should only receive config1 updates
+      expect(updates).toContainEqual({ name: "config1", value: "value1" });
+      expect(updates).toContainEqual({ name: "config1", value: "updated1" });
+      expect(updates).not.toContainEqual(expect.objectContaining({ name: "config2" }));
+
+      unsubscribe();
+      client.close();
+    });
+
+    it("should stop receiving updates after close", async () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "initial", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: mockServer.fetchFn,
+          logger: silentLogger,
+        },
+      });
+
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "init-value" }],
+      });
+      await sync();
+
+      expect(client.get("config1")).toBe("init-value");
+
+      client.close();
+      await sync();
+
+      // Verify connection was closed
+      expect(connection.aborted).toBe(true);
+
+      // This shouldn't update the config
+      await connection.push({
+        type: "config_change",
+        config: { name: "config1", overrides: [], value: "updated" },
+      });
+      await sync();
+
+      expect(client.get("config1")).toBe("init-value");
+    });
+
+    it("should not receive updates after unsubscribe", async () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "initial", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: mockServer.fetchFn,
+          logger: silentLogger,
+        },
+      });
+
+      const updates: Array<{ name: string; value: unknown }> = [];
+      const unsubscribe = client.subscribe((config) => {
+        updates.push({ name: String(config.name), value: config.value });
+      });
+
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "init-value" }],
+      });
+      await sync();
+
+      unsubscribe();
+
+      await connection.push({
+        type: "config_change",
+        config: { name: "config1", overrides: [], value: "updated-value" },
+      });
+      await sync();
+
+      // Should only have the init update, not the config_change
+      expect(updates).toEqual([{ name: "config1", value: "init-value" }]);
+
+      client.close();
+    });
+
+    it("should include updated configs in getSnapshot", async () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: mockServer.fetchFn,
+          logger: silentLogger,
+        },
+      });
+
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "server-value" }],
+      });
+      await sync();
+
+      const newSnapshot = client.getSnapshot();
+
+      expect(newSnapshot.configs).toContainEqual({
+        name: "config1",
+        value: "server-value",
+        overrides: [],
+      });
+
+      client.close();
+    });
+
+    it("should strip trailing slashes from base URL", async () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "value1", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com///",
+          fetchFn: mockServer.fetchFn,
+          logger: silentLogger,
+        },
+      });
+
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "value1" }],
+      });
+      await sync();
+
+      expect(client.get("config1")).toBe("value1");
+
+      client.close();
+    });
+
+    it("should use context for override evaluation with live updates", async () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          {
+            name: "feature",
+            value: "default",
+            overrides: [
+              {
+                name: "prod-override",
+                conditions: [{ operator: "equals", property: "env", value: "production" }],
+                value: "prod-value",
+              },
+            ],
+          },
+        ],
+        context: { env: "production" },
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: mockServer.fetchFn,
+          logger: silentLogger,
+        },
+      });
+
+      // Should use snapshot context for override evaluation
+      expect(client.get("feature")).toBe("prod-value");
+
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "init",
+        configs: [
+          {
+            name: "feature",
+            overrides: [
+              {
+                name: "prod-override",
+                conditions: [{ operator: "equals", property: "env", value: "production" }],
+                value: "server-prod-value",
+              },
+            ],
+            value: "server-default",
+          },
+        ],
+      });
+      await sync();
+
+      // Should use context for new override from server
+      expect(client.get("feature")).toBe("server-prod-value");
+
+      client.close();
+    });
+
+    it("should support multiple subscribers", async () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "initial", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: mockServer.fetchFn,
+          logger: silentLogger,
+        },
+      });
+
+      const updates1: Array<{ name: string; value: unknown }> = [];
+      const updates2: Array<{ name: string; value: unknown }> = [];
+
+      const unsubscribe1 = client.subscribe((config) => {
+        updates1.push({ name: String(config.name), value: config.value });
+      });
+      const unsubscribe2 = client.subscribe((config) => {
+        updates2.push({ name: String(config.name), value: config.value });
+      });
+
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "config_change",
+        config: { name: "config1", overrides: [], value: "updated" },
+      });
+      await sync();
+
+      expect(updates1).toEqual([{ name: "config1", value: "updated" }]);
+      expect(updates2).toEqual([{ name: "config1", value: "updated" }]);
+
+      unsubscribe1();
+      unsubscribe2();
+      client.close();
+    });
+  });
+
+  describe("initialization behavior", () => {
+    let mockServer: MockReplaneServerController;
+    let silentLogger: ReturnType<typeof createSilentLogger>;
+
+    beforeEach(() => {
+      mockServer = new MockReplaneServerController();
+      silentLogger = createSilentLogger();
+    });
+
+    afterEach(() => {
+      mockServer.close();
+    });
+
+    it("should be immediately available without waiting for server (non-blocking)", async () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
+      };
+
+      // Create client - should return immediately without waiting for server
+      const startTime = Date.now();
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: mockServer.fetchFn,
+          logger: silentLogger,
+        },
+      });
+      const elapsed = Date.now() - startTime;
+
+      // Should be available immediately (< 50ms)
+      expect(elapsed).toBeLessThan(50);
+      expect(client.get("config1")).toBe("snapshot-value");
+
+      // Clean up
+      client.close();
+    });
+
+    it("should fallback to snapshot when server never responds", async () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: mockServer.fetchFn,
+          logger: silentLogger,
+          requestTimeoutMs: 50,
+        },
+      });
+
+      // Client should work with snapshot data even without server response
+      expect(client.get("config1")).toBe("snapshot-value");
+
+      // Wait a bit to ensure no crash
+      await sync();
+      await sync();
+
+      expect(client.get("config1")).toBe("snapshot-value");
+
+      client.close();
+    });
+
+    it("should continue working after connection error and use snapshot", async () => {
+      const failingFetch = vi.fn().mockRejectedValue(new Error("Network error"));
+
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: failingFetch,
+          logger: silentLogger,
+          requestTimeoutMs: 50,
+          retryDelayMs: 10,
+        },
+      });
+
+      // Should still work with snapshot data
+      expect(client.get("config1")).toBe("snapshot-value");
+
+      // Wait for error to be logged
+      await sync();
+
+      // Should still have snapshot value
+      expect(client.get("config1")).toBe("snapshot-value");
+
+      // Error should be logged
+      expect(silentLogger.error).toHaveBeenCalled();
+
+      client.close();
+    });
+
+    it("should log error when connection fails but continue serving snapshot", async () => {
+      const failingFetch = vi.fn().mockRejectedValue(new Error("Connection refused"));
+
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          { name: "config1", value: "value1", overrides: [] },
+          { name: "config2", value: "value2", overrides: [] },
+        ],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: failingFetch,
+          logger: silentLogger,
+          requestTimeoutMs: 50,
+        },
+      });
+
+      // All configs should be available from snapshot
+      expect(client.get("config1")).toBe("value1");
+      expect(client.get("config2")).toBe("value2");
+
+      await sync();
+
+      // Error should have been logged
+      expect(silentLogger.error).toHaveBeenCalled();
+
+      client.close();
+    });
+
+    it("should use default timeout values when not specified", async () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "value1", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: mockServer.fetchFn,
+          logger: silentLogger,
+          // No timeout values specified - should use defaults
+        },
+      });
+
+      // Should work with default values
+      expect(client.get("config1")).toBe("value1");
+
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "server-value" }],
+      });
+      await sync();
+
+      expect(client.get("config1")).toBe("server-value");
+
+      client.close();
+    });
+
+    it("should recover from temporary connection failure and receive updates", async () => {
+      let callCount = 0;
+      const failOnceFetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        callCount++;
+        if (callCount === 1) {
+          throw new Error("Temporary network error");
+        }
+        return mockServer.fetchFn(url, init);
+      });
+
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: failOnceFetch,
+          logger: silentLogger,
+          requestTimeoutMs: 100,
+          retryDelayMs: 10,
+        },
+      });
+
+      // Should initially have snapshot value
+      expect(client.get("config1")).toBe("snapshot-value");
+
+      // Wait for retry
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Accept connection after retry
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "server-value" }],
+      });
+      await sync();
+
+      // Should now have server value after recovery
+      expect(client.get("config1")).toBe("server-value");
+
+      client.close();
+    });
+
+    it("should handle inactivity timeout and reconnect", async () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: mockServer.fetchFn,
+          logger: silentLogger,
+          inactivityTimeoutMs: 100, // Short timeout for testing
+        },
+      });
+
+      // Accept first connection
+      const connection1 = await mockServer.acceptConnection();
+      await connection1.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "value1" }],
+      });
+      await sync();
+
+      expect(client.get("config1")).toBe("value1");
+
+      // Wait for inactivity timeout
+      await new Promise((resolve) => setTimeout(resolve, 150));
+
+      // Accept reconnection
+      const connection2 = await mockServer.acceptConnection();
+      await connection2.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "value2" }],
+      });
+      await sync();
+
+      expect(client.get("config1")).toBe("value2");
+
+      client.close();
+    });
+
+    it("should send current configs in request body when reconnecting", async () => {
+      const snapshot: ReplaneSnapshot = {
+        configs: [
+          { name: "config1", value: "snapshot-value1", overrides: [] },
+          {
+            name: "config2",
+            value: "snapshot-value2",
+            overrides: [
+              {
+                name: "override1",
+                conditions: [{ operator: "equals", property: "env", value: "prod" }],
+                value: "override-value",
+              },
+            ],
+          },
+        ],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: mockServer.fetchFn,
+          logger: silentLogger,
+        },
+      });
+
+      const connection = await mockServer.acceptConnection();
+
+      // Check that the request body contains the current configs from snapshot
+      expect(connection.requestBody.currentConfigs).toHaveLength(2);
+      expect(connection.requestBody.currentConfigs).toContainEqual(
+        expect.objectContaining({ name: "config1", value: "snapshot-value1" })
+      );
+      expect(connection.requestBody.currentConfigs).toContainEqual(
+        expect.objectContaining({ name: "config2", value: "snapshot-value2" })
+      );
+
+      client.close();
+    });
   });
 });

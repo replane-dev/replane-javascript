@@ -1,71 +1,29 @@
 {
-  "name": "@replanejs/sdk",
-  "version": "0.6.1",
-  "description": "Dynamic configuration SDK for browser and server environments (Node.js, Deno, Bun). Powered by Replane.",
-  "type": "module",
-  "license": "MIT",
-  "homepage": "https://github.com/replane-dev/replane-javascript#readme",
-  "bugs": {
-    "url": "https://github.com/replane-dev/replane-javascript/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/replane-dev/replane-javascript.git"
-  },
-  "author": "Dmitry Tilyupo <tilyupo@gmail.com>",
-  "files": [
-    "dist"
-  ],
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    },
-    "./package.json": "./package.json"
-  },
-  "publishConfig": {
-    "access": "public"
-  },
-  "keywords": [
-    "replane",
-    "config",
-    "configuration",
-    "dynamic configuration",
-    "remote config",
-    "feature-flags"
-  ],
-  "sideEffects": false,
+  "name": "replanejs",
+  "private": true,
+  "description": "Replane JavaScript SDKs monorepo",
   "scripts": {
-    "build": "pnpm run build:esm && pnpm run build:cjs",
-    "build:esm": "tsdown",
-    "build:cjs": "esbuild src/index.ts --platform=node --format=cjs --outfile=dist/index.cjs",
-    "dev": "tsdown --watch",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint src tests --max-warnings 0",
-    "lint:fix": "eslint src tests --fix",
-    "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\" \"README.md\"",
-    "format:check": "prettier --check \"src/**/*.ts\" \"tests/**/*.ts\" \"README.md\"",
-    "release": "pnpm run build && bumpp && npm publish"
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint packages --max-warnings 0",
+    "lint:fix": "eslint packages --fix",
+    "format": "prettier --write \"packages/**/*.{ts,tsx}\"",
+    "format:check": "prettier --check \"packages/**/*.{ts,tsx}\"",
+    "clean": "pnpm -r exec rm -rf dist node_modules"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
-    "@types/node": "^22.15.17",
-    "@typescript-eslint/eslint-plugin": "^8.20.0",
-    "@typescript-eslint/parser": "^8.20.0",
-    "async-channel": "^0.2.0",
-    "bumpp": "^10.1.0",
-    "esbuild": "^0.23.1",
+    "@types/node": "^25.0.3",
     "eslint": "^9.18.0",
-    "prettier": "^3.4.2",
-    "tsdown": "^0.11.9",
-    "typescript": "^5.8.3",
-    "typescript-eslint": "^8.20.0",
-    "vitest": "^3.1.3"
+    "eslint-plugin-react": "^7.37.0",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "prettier": "^3.4.0",
+    "typescript": "^5.4.0",
+    "typescript-eslint": "^8.20.0"
   },
-  "packageManager": "pnpm@10.7.0+sha1.66453f13fbf9078d3db193718206a8d738afdbdb"
+  "packageManager": "pnpm@10.25.0",
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
