@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { getReplaneSnapshot, getConfig } from "../src/server";
-import { createReplaneClient, type ReplaneClient, type ReplaneSnapshot } from "@replanejs/sdk";
+import { type ReplaneClient, type ReplaneSnapshot } from "@replanejs/sdk";
 import * as sdk from "@replanejs/sdk";
 
 // ============================================================================
@@ -17,9 +17,7 @@ function createMockSnapshot<T extends object>(configs: T): ReplaneSnapshot<T> {
   };
 }
 
-function createMockClient(
-  configs: Record<string, unknown> = {}
-): ReplaneClient<object> {
+function createMockClient(configs: Record<string, unknown> = {}): ReplaneClient<object> {
   const snapshot = createMockSnapshot(configs);
 
   return {
@@ -41,9 +39,7 @@ describe("getReplaneSnapshot - Basic Functionality", () => {
 
   beforeEach(() => {
     mockClient = createMockClient({ feature: true, count: 42 });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
   });
 
   afterEach(() => {
@@ -116,9 +112,7 @@ describe("getReplaneSnapshot - Options", () => {
 
   beforeEach(() => {
     mockClient = createMockClient({ feature: true });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
   });
 
   afterEach(() => {
@@ -191,7 +185,7 @@ describe("getReplaneSnapshot - Options", () => {
     await getReplaneSnapshot<Record<string, unknown>>({
       baseUrl: "https://api.replane.dev",
       sdkKey: "rp_test_key",
-      required: required ,
+      required: required,
     });
 
     expect(mockCreateClient).toHaveBeenCalledWith(
@@ -207,12 +201,12 @@ describe("getReplaneSnapshot - Options", () => {
     await getReplaneSnapshot({
       baseUrl: "https://api.replane.dev",
       sdkKey: "rp_test_key",
-      required: required ,
+      required: required,
     });
 
     expect(mockCreateClient).toHaveBeenCalledWith(
       expect.objectContaining({
-        required: { feature: true, count: false } ,
+        required: { feature: true, count: false },
       })
     );
   });
@@ -277,9 +271,7 @@ describe("getReplaneSnapshot - Error Handling", () => {
 
   it("propagates errors from createReplaneClient", async () => {
     const error = new Error("Network error");
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockRejectedValue(error);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockRejectedValue(error);
 
     await expect(
       getReplaneSnapshot({
@@ -291,9 +283,7 @@ describe("getReplaneSnapshot - Error Handling", () => {
 
   it("propagates timeout errors", async () => {
     const error = new Error("Initialization timeout");
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockRejectedValue(error);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockRejectedValue(error);
 
     await expect(
       getReplaneSnapshot({
@@ -306,9 +296,7 @@ describe("getReplaneSnapshot - Error Handling", () => {
 
   it("handles missing required configs error", async () => {
     const error = new Error("Missing required configs: feature, count");
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockRejectedValue(error);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockRejectedValue(error);
 
     await expect(
       getReplaneSnapshot<Record<string, unknown>>({
@@ -321,9 +309,7 @@ describe("getReplaneSnapshot - Error Handling", () => {
 
   it("handles authentication errors", async () => {
     const error = new Error("Invalid SDK key");
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockRejectedValue(error);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockRejectedValue(error);
 
     await expect(
       getReplaneSnapshot<Record<string, unknown>>({
@@ -353,9 +339,7 @@ describe("getReplaneSnapshot - Snapshot Content", () => {
       message: "Hello",
       nested: { deep: "value" },
     });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     const snapshot = await getReplaneSnapshot({
       baseUrl: "https://api.replane.dev",
@@ -373,9 +357,7 @@ describe("getReplaneSnapshot - Snapshot Content", () => {
 
   it("returns snapshot with empty configs", async () => {
     const mockClient = createMockClient({});
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     const snapshot = await getReplaneSnapshot({
       baseUrl: "https://api.replane.dev",
@@ -390,9 +372,7 @@ describe("getReplaneSnapshot - Snapshot Content", () => {
       nullConfig: null,
       undefinedConfig: undefined,
     });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     const snapshot = await getReplaneSnapshot({
       baseUrl: "https://api.replane.dev",
@@ -400,9 +380,7 @@ describe("getReplaneSnapshot - Snapshot Content", () => {
     });
 
     expect(snapshot.configs.find((c) => c.name === "nullConfig")?.value).toBe(null);
-    expect(
-      snapshot.configs.find((c) => c.name === "undefinedConfig")?.value
-    ).toBe(undefined);
+    expect(snapshot.configs.find((c) => c.name === "undefinedConfig")?.value).toBe(undefined);
   });
 
   it("returns snapshot with boolean false and number zero", async () => {
@@ -410,9 +388,7 @@ describe("getReplaneSnapshot - Snapshot Content", () => {
       disabled: false,
       zero: 0,
     });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     const snapshot = await getReplaneSnapshot({
       baseUrl: "https://api.replane.dev",
@@ -435,9 +411,7 @@ describe("getReplaneSnapshot - TypeScript Types", () => {
 
   beforeEach(() => {
     mockClient = createMockClient({ feature: true, count: 42 });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
   });
 
   afterEach(() => {
@@ -482,9 +456,7 @@ describe("getConfig - Basic Functionality", () => {
 
   beforeEach(() => {
     mockClient = createMockClient({ feature: true, count: 42 });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
   });
 
   afterEach(() => {
@@ -558,9 +530,7 @@ describe("getConfig - Options", () => {
 
   beforeEach(() => {
     mockClient = createMockClient({ feature: true });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
   });
 
   afterEach(() => {
@@ -650,9 +620,7 @@ describe("getConfig - Return Values", () => {
 
   it("returns boolean value", async () => {
     const mockClient = createMockClient({ enabled: true });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     const value = await getConfig<boolean>({
       name: "enabled",
@@ -665,9 +633,7 @@ describe("getConfig - Return Values", () => {
 
   it("returns boolean false", async () => {
     const mockClient = createMockClient({ disabled: false });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     const value = await getConfig<boolean>({
       name: "disabled",
@@ -680,9 +646,7 @@ describe("getConfig - Return Values", () => {
 
   it("returns number value", async () => {
     const mockClient = createMockClient({ count: 42 });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     const value = await getConfig<number>({
       name: "count",
@@ -695,9 +659,7 @@ describe("getConfig - Return Values", () => {
 
   it("returns number zero", async () => {
     const mockClient = createMockClient({ zero: 0 });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     const value = await getConfig<number>({
       name: "zero",
@@ -710,9 +672,7 @@ describe("getConfig - Return Values", () => {
 
   it("returns string value", async () => {
     const mockClient = createMockClient({ message: "Hello World" });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     const value = await getConfig<string>({
       name: "message",
@@ -725,9 +685,7 @@ describe("getConfig - Return Values", () => {
 
   it("returns empty string", async () => {
     const mockClient = createMockClient({ empty: "" });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     const value = await getConfig<string>({
       name: "empty",
@@ -740,9 +698,7 @@ describe("getConfig - Return Values", () => {
 
   it("returns null value", async () => {
     const mockClient = createMockClient({ nullConfig: null });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     const value = await getConfig<null>({
       name: "nullConfig",
@@ -755,9 +711,7 @@ describe("getConfig - Return Values", () => {
 
   it("returns undefined for missing config", async () => {
     const mockClient = createMockClient({});
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     const value = await getConfig<undefined>({
       name: "nonexistent",
@@ -770,9 +724,7 @@ describe("getConfig - Return Values", () => {
 
   it("returns array value", async () => {
     const mockClient = createMockClient({ items: [1, 2, 3] });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     const value = await getConfig<number[]>({
       name: "items",
@@ -787,9 +739,7 @@ describe("getConfig - Return Values", () => {
     const mockClient = createMockClient({
       config: { nested: { deep: "value" } },
     });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
     const value = await getConfig<{ nested: { deep: string } }>({
       name: "config",
@@ -815,9 +765,7 @@ describe("getConfig - Error Handling", () => {
 
   it("propagates errors from createReplaneClient", async () => {
     const error = new Error("Network error");
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockRejectedValue(error);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockRejectedValue(error);
 
     await expect(
       getConfig({
@@ -830,9 +778,7 @@ describe("getConfig - Error Handling", () => {
 
   it("propagates timeout errors", async () => {
     const error = new Error("Initialization timeout");
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockRejectedValue(error);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockRejectedValue(error);
 
     await expect(
       getConfig({
@@ -846,9 +792,7 @@ describe("getConfig - Error Handling", () => {
 
   it("handles authentication errors", async () => {
     const error = new Error("Invalid SDK key");
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockRejectedValue(error);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockRejectedValue(error);
 
     await expect(
       getConfig({
@@ -875,9 +819,7 @@ describe("getConfig vs getReplaneSnapshot - Use Case Comparison", () => {
       count: 42,
       message: "Hello",
     });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
   });
 
   afterEach(() => {
@@ -917,9 +859,7 @@ describe("Next.js Caching Integration", () => {
 
   beforeEach(() => {
     mockClient = createMockClient({ feature: true });
-    mockCreateClient = vi
-      .spyOn(sdk, "createReplaneClient")
-      .mockResolvedValue(mockClient);
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
   });
 
   afterEach(() => {
