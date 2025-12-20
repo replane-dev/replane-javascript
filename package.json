@@ -11,7 +11,7 @@
     "format": "prettier --write \"packages/**/*.{ts,tsx}\"",
     "format:check": "prettier --check \"packages/**/*.{ts,tsx}\"",
     "clean": "pnpm -r exec rm -rf dist node_modules",
-    "release": "pnpm run build && bumpp -r && pnpm -r publish --access public --no-git-checks"
+    "release": "bumpp -r --commit 'chore: release v%s' --tag 'v%s' --push"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",

@@ -48,7 +48,7 @@
     "svelte": ">=4.0.0"
   },
   "dependencies": {
-    "@replanejs/sdk": "workspace:*"
+    "@replanejs/sdk": "workspace:^"
   },
   "devDependencies": {
     "@sveltejs/package": "^2.3.10",
