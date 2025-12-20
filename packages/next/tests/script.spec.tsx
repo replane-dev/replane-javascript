@@ -12,7 +12,7 @@ import * as sdk from "@replanejs/sdk";
 // Test Utilities
 // ============================================================================
 
-function createMockSnapshot<T extends object>(configs: T): ReplaneSnapshot<T> {
+function createMockSnapshot<T extends Record<string, unknown>>(configs: T): ReplaneSnapshot<T> {
   return {
     configs: Object.entries(configs).map(([name, value]) => ({
       name,

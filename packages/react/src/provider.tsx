@@ -12,7 +12,7 @@ import { hasClient } from "./types";
 /**
  * Internal provider component for pre-created client.
  */
-function ReplaneProviderWithClient<T extends object>({
+function ReplaneProviderWithClient<T extends Record<string, unknown>>({
   client,
   children,
 }: ReplaneProviderWithClientProps<T>) {
@@ -23,7 +23,7 @@ function ReplaneProviderWithClient<T extends object>({
 /**
  * Internal provider component for options-based client creation (non-suspense).
  */
-function ReplaneProviderWithOptions<T extends object>({
+function ReplaneProviderWithOptions<T extends Record<string, unknown>>({
   options,
   children,
   loader,
@@ -48,7 +48,7 @@ function ReplaneProviderWithOptions<T extends object>({
 /**
  * Internal provider component for options-based client creation with Suspense.
  */
-function ReplaneProviderWithSuspense<T extends object>({
+function ReplaneProviderWithSuspense<T extends Record<string, unknown>>({
   options,
   children,
 }: ReplaneProviderWithOptionsProps<T>) {
@@ -92,7 +92,7 @@ function ReplaneProviderWithSuspense<T extends object>({
  * </Suspense>
  * ```
  */
-export function ReplaneProvider<T extends object>(props: ReplaneProviderProps<T>) {
+export function ReplaneProvider<T extends Record<string, unknown>>(props: ReplaneProviderProps<T>) {
   if (hasClient(props)) {
     return <ReplaneProviderWithClient {...props} />;
   }

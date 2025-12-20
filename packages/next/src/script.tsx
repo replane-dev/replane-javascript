@@ -50,7 +50,7 @@ declare global {
  * }
  * ```
  */
-export function getReplaneSnapshotScript<T extends object>(snapshot: ReplaneSnapshot<T>): string {
+export function getReplaneSnapshotScript<T extends Record<string, unknown>>(snapshot: ReplaneSnapshot<T>): string {
   // Escape script closing tags in JSON to prevent XSS
   const json = JSON.stringify(snapshot).replace(/<\/script>/gi, "<\\/script>");
   return `window.${REPLANE_SNAPSHOT_KEY}=${json};`;

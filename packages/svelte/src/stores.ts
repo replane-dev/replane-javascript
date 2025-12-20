@@ -22,7 +22,7 @@ import type { ReplaneContextValue, UseConfigOptions } from "./types";
  * ```
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function useReplane<T extends object = any>(): ReplaneContextValue<T> {
+export function useReplane<T extends Record<string, unknown> = any>(): ReplaneContextValue<T> {
   return getReplaneContext<T>();
 }
 
@@ -92,7 +92,7 @@ export function useConfig<T>(name: string, options?: UseConfigOptions): Readable
  * ```
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function createConfigStore<T, C extends object = any>(
+export function createConfigStore<T, C extends Record<string, unknown> = any>(
   client: ReplaneClient<C>,
   name: string,
   options?: UseConfigOptions

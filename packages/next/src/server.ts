@@ -47,7 +47,7 @@ import {
 
 export type { ReplaneSnapshot, ReplaneContext };
 
-export interface GetReplaneSnapshotOptions<T extends object> {
+export interface GetReplaneSnapshotOptions<T extends Record<string, unknown>> {
   /**
    * Base URL of the Replane instance (no trailing slash).
    */
@@ -128,7 +128,7 @@ export interface GetReplaneSnapshotOptions<T extends object> {
  * });
  * ```
  */
-export async function getReplaneSnapshot<T extends object = Record<string, unknown>>(
+export async function getReplaneSnapshot<T extends Record<string, unknown> = Record<string, unknown>>(
   options: GetReplaneSnapshotOptions<T>
 ): Promise<ReplaneSnapshot<T>> {
   const client = await createReplaneClient<T>({

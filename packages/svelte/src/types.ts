@@ -5,7 +5,7 @@ import type { Snippet } from "svelte";
  * Context value containing the Replane client
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ReplaneContextValue<T extends object = any> {
+export interface ReplaneContextValue<T extends Record<string, unknown> = any> {
   client: ReplaneClient<T>;
 }
 
@@ -13,7 +13,7 @@ export interface ReplaneContextValue<T extends object = any> {
  * Props for ReplaneProvider when using a pre-created client.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ReplaneProviderWithClientProps<T extends object = any> {
+export interface ReplaneProviderWithClientProps<T extends Record<string, unknown> = any> {
   /** Pre-created ReplaneClient instance */
   client: ReplaneClient<T>;
   /** Children snippet */
@@ -24,7 +24,7 @@ export interface ReplaneProviderWithClientProps<T extends object = any> {
  * Props for ReplaneProvider when letting it manage the client internally.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ReplaneProviderWithOptionsProps<T extends object = any> {
+export interface ReplaneProviderWithOptionsProps<T extends Record<string, unknown> = any> {
   /** Options to create the ReplaneClient */
   options: ReplaneClientOptions<T>;
   /** Children snippet */
@@ -44,7 +44,7 @@ export interface ReplaneProviderWithOptionsProps<T extends object = any> {
  * Props for ReplaneProvider when restoring from a snapshot (SSR/hydration).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ReplaneProviderWithSnapshotProps<T extends object = any> {
+export interface ReplaneProviderWithSnapshotProps<T extends Record<string, unknown> = any> {
   /** Snapshot from server-side rendering */
   snapshot: ReplaneSnapshot<T>;
   /** Optional connection options for live updates */
@@ -61,7 +61,7 @@ export interface ReplaneProviderWithSnapshotProps<T extends object = any> {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ReplaneProviderProps<T extends object = any> =
+export type ReplaneProviderProps<T extends Record<string, unknown> = any> =
   | ReplaneProviderWithClientProps<T>
   | ReplaneProviderWithOptionsProps<T>
   | ReplaneProviderWithSnapshotProps<T>;
@@ -69,7 +69,7 @@ export type ReplaneProviderProps<T extends object = any> =
 /**
  * Type guard to check if props contain a pre-created client.
  */
-export function hasClient<T extends object>(
+export function hasClient<T extends Record<string, unknown>>(
   props: ReplaneProviderProps<T>
 ): props is ReplaneProviderWithClientProps<T> {
   return "client" in props && props.client !== undefined;
@@ -78,7 +78,7 @@ export function hasClient<T extends object>(
 /**
  * Type guard to check if props contain options.
  */
-export function hasOptions<T extends object>(
+export function hasOptions<T extends Record<string, unknown>>(
   props: ReplaneProviderProps<T>
 ): props is ReplaneProviderWithOptionsProps<T> {
   return "options" in props && props.options !== undefined;
@@ -87,7 +87,7 @@ export function hasOptions<T extends object>(
 /**
  * Type guard to check if props contain a snapshot.
  */
-export function hasSnapshot<T extends object>(
+export function hasSnapshot<T extends Record<string, unknown>>(
   props: ReplaneProviderProps<T>
 ): props is ReplaneProviderWithSnapshotProps<T> {
   return "snapshot" in props && props.snapshot !== undefined;

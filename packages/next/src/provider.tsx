@@ -51,7 +51,7 @@ import type { ReplaneNextProviderProps } from "./types";
  * </ReplaneNextProvider>
  * ```
  */
-export function ReplaneNextProvider<T extends object>({
+export function ReplaneNextProvider<T extends Record<string, unknown>>({
   snapshot,
   connection,
   context,

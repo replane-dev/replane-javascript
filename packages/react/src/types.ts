@@ -2,7 +2,7 @@ import type { ReplaneClient, ReplaneClientOptions } from "@replanejs/sdk";
 import type { ReactNode } from "react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ReplaneContextValue<T extends object = any> {
+export interface ReplaneContextValue<T extends Record<string, unknown> = any> {
   client: ReplaneClient<T>;
 }
 
@@ -10,7 +10,7 @@ export interface ReplaneContextValue<T extends object = any> {
  * Props for ReplaneProvider when using a pre-created client.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ReplaneProviderWithClientProps<T extends object = any> {
+export interface ReplaneProviderWithClientProps<T extends Record<string, unknown> = any> {
   /** Pre-created ReplaneClient instance */
   client: ReplaneClient<T>;
   children: ReactNode;
@@ -20,7 +20,7 @@ export interface ReplaneProviderWithClientProps<T extends object = any> {
  * Props for ReplaneProvider when letting it manage the client internally.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ReplaneProviderWithOptionsProps<T extends object = any> {
+export interface ReplaneProviderWithOptionsProps<T extends Record<string, unknown> = any> {
   /** Options to create the ReplaneClient */
   options: ReplaneClientOptions<T>;
   children: ReactNode;
@@ -42,14 +42,14 @@ export interface ReplaneProviderWithOptionsProps<T extends object = any> {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ReplaneProviderProps<T extends object = any> =
+export type ReplaneProviderProps<T extends Record<string, unknown> = any> =
   | ReplaneProviderWithClientProps<T>
   | ReplaneProviderWithOptionsProps<T>;
 
 /**
  * Type guard to check if props contain a pre-created client.
  */
-export function hasClient<T extends object>(
+export function hasClient<T extends Record<string, unknown>>(
   props: ReplaneProviderProps<T>
 ): props is ReplaneProviderWithClientProps<T> {
   return "client" in props && props.client !== undefined;

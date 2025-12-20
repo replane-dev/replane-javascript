@@ -3,7 +3,7 @@ import { ReplaneContext } from "./context";
 import type { ReplaneContextValue } from "./types";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function useReplane<T extends object = any>(): ReplaneContextValue<T> {
+export function useReplane<T extends Record<string, unknown> = any>(): ReplaneContextValue<T> {
   const context = useContext(ReplaneContext);
   if (!context) {
     throw new Error("useReplane must be used within a ReplaneProvider");
