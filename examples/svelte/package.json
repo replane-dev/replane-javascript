@@ -1,0 +1,23 @@
+{
+  "name": "replanejs-svelte-example",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Example Svelte project using @replanejs/svelte",
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@replanejs/svelte": "file:../../packages/svelte",
+    "@replanejs/sdk": "file:../../packages/sdk"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "svelte": "^5.0.0",
+    "svelte-check": "^4.1.4",
+    "typescript": "^5.8.3",
+    "vite": "^6.0.3"
+  }
+}

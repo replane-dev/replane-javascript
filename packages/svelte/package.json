@@ -1,16 +1,15 @@
 {
-  "name": "@replanejs/react",
-  "version": "0.1.1",
-  "description": "React SDK for Replane - feature flags and remote configuration",
+  "name": "@replanejs/svelte",
+  "version": "0.1.0",
+  "description": "Svelte SDK for Replane - feature flags and remote configuration",
   "type": "module",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
+  "svelte": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "svelte": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "files": [
@@ -18,16 +17,17 @@
   ],
   "sideEffects": false,
   "scripts": {
-    "build": "tsdown",
-    "dev": "tsdown --watch",
-    "typecheck": "tsc --noEmit",
+    "build": "svelte-package -i src -o dist",
+    "dev": "svelte-package -i src -o dist --watch",
+    "typecheck": "svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepublishOnly": "pnpm run build"
+    "prepublishOnly": "pnpm run build",
+    "release": "pnpm run build && bumpp && npm publish"
   },
   "keywords": [
     "replane",
-    "react",
+    "svelte",
     "feature-flags",
     "remote-config",
     "configuration",
@@ -38,29 +38,30 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/replane-dev/replane-javascript",
-    "directory": "packages/react"
+    "directory": "packages/svelte"
   },
   "bugs": {
     "url": "https://github.com/replane-dev/replane-javascript/issues"
   },
   "homepage": "https://github.com/replane-dev/replane-javascript#readme",
   "peerDependencies": {
-    "react": ">=18.0.0"
+    "svelte": ">=4.0.0"
   },
   "dependencies": {
     "@replanejs/sdk": "workspace:*"
   },
   "devDependencies": {
+    "@sveltejs/package": "^2.3.10",
+    "@sveltejs/vite-plugin-svelte": "^5.0.3",
     "@testing-library/jest-dom": "^6.9.1",
-    "@testing-library/react": "^16.3.1",
+    "@testing-library/svelte": "^5.2.6",
     "@types/node": "^22.19.3",
-    "@types/react": "^18.2.0",
-    "@types/react-dom": "^18.3.7",
+    "bumpp": "^10.1.0",
     "jsdom": "^27.3.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.3.1",
-    "tsdown": "^0.11.9",
+    "svelte": "^5.0.0",
+    "svelte-check": "^4.1.4",
     "typescript": "^5.4.0",
+    "vite": "^6.0.0",
     "vitest": "^3.2.4"
   },
   "engines": {

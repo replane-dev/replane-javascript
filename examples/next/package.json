@@ -1,0 +1,26 @@
+{
+  "name": "replanejs-next-example",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Example Next.js project using @replanejs/next",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@replanejs/next": "^0.1.0",
+    "@replanejs/react": "^0.1.0",
+    "@replanejs/sdk": "^0.6.1",
+    "next": "^15.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.17",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "typescript": "^5.8.3"
+  }
+}

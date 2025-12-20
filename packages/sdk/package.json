@@ -46,13 +46,11 @@
     "build:cjs": "esbuild src/index.ts --platform=node --format=cjs --outfile=dist/index.cjs",
     "dev": "tsdown --watch",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "release": "pnpm run build && bumpp && npm publish"
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "^22.15.17",
     "async-channel": "^0.2.0",
-    "bumpp": "^10.1.0",
     "esbuild": "^0.23.1",
     "tsdown": "^0.11.9",
     "typescript": "^5.8.3",
