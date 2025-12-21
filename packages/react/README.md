@@ -51,23 +51,26 @@ function MyComponent() {
 
 ### ReplaneProvider
 
-Provider component that makes the Replane client available to your component tree. Supports three usage patterns:
+Provider component that makes the Replane client available to your component tree. Supports four usage patterns:
 
 #### 1. With options (recommended)
 
-The provider creates and manages the client internally:
+The provider creates and manages the client internally. Use an Error Boundary to handle initialization errors:
 
 ```tsx
-<ReplaneProvider
-  options={{
-    baseUrl: 'https://your-replane-server.com',
-    sdkKey: 'your-sdk-key',
-  }}
-  loader={<LoadingSpinner />}
-  onError={(error) => console.error('Failed to initialize:', error)}
->
-  <App />
-</ReplaneProvider>
+import { ErrorBoundary } from 'react-error-boundary';
+
+<ErrorBoundary fallback={<div>Failed to load configuration</div>}>
+  <ReplaneProvider
+    options={{
+      baseUrl: 'https://your-replane-server.com',
+      sdkKey: 'your-sdk-key',
+    }}
+    loader={<LoadingSpinner />}
+  >
+    <App />
+  </ReplaneProvider>
+</ErrorBoundary>
 ```
 
 #### 2. With pre-created client
@@ -92,18 +95,47 @@ const client = await createReplaneClient({
 Integrates with React Suspense for loading states:
 
 ```tsx
-<Suspense fallback={<LoadingSpinner />}>
-  <ReplaneProvider
-    options={{
+<ErrorBoundary fallback={<div>Failed to load configuration</div>}>
+  <Suspense fallback={<LoadingSpinner />}>
+    <ReplaneProvider
+      options={{
+        baseUrl: 'https://your-replane-server.com',
+        sdkKey: 'your-sdk-key',
+      }}
+      suspense
+    >
+      <App />
+    </ReplaneProvider>
+  </Suspense>
+</ErrorBoundary>
+```
+
+#### 4. With snapshot (for SSR/hydration)
+
+Restore a client from a snapshot obtained on the server. This is synchronous and useful for SSR scenarios:
+
+```tsx
+// On the server
+const serverClient = await createReplaneClient({ baseUrl: '...', sdkKey: '...' });
+const snapshot = serverClient.getSnapshot();
+// Pass snapshot to client via props, context, or serialized HTML
+
+// On the client
+<ReplaneProvider
+  restoreOptions={{
+    snapshot,
+    // Optional: connect for live updates
+    connection: {
       baseUrl: 'https://your-replane-server.com',
       sdkKey: 'your-sdk-key',
-    }}
-    suspense
-  >
-    <App />
-  </ReplaneProvider>
-</Suspense>
+    },
+  }}
+>
+  <App />
+</ReplaneProvider>
 ```
+
+The restored client is immediately available with no loading state. If `connection` is provided, it will establish a connection for real-time updates in the background.
 
 ### useConfig
 
@@ -128,19 +160,90 @@ function MyComponent() {
 
 ### useReplane
 
-Hook to access the underlying Replane client directly:
+Hook to access the underlying Replane client directly. Returns the client instance:
 
 ```tsx
 function MyComponent() {
-  const { client } = useReplane();
+  const replane = useReplane();
 
   const handleClick = () => {
-    // Access client methods directly
-    const value = client.get('some-config');
+    // Access replane methods directly
+    const value = replane.get('some-config');
     console.log(value);
   };
 
   return <button onClick={handleClick}>Get Config</button>;
+}
+```
+
+### createReplaneHook
+
+Factory function to create a typed version of `useReplane`. Returns a hook that provides the typed client directly:
+
+```tsx
+import { createReplaneHook } from '@replanejs/react';
+
+// Define your config types
+interface AppConfigs {
+  theme: { darkMode: boolean; primaryColor: string };
+  features: { beta: boolean; analytics: boolean };
+  maxItems: number;
+}
+
+// Create a typed hook
+const useAppReplane = createReplaneHook<AppConfigs>();
+
+function MyComponent() {
+  const replane = useAppReplane();
+
+  // replane.get is now typed - autocomplete works!
+  const theme = replane.get('theme');
+  //    ^? { darkMode: boolean; primaryColor: string }
+
+  return <div>Dark mode: {theme.darkMode ? 'on' : 'off'}</div>;
+}
+```
+
+### createConfigHook
+
+Factory function to create a typed version of `useConfig`. This provides autocomplete for config names and type inference for values:
+
+```tsx
+import { createConfigHook } from '@replanejs/react';
+
+// Define your config types
+interface AppConfigs {
+  theme: { darkMode: boolean; primaryColor: string };
+  features: { beta: boolean; analytics: boolean };
+  maxItems: number;
+}
+
+// Create a typed hook
+const useAppConfig = createConfigHook<AppConfigs>();
+
+function MyComponent() {
+  // Autocomplete for config names, automatic type inference
+  const theme = useAppConfig('theme');
+  //    ^? { darkMode: boolean; primaryColor: string }
+
+  const features = useAppConfig('features');
+  //    ^? { beta: boolean; analytics: boolean }
+
+  const maxItems = useAppConfig('maxItems');
+  //    ^? number
+
+  // With context override
+  const premiumFeatures = useAppConfig('features', {
+    context: { userId: '123', plan: 'premium' },
+  });
+
+  return (
+    <div>
+      <p>Dark mode: {theme.darkMode ? 'on' : 'off'}</p>
+      <p>Beta enabled: {features.beta ? 'yes' : 'no'}</p>
+      <p>Max items: {maxItems}</p>
+    </div>
+  );
 }
 ```
 
@@ -163,21 +266,95 @@ clearSuspenseCache();
 
 ## TypeScript
 
-The SDK is fully typed. You can provide a type parameter to get type-safe configuration values:
+The SDK is fully typed. For the best TypeScript experience, use the hook factory functions:
 
 ```tsx
-interface MyConfig {
-  theme: 'light' | 'dark';
-  maxItems: number;
-  features: {
-    analytics: boolean;
-    notifications: boolean;
+// Define all your config types in one interface
+interface AppConfigs {
+  'theme-config': {
+    darkMode: boolean;
+    primaryColor: string;
   };
+  'feature-flags': {
+    newUI: boolean;
+    beta: boolean;
+  };
+  'max-items': number;
+  'welcome-message': string;
 }
 
-// Type-safe hooks
-const { client } = useReplane<MyConfig>();
-const theme = useConfig<MyConfig['theme']>('theme');
+// Create typed hooks once
+const useAppReplane = createReplaneHook<AppConfigs>();
+const useAppConfig = createConfigHook<AppConfigs>();
+
+// Use throughout your app with full type safety
+function Settings() {
+  const theme = useAppConfig('theme-config');
+  //    ^? { darkMode: boolean; primaryColor: string }
+
+  const replane = useAppReplane();
+  const snapshot = replane.getSnapshot();
+  //    ^? { configs: ConfigSnapshot<AppConfigs>[] }
+
+  return (
+    <div style={{ color: theme.primaryColor }}>
+      Dark mode: {theme.darkMode ? 'enabled' : 'disabled'}
+    </div>
+  );
+}
+```
+
+## Error Handling
+
+The provider throws errors during rendering so they can be caught by React Error Boundaries:
+
+```tsx
+import { Component, ReactNode } from 'react';
+
+class ErrorBoundary extends Component<
+  { children: ReactNode; fallback: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback;
+    }
+    return this.props.children;
+  }
+}
+
+// Usage
+<ErrorBoundary fallback={<div>Configuration failed to load</div>}>
+  <ReplaneProvider options={options} loader={<Loading />}>
+    <App />
+  </ReplaneProvider>
+</ErrorBoundary>
+```
+
+Or use a library like `react-error-boundary`:
+
+```tsx
+import { ErrorBoundary } from 'react-error-boundary';
+
+<ErrorBoundary
+  fallbackRender={({ error, resetErrorBoundary }) => (
+    <div>
+      <p>Error: {error.message}</p>
+      <button onClick={resetErrorBoundary}>Retry</button>
+    </div>
+  )}
+  onReset={() => clearSuspenseCache()}
+>
+  <ReplaneProvider options={options} loader={<Loading />}>
+    <App />
+  </ReplaneProvider>
+</ErrorBoundary>
 ```
 
 ## License

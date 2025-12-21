@@ -1,4 +1,8 @@
-import type { ReplaneClient, ReplaneClientOptions } from "@replanejs/sdk";
+import type {
+  ReplaneClient,
+  ReplaneClientOptions,
+  RestoreReplaneClientOptions,
+} from "@replanejs/sdk";
 import type { ReactNode } from "react";
 
 export type UntypedReplaneConfig = Record<string, unknown>;
@@ -36,9 +40,20 @@ export interface ReplaneProviderWithOptionsProps<T extends object = UntypedRepla
   suspense?: boolean;
 }
 
+/**
+ * Props for ReplaneProvider when restoring from a snapshot.
+ * Uses restoreReplaneClient from the SDK for synchronous client creation.
+ */
+export interface ReplaneProviderWithSnapshotProps<T extends object = UntypedReplaneConfig> {
+  /** Options to restore the ReplaneClient from a snapshot */
+  restoreOptions: RestoreReplaneClientOptions<T>;
+  children: ReactNode;
+}
+
 export type ReplaneProviderProps<T extends object = UntypedReplaneConfig> =
   | ReplaneProviderWithClientProps<T>
-  | ReplaneProviderWithOptionsProps<T>;
+  | ReplaneProviderWithOptionsProps<T>
+  | ReplaneProviderWithSnapshotProps<T>;
 
 /**
  * Type guard to check if props contain a pre-created client.
@@ -47,4 +62,13 @@ export function hasClient<T extends object>(
   props: ReplaneProviderProps<T>
 ): props is ReplaneProviderWithClientProps<T> {
   return "client" in props && props.client !== undefined;
+}
+
+/**
+ * Type guard to check if props contain restore options.
+ */
+export function hasRestoreOptions<T extends object>(
+  props: ReplaneProviderProps<T>
+): props is ReplaneProviderWithSnapshotProps<T> {
+  return "restoreOptions" in props && props.restoreOptions !== undefined;
 }

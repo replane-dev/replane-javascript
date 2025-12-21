@@ -1,31 +1,13 @@
-import { useReplane, createConfigHook } from "@replanejs/react";
+import { createReplaneHook, createConfigHook, useConfig } from "@replanejs/react";
+import type { AppConfigs, FeatureFlags } from "./configs";
 
 // ============================================================================
-// Type Definitions
+// Create Type-Safe Hooks
 // ============================================================================
 
-// Define your configuration types
-interface ThemeConfig {
-  primaryColor: string;
-  darkMode: boolean;
-}
-
-interface FeatureFlags {
-  newHeader: boolean;
-  showBanner: boolean;
-  experimentalFeatures: boolean;
-}
-
-// Define all your configs in one interface for type-safe access
-interface AppConfigs {
-  "theme-config": ThemeConfig;
-  "feature-flags": FeatureFlags;
-  "banner-message": string;
-}
-
-// ============================================================================
-// Create Type-Safe Config Hook
-// ============================================================================
+// createReplaneHook returns a typed version of useReplane (returns replane instance directly)
+// This provides typed access to the replane instance
+const useAppReplane = createReplaneHook<AppConfigs>();
 
 // createConfigHook returns a typed version of useConfig
 // This provides autocomplete for config names and type inference for values
@@ -39,8 +21,10 @@ function App() {
   // useAppConfig automatically infers the correct return type based on the config name
   // e.g., theme is typed as ThemeConfig, features as FeatureFlags
   const theme = useAppConfig("theme-config");
-  const features = useAppConfig("feature-flags");
   const bannerMessage = useAppConfig("banner-message");
+
+  // alternatively, use the useConfig hook directly
+  const features = useConfig<FeatureFlags>("feature-flags");
 
   return (
     <div
@@ -63,7 +47,7 @@ function App() {
         <p>
           This example demonstrates how to use <code>@replanejs/react</code> for dynamic
           configuration with real-time updates and type-safe access via{" "}
-          <code>createConfigHook</code>.
+          <code>createReplaneHook</code> and <code>createConfigHook</code>.
         </p>
 
         <ConfigDisplay />
@@ -109,18 +93,24 @@ function OldHeader() {
 // ============================================================================
 
 function ConfigDisplay() {
-  const { client } = useReplane<AppConfigs>();
+  // useAppReplane returns the replane instance directly (no destructuring needed)
+  const replane = useAppReplane();
+
+  // alternatively, use the useReplane hook directly
+  // const replane = useReplane();
 
   // Type-safe config access with autocomplete
   const theme = useAppConfig("theme-config");
   const features = useAppConfig("feature-flags");
 
+  // alternatively, use the useConfig hook directly
+  // const theme = useConfig<ThemeConfig>("theme-config");
+  // const features = useConfig<FeatureFlags>("feature-flags");
+
   return (
     <section className="config-display">
       <h2>Current Configuration</h2>
-      <p className="hint">
-        Changes to these values in Replane will update in real-time via SSE.
-      </p>
+      <p className="hint">Changes to these values in Replane will update in real-time via SSE.</p>
 
       <div className="config-grid">
         <div className="config-card">
@@ -135,10 +125,10 @@ function ConfigDisplay() {
       </div>
 
       <div className="config-card">
-        <h3>Type-Safe Hook Usage</h3>
+        <h3>Type-Safe Hook Factories</h3>
         <p>
-          The <code>createConfigHook</code> function creates a typed version of{" "}
-          <code>useConfig</code>:
+          Use <code>createReplaneHook</code> and <code>createConfigHook</code> to create typed
+          versions of the hooks:
         </p>
         <pre>
           {`// Define your config types
@@ -148,15 +138,23 @@ interface AppConfigs {
   "banner-message": string;
 }
 
-// Create the typed hook
+// Create typed hooks
+const useAppReplane = createReplaneHook<AppConfigs>();
 const useAppConfig = createConfigHook<AppConfigs>();
 
 // Use with full type safety and autocomplete
-const theme = useAppConfig("theme-config");
-//    ^? ThemeConfig
+function MyComponent() {
+  // Replane instance returned directly (no destructuring)
+  const replane = useAppReplane();
+  //    ^? ReplaneClient<AppConfigs>
 
-const features = useAppConfig("feature-flags");
-//    ^? FeatureFlags`}
+  // Typed config values
+  const theme = useAppConfig("theme-config");
+  //    ^? ThemeConfig
+
+  const features = useAppConfig("feature-flags");
+  //    ^? FeatureFlags
+}`}
         </pre>
       </div>
 
@@ -169,19 +167,22 @@ const premiumFeatures = useAppConfig("feature-flags", {
   context: { userId: "123", plan: "premium" }
 });
 
-// Or access directly from client
-const value = client.get("feature-flags", {
+// Or access directly from typed replane instance
+const replane = useAppReplane();
+const value = replane.get("feature-flags", {
   context: { plan: "premium" }
 });`}
         </pre>
         <p>Current value with premium context:</p>
         <pre>
-          {JSON.stringify(
-            client.get("feature-flags", { context: { plan: "premium" } }),
-            null,
-            2
-          )}
+          {JSON.stringify(replane.get("feature-flags", { context: { plan: "premium" } }), null, 2)}
         </pre>
+      </div>
+
+      <div className="config-card">
+        <h3>Replane Snapshot</h3>
+        <p>Access all configs at once via getSnapshot:</p>
+        <pre>{JSON.stringify(replane.getSnapshot(), null, 2)}</pre>
       </div>
     </section>
   );

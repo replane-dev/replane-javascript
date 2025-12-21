@@ -6,6 +6,7 @@ import {
   ReplaneProvider,
   useReplane,
   useConfig,
+  createReplaneHook,
   createConfigHook,
   clearSuspenseCache,
 } from "../src/index";
@@ -130,8 +131,8 @@ describe("ReplaneProvider with client prop", () => {
     let capturedClient: ReplaneClient<any> | null = null;
 
     function TestComponent() {
-      const { client: contextClient } = useReplane();
-      capturedClient = contextClient;
+      const replane = useReplane();
+      capturedClient = replane;
       return <div data-testid="content">Content</div>;
     }
 
@@ -185,8 +186,8 @@ describe("ReplaneProvider with client prop", () => {
     let capturedClient: ReplaneClient<any> | null = null;
 
     function TestComponent() {
-      const { client } = useReplane();
-      capturedClient = client;
+      const replane = useReplane();
+      capturedClient = replane;
       return null;
     }
 
@@ -420,8 +421,8 @@ describe("ReplaneProvider with options prop - Client Lifecycle", () => {
     let capturedClient: ReplaneClient<any> | null = null;
 
     function TestComponent() {
-      const { client } = useReplane();
-      capturedClient = client;
+      const replane = useReplane();
+      capturedClient = replane;
       return <div data-testid="content">Content</div>;
     }
 
@@ -877,8 +878,8 @@ describe("ReplaneProvider with suspense", () => {
     let capturedClient: ReplaneClient<any> | null = null;
 
     function TestComponent() {
-      const { client } = useReplane();
-      capturedClient = client;
+      const replane = useReplane();
+      capturedClient = replane;
       return <div data-testid="content">Content</div>;
     }
 
@@ -1313,12 +1314,12 @@ describe("useReplane hook", () => {
     );
   });
 
-  it("returns context object with client property", () => {
+  it("returns the client directly", () => {
     const client = createMockClient();
-    let context: ReturnType<typeof useReplane> | null = null;
+    let returnedClient: ReturnType<typeof useReplane> | null = null;
 
     function TestComponent() {
-      context = useReplane();
+      returnedClient = useReplane();
       return null;
     }
 
@@ -1328,18 +1329,17 @@ describe("useReplane hook", () => {
       </ReplaneProvider>
     );
 
-    expect(context).not.toBeNull();
-    expect(context).toHaveProperty("client");
-    expect(context!.client).toBe(client);
+    expect(returnedClient).not.toBeNull();
+    expect(returnedClient).toBe(client);
   });
 
-  it("returns same context reference across renders", () => {
+  it("returns same client reference across renders", () => {
     const client = createMockClient();
-    const contexts: ReturnType<typeof useReplane<Record<string, unknown>>>[] = [];
+    const clients: ReturnType<typeof useReplane<Record<string, unknown>>>[] = [];
 
     function TestComponent() {
-      const context = useReplane();
-      contexts.push(context);
+      const returnedClient = useReplane();
+      clients.push(returnedClient);
       return null;
     }
 
@@ -1355,8 +1355,246 @@ describe("useReplane hook", () => {
       </ReplaneProvider>
     );
 
-    expect(contexts).toHaveLength(2);
-    expect(contexts[0]).toBe(contexts[1]);
+    expect(clients).toHaveLength(2);
+    expect(clients[0]).toBe(clients[1]);
+  });
+});
+
+// ============================================================================
+// createReplaneHook
+// ============================================================================
+
+describe("createReplaneHook", () => {
+  // Define typed config interface for tests
+  interface AppConfigs {
+    theme: { primaryColor: string; darkMode: boolean };
+    featureFlags: { newUI: boolean; beta: boolean };
+    maxItems: number;
+  }
+
+  it("creates a typed hook that returns the client", () => {
+    const client = createMockClient({
+      theme: { primaryColor: "#ff0000", darkMode: true },
+    });
+
+    const useAppReplane = createReplaneHook<AppConfigs>();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let capturedClient: ReplaneClient<any> | null = null;
+
+    function TestComponent() {
+      const replane = useAppReplane();
+      capturedClient = replane;
+      return <div data-testid="hasClient">{replane ? "yes" : "no"}</div>;
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("hasClient")).toHaveTextContent("yes");
+    expect(capturedClient).toBe(client);
+  });
+
+  it("provides typed client.get method", () => {
+    const client = createMockClient({
+      theme: { primaryColor: "#0000ff", darkMode: false },
+      maxItems: 42,
+    });
+
+    const useAppReplane = createReplaneHook<AppConfigs>();
+
+    function TestComponent() {
+      const replane = useAppReplane();
+      // In a real app, replane.get would be typed
+      const theme = replane.get("theme");
+      const maxItems = replane.get("maxItems");
+      return (
+        <>
+          <div data-testid="theme">{JSON.stringify(theme)}</div>
+          <div data-testid="maxItems">{maxItems}</div>
+        </>
+      );
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("theme")).toHaveTextContent(
+      JSON.stringify({ primaryColor: "#0000ff", darkMode: false })
+    );
+    expect(screen.getByTestId("maxItems")).toHaveTextContent("42");
+  });
+
+  it("throws error when used outside ReplaneProvider", () => {
+    const useAppReplane = createReplaneHook<AppConfigs>();
+
+    function TestComponent() {
+      useAppReplane();
+      return null;
+    }
+
+    expect(() => render(<TestComponent />)).toThrow(
+      "useReplane must be used within a ReplaneProvider"
+    );
+  });
+
+  it("can create multiple independent typed hooks", () => {
+    interface ThemeConfigs {
+      color: string;
+      mode: string;
+    }
+
+    interface FeatureConfigs {
+      enabled: boolean;
+      version: number;
+    }
+
+    const client = createMockClient({
+      color: "red",
+      mode: "dark",
+      enabled: true,
+      version: 2,
+    });
+
+    const useThemeReplane = createReplaneHook<ThemeConfigs>();
+    const useFeatureReplane = createReplaneHook<FeatureConfigs>();
+
+    function TestComponent() {
+      const themeClient = useThemeReplane();
+      const featureClient = useFeatureReplane();
+      return (
+        <>
+          <div data-testid="color">{themeClient.get("color")}</div>
+          <div data-testid="enabled">{String(featureClient.get("enabled"))}</div>
+        </>
+      );
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("color")).toHaveTextContent("red");
+    expect(screen.getByTestId("enabled")).toHaveTextContent("true");
+  });
+
+  it("returns same client reference across renders", () => {
+    const client = createMockClient({ theme: { primaryColor: "#000", darkMode: true } });
+    const useAppReplane = createReplaneHook<AppConfigs>();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const clients: any[] = [];
+
+    function TestComponent() {
+      const returnedClient = useAppReplane();
+      clients.push(returnedClient);
+      return null;
+    }
+
+    const { rerender } = render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    rerender(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    rerender(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(clients).toHaveLength(3);
+    expect(clients[0]).toBe(clients[1]);
+    expect(clients[1]).toBe(clients[2]);
+  });
+
+  it("works with replane.get for direct access", () => {
+    const client = createMockClient({ maxItems: 10 });
+    const useAppReplane = createReplaneHook<AppConfigs>();
+
+    function TestComponent() {
+      const replane = useAppReplane();
+      // Get value directly from replane
+      const value = replane.get("maxItems");
+      return <div data-testid="value">{value}</div>;
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("value")).toHaveTextContent("10");
+    expect(client.get).toHaveBeenCalledWith("maxItems");
+  });
+
+  it("works alongside createConfigHook", () => {
+    const client = createMockClient({
+      theme: { primaryColor: "#123456", darkMode: true },
+      featureFlags: { newUI: true, beta: false },
+    });
+
+    const useAppReplane = createReplaneHook<AppConfigs>();
+    const useAppConfig = createConfigHook<AppConfigs>();
+
+    function TestComponent() {
+      const replane = useAppReplane();
+      const theme = useAppConfig("theme");
+
+      return (
+        <>
+          <div data-testid="fromReplane">{replane.get("theme").primaryColor}</div>
+          <div data-testid="fromHook">{theme.primaryColor}</div>
+        </>
+      );
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("fromReplane")).toHaveTextContent("#123456");
+    expect(screen.getByTestId("fromHook")).toHaveTextContent("#123456");
+  });
+
+  it("provides access to replane.getSnapshot", () => {
+    const client = createMockClient({
+      theme: { primaryColor: "#fff", darkMode: false },
+      maxItems: 100,
+    });
+
+    const useAppReplane = createReplaneHook<AppConfigs>();
+
+    function TestComponent() {
+      const replane = useAppReplane();
+      const snapshot = replane.getSnapshot();
+      return <div data-testid="configCount">{snapshot.configs.length}</div>;
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("configCount")).toHaveTextContent("2");
   });
 });
 
@@ -2124,7 +2362,7 @@ describe("Integration Scenarios", () => {
     const client = createMockClient({ feature: true, count: 5 });
 
     function MultiHookComponent() {
-      const { client: contextClient } = useReplane();
+      const contextClient = useReplane();
       const feature = useConfig<boolean>("feature");
       const count = useConfig<number>("count");
       const [localState, setLocalState] = useState(0);
@@ -2297,5 +2535,308 @@ describe("Edge Cases", () => {
     );
 
     expect(screen.getByTestId("date")).toHaveTextContent("2024-01-15T12:00:00.000Z");
+  });
+});
+
+// ============================================================================
+// ReplaneProvider with restoreOptions prop
+// ============================================================================
+
+describe("ReplaneProvider with restoreOptions prop", () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockRestoreClient: any;
+
+  afterEach(() => {
+    mockRestoreClient?.mockRestore();
+  });
+
+  it("renders children immediately with restored client", () => {
+    const mockClient = createMockClient({ feature: "restored-value" });
+    mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
+
+    render(
+      <ReplaneProvider
+        restoreOptions={{
+          snapshot: {
+            configs: [{ name: "feature", value: "restored-value", overrides: [] }],
+          },
+        }}
+      >
+        <div data-testid="child">Hello</div>
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("child")).toBeInTheDocument();
+    expect(mockRestoreClient).toHaveBeenCalledWith({
+      snapshot: {
+        configs: [{ name: "feature", value: "restored-value", overrides: [] }],
+      },
+    });
+  });
+
+  it("provides restored client to children via context", () => {
+    const mockClient = createMockClient({ feature: "test-value" });
+    mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let capturedClient: ReplaneClient<any> | null = null;
+
+    function TestComponent() {
+      const replane = useReplane();
+      capturedClient = replane;
+      return <div data-testid="content">Content</div>;
+    }
+
+    render(
+      <ReplaneProvider
+        restoreOptions={{
+          snapshot: {
+            configs: [{ name: "feature", value: "test-value", overrides: [] }],
+          },
+        }}
+      >
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(capturedClient).toBe(mockClient);
+  });
+
+  it("allows useConfig to retrieve values from restored client", () => {
+    const mockClient = createMockClient({ theme: "dark", count: 42 });
+    mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
+
+    function TestComponent() {
+      const theme = useConfig<string>("theme");
+      const count = useConfig<number>("count");
+      return (
+        <div>
+          <span data-testid="theme">{theme}</span>
+          <span data-testid="count">{count}</span>
+        </div>
+      );
+    }
+
+    render(
+      <ReplaneProvider
+        restoreOptions={{
+          snapshot: {
+            configs: [
+              { name: "theme", value: "dark", overrides: [] },
+              { name: "count", value: 42, overrides: [] },
+            ],
+          },
+        }}
+      >
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("theme")).toHaveTextContent("dark");
+    expect(screen.getByTestId("count")).toHaveTextContent("42");
+  });
+
+  it("passes connection options to restoreReplaneClient", () => {
+    const mockClient = createMockClient({ feature: "value" });
+    mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
+
+    const restoreOptions = {
+      snapshot: {
+        configs: [{ name: "feature", value: "value", overrides: [] }],
+      },
+      connection: {
+        baseUrl: "https://replane.example.com",
+        sdkKey: "rp_live_key",
+      },
+    };
+
+    render(
+      <ReplaneProvider restoreOptions={restoreOptions}>
+        <div data-testid="child">Hello</div>
+      </ReplaneProvider>
+    );
+
+    expect(mockRestoreClient).toHaveBeenCalledWith(restoreOptions);
+  });
+
+  it("passes context override to restoreReplaneClient", () => {
+    const mockClient = createMockClient({ feature: "premium-value" });
+    mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
+
+    const restoreOptions = {
+      snapshot: {
+        configs: [{ name: "feature", value: "premium-value", overrides: [] }],
+        context: { userId: "123" },
+      },
+      context: { plan: "premium" },
+    };
+
+    render(
+      <ReplaneProvider restoreOptions={restoreOptions}>
+        <div data-testid="child">Hello</div>
+      </ReplaneProvider>
+    );
+
+    expect(mockRestoreClient).toHaveBeenCalledWith(restoreOptions);
+  });
+
+  it("memoizes client based on restoreOptions reference", () => {
+    const mockClient = createMockClient();
+    mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
+
+    const restoreOptions = {
+      snapshot: {
+        configs: [{ name: "feature", value: "value", overrides: [] }],
+      },
+    };
+
+    const { rerender } = render(
+      <ReplaneProvider restoreOptions={restoreOptions}>
+        <div>Content</div>
+      </ReplaneProvider>
+    );
+
+    expect(mockRestoreClient).toHaveBeenCalledTimes(1);
+
+    // Re-render with same options object - should not call restore again
+    rerender(
+      <ReplaneProvider restoreOptions={restoreOptions}>
+        <div>Content</div>
+      </ReplaneProvider>
+    );
+
+    expect(mockRestoreClient).toHaveBeenCalledTimes(1);
+  });
+
+  it("creates new client when restoreOptions reference changes", () => {
+    const mockClient1 = createMockClient({ feature: "value1" });
+    const mockClient2 = createMockClient({ feature: "value2" });
+    mockRestoreClient = vi
+      .spyOn(sdk, "restoreReplaneClient")
+      .mockReturnValueOnce(mockClient1)
+      .mockReturnValueOnce(mockClient2);
+
+    const { rerender } = render(
+      <ReplaneProvider
+        restoreOptions={{
+          snapshot: { configs: [{ name: "feature", value: "value1", overrides: [] }] },
+        }}
+      >
+        <div>Content</div>
+      </ReplaneProvider>
+    );
+
+    expect(mockRestoreClient).toHaveBeenCalledTimes(1);
+
+    // Re-render with new options object - should call restore again
+    rerender(
+      <ReplaneProvider
+        restoreOptions={{
+          snapshot: { configs: [{ name: "feature", value: "value2", overrides: [] }] },
+        }}
+      >
+        <div>Content</div>
+      </ReplaneProvider>
+    );
+
+    expect(mockRestoreClient).toHaveBeenCalledTimes(2);
+  });
+
+  it("works with createReplaneHook for typed access", () => {
+    interface AppConfigs {
+      theme: { darkMode: boolean };
+      maxItems: number;
+    }
+
+    const mockClient = createMockClient({
+      theme: { darkMode: true },
+      maxItems: 100,
+    });
+    mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
+
+    const useAppReplane = createReplaneHook<AppConfigs>();
+
+    function TestComponent() {
+      const replane = useAppReplane();
+      const snapshot = replane.getSnapshot();
+      return <div data-testid="snapshot">{JSON.stringify(snapshot)}</div>;
+    }
+
+    render(
+      <ReplaneProvider
+        restoreOptions={{
+          snapshot: {
+            configs: [
+              { name: "theme", value: { darkMode: true }, overrides: [] },
+              { name: "maxItems", value: 100, overrides: [] },
+            ],
+          },
+        }}
+      >
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("snapshot")).toBeInTheDocument();
+    expect(mockClient.getSnapshot).toHaveBeenCalled();
+  });
+
+  it("works with createConfigHook for typed config access", () => {
+    interface AppConfigs {
+      "feature-flags": { beta: boolean; newUI: boolean };
+    }
+
+    const mockClient = createMockClient({
+      "feature-flags": { beta: true, newUI: false },
+    });
+    mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
+
+    const useAppConfig = createConfigHook<AppConfigs>();
+
+    function TestComponent() {
+      const features = useAppConfig("feature-flags");
+      return (
+        <div>
+          <span data-testid="beta">{features.beta ? "yes" : "no"}</span>
+          <span data-testid="newUI">{features.newUI ? "yes" : "no"}</span>
+        </div>
+      );
+    }
+
+    render(
+      <ReplaneProvider
+        restoreOptions={{
+          snapshot: {
+            configs: [{ name: "feature-flags", value: { beta: true, newUI: false }, overrides: [] }],
+          },
+        }}
+      >
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("beta")).toHaveTextContent("yes");
+    expect(screen.getByTestId("newUI")).toHaveTextContent("no");
+  });
+
+  it("does not show loader since restoration is synchronous", () => {
+    const mockClient = createMockClient({ feature: "value" });
+    mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
+
+    // Note: restoreOptions doesn't accept loader since it's synchronous
+    render(
+      <ReplaneProvider
+        restoreOptions={{
+          snapshot: {
+            configs: [{ name: "feature", value: "value", overrides: [] }],
+          },
+        }}
+      >
+        <div data-testid="content">Content</div>
+      </ReplaneProvider>
+    );
+
+    // Content should be visible immediately, no loading state
+    expect(screen.getByTestId("content")).toBeInTheDocument();
   });
 });

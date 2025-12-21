@@ -1,18 +1,18 @@
 import { useContext, useSyncExternalStore } from "react";
 import { ReplaneContext } from "./context";
-import type { ReplaneContextValue, UntypedReplaneConfig } from "./types";
-import { GetConfigOptions } from "@replanejs/sdk";
+import type { UntypedReplaneConfig } from "./types";
+import type { ReplaneClient, GetConfigOptions } from "@replanejs/sdk";
 
-export function useReplane<T extends object = UntypedReplaneConfig>(): ReplaneContextValue<T> {
+export function useReplane<T extends object = UntypedReplaneConfig>(): ReplaneClient<T> {
   const context = useContext(ReplaneContext);
   if (!context) {
     throw new Error("useReplane must be used within a ReplaneProvider");
   }
-  return context as ReplaneContextValue<T>;
+  return context.client as ReplaneClient<T>;
 }
 
 export function useConfig<T>(name: string, options?: GetConfigOptions): T {
-  const { client } = useReplane();
+  const client = useReplane();
 
   const value = useSyncExternalStore(
     (onStoreChange) => {
@@ -25,6 +25,48 @@ export function useConfig<T>(name: string, options?: GetConfigOptions): T {
   return value;
 }
 
+/**
+ * Creates a typed version of useReplane hook.
+ *
+ * @example
+ * ```tsx
+ * interface AppConfigs {
+ *   theme: { darkMode: boolean };
+ *   features: { beta: boolean };
+ * }
+ *
+ * const useAppReplane = createReplaneHook<AppConfigs>();
+ *
+ * function MyComponent() {
+ *   const replane = useAppReplane();
+ *   // replane.get("theme") returns { darkMode: boolean }
+ * }
+ * ```
+ */
+export function createReplaneHook<TConfigs extends object>() {
+  return function useTypedReplane(): ReplaneClient<TConfigs> {
+    return useReplane<TConfigs>();
+  };
+}
+
+/**
+ * Creates a typed version of useConfig hook.
+ *
+ * @example
+ * ```tsx
+ * interface AppConfigs {
+ *   theme: { darkMode: boolean };
+ *   features: { beta: boolean };
+ * }
+ *
+ * const useAppConfig = createConfigHook<AppConfigs>();
+ *
+ * function MyComponent() {
+ *   const theme = useAppConfig("theme");
+ *   // theme is typed as { darkMode: boolean }
+ * }
+ * ```
+ */
 export function createConfigHook<TConfigs extends object>() {
   return function useTypedConfig<K extends keyof TConfigs>(
     name: K,

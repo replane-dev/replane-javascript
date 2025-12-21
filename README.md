@@ -8,7 +8,6 @@ Official JavaScript/TypeScript SDKs for [Replane](https://github.com/replane-dev
 |---------|-------------|-----|
 | [`@replanejs/sdk`](./packages/sdk) | Core SDK for Node.js, Deno, Bun, and browsers | [![npm](https://img.shields.io/npm/v/@replanejs/sdk)](https://www.npmjs.com/package/@replanejs/sdk) |
 | [`@replanejs/react`](./packages/react) | React bindings with hooks and context | [![npm](https://img.shields.io/npm/v/@replanejs/react)](https://www.npmjs.com/package/@replanejs/react) |
-| [`@replanejs/next`](./packages/next) | Next.js integration with SSR support | [![npm](https://img.shields.io/npm/v/@replanejs/next)](https://www.npmjs.com/package/@replanejs/next) |
 | [`@replanejs/svelte`](./packages/svelte) | Svelte bindings with stores | [![npm](https://img.shields.io/npm/v/@replanejs/svelte)](https://www.npmjs.com/package/@replanejs/svelte) |
 
 ## Quick Start
@@ -53,33 +52,6 @@ function MyComponent() {
 }
 ```
 
-### Next.js
-
-```bash
-npm install @replanejs/next
-```
-
-```tsx
-// app/layout.tsx
-import { ReplaneProvider, ReplaneScript } from "@replanejs/next";
-import { getReplane } from "@replanejs/next/server";
-
-export default async function RootLayout({ children }) {
-  const replane = await getReplane();
-  
-  return (
-    <html>
-      <body>
-        <ReplaneProvider replane={replane}>
-          {children}
-          <ReplaneScript replane={replane} />
-        </ReplaneProvider>
-      </body>
-    </html>
-  );
-}
-```
-
 ### Svelte
 
 ```bash
@@ -107,7 +79,7 @@ npm install @replanejs/svelte
 - **Realtime updates** — Configs update instantly via Server-Sent Events (SSE)
 - **Context-based overrides** — Feature flags, A/B testing, gradual rollouts
 - **Type-safe** — Full TypeScript support with inference
-- **Framework integrations** — React, Next.js, Svelte, and more
+- **Framework integrations** — React, Svelte, and more
 - **Tiny footprint** — Zero runtime dependencies in core SDK
 - **SSR support** — Server-side rendering with hydration
 
@@ -117,7 +89,6 @@ See the [`examples/`](./examples) directory for complete working examples:
 
 - [`examples/sdk`](./examples/sdk) — Core SDK usage
 - [`examples/react`](./examples/react) — React integration
-- [`examples/next`](./examples/next) — Next.js App Router
 - [`examples/svelte`](./examples/svelte) — SvelteKit
 
 ## Development
