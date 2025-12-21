@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ReplaneClient } from "@replanejs/sdk";
   import { setReplaneContext } from "../../src/context";
-  import { useConfig } from "../../src/stores";
+  import { config } from "../../src/stores";
 
   interface Props {
     client: ReplaneClient<any>;
@@ -11,11 +11,13 @@
 
   let { client, configName, context }: Props = $props();
 
-  // Set context (simulating what ReplaneProvider does)
+  // Set context (simulating what ReplaneContext does)
+  // svelte-ignore state_referenced_locally
   setReplaneContext(client);
 
   // Create store with context at top level
-  const valueStore = useConfig(configName, { context });
+  // svelte-ignore state_referenced_locally
+  const valueStore = config(configName, { context });
 </script>
 
 <div data-testid="value">{String($valueStore)}</div>

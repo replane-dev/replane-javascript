@@ -10,10 +10,10 @@ export interface ReplaneContextValue<T extends Record<string, unknown> = any> {
 }
 
 /**
- * Props for ReplaneProvider when using a pre-created client.
+ * Props for ReplaneContext when using a pre-created client.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ReplaneProviderWithClientProps<T extends Record<string, unknown> = any> {
+export interface ReplaneContextWithClientProps<T extends Record<string, unknown> = any> {
   /** Pre-created ReplaneClient instance */
   client: ReplaneClient<T>;
   /** Children snippet */
@@ -21,82 +21,56 @@ export interface ReplaneProviderWithClientProps<T extends Record<string, unknown
 }
 
 /**
- * Props for ReplaneProvider when letting it manage the client internally.
+ * Props for ReplaneContext when letting it manage the client internally.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ReplaneProviderWithOptionsProps<T extends Record<string, unknown> = any> {
-  /** Options to create the ReplaneClient */
+export interface ReplaneContextWithOptionsProps<T extends Record<string, unknown> = any> {
+  /** Options to create or restore the ReplaneClient */
   options: ReplaneClientOptions<T>;
   /** Children snippet */
   children: Snippet;
   /**
+   * Optional snapshot from server-side rendering.
+   * When provided, the client will be restored from the snapshot synchronously
+   * instead of fetching configs from the server.
+   * The `options` will be used for live updates connection if provided.
+   */
+  snapshot?: ReplaneSnapshot<T>;
+  /**
    * Optional loading snippet to show while the client is initializing.
    * If not provided, children will not render until ready.
+   * Ignored when snapshot is provided (restoration is synchronous).
    */
   loader?: Snippet;
-  /**
-   * Callback when client initialization fails.
-   */
-  onError?: (error: Error) => void;
-}
-
-/**
- * Props for ReplaneProvider when restoring from a snapshot (SSR/hydration).
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ReplaneProviderWithSnapshotProps<T extends Record<string, unknown> = any> {
-  /** Snapshot from server-side rendering */
-  snapshot: ReplaneSnapshot<T>;
-  /** Optional connection options for live updates */
-  connection?: {
-    baseUrl: string;
-    sdkKey: string;
-    fetchFn?: typeof fetch;
-    requestTimeoutMs?: number;
-    retryDelayMs?: number;
-    inactivityTimeoutMs?: number;
-  };
-  /** Children snippet */
-  children: Snippet;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ReplaneProviderProps<T extends Record<string, unknown> = any> =
-  | ReplaneProviderWithClientProps<T>
-  | ReplaneProviderWithOptionsProps<T>
-  | ReplaneProviderWithSnapshotProps<T>;
+export type ReplaneContextProps<T extends Record<string, unknown> = any> =
+  | ReplaneContextWithClientProps<T>
+  | ReplaneContextWithOptionsProps<T>;
 
 /**
  * Type guard to check if props contain a pre-created client.
  */
 export function hasClient<T extends Record<string, unknown>>(
-  props: ReplaneProviderProps<T>
-): props is ReplaneProviderWithClientProps<T> {
+  props: ReplaneContextProps<T>
+): props is ReplaneContextWithClientProps<T> {
   return "client" in props && props.client !== undefined;
 }
 
 /**
- * Type guard to check if props contain options.
+ * Type guard to check if props contain options (with or without snapshot).
  */
 export function hasOptions<T extends Record<string, unknown>>(
-  props: ReplaneProviderProps<T>
-): props is ReplaneProviderWithOptionsProps<T> {
+  props: ReplaneContextProps<T>
+): props is ReplaneContextWithOptionsProps<T> {
   return "options" in props && props.options !== undefined;
 }
 
 /**
- * Type guard to check if props contain a snapshot.
+ * Options for config()
  */
-export function hasSnapshot<T extends Record<string, unknown>>(
-  props: ReplaneProviderProps<T>
-): props is ReplaneProviderWithSnapshotProps<T> {
-  return "snapshot" in props && props.snapshot !== undefined;
-}
-
-/**
- * Options for useConfig
- */
-export interface UseConfigOptions {
+export interface ConfigOptions {
   /**
    * Context for override evaluation (merged with client-level context).
    */

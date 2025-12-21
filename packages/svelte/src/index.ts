@@ -1,19 +1,41 @@
 // Components
-export { default as ReplaneProvider } from "./ReplaneProvider.svelte";
-export { default as ReplaneProviderAsync } from "./ReplaneProviderAsync.svelte";
+export { default as ReplaneContext } from "./ReplaneContext.svelte";
 
-// Stores and hooks
-export { useReplane, useConfig, createConfigStore } from "./stores";
+// Stores
+export { getReplane, config, configFrom, createTypedReplane, createTypedConfig } from "./stores";
 
 // Context utilities (for advanced use cases)
 export { setReplaneContext, getReplaneContext, hasReplaneContext } from "./context";
 
+// Re-export from SDK for convenience
+export {
+  createReplaneClient,
+  createInMemoryReplaneClient,
+  restoreReplaneClient,
+  getReplaneSnapshot,
+  clearSnapshotCache,
+  ReplaneError,
+  ReplaneErrorCode,
+} from "@replanejs/sdk";
+
+export type {
+  ReplaneClient,
+  ReplaneClientOptions,
+  ReplaneSnapshot,
+  ReplaneLogger,
+  GetConfigOptions,
+  RestoreReplaneClientOptions,
+  GetReplaneSnapshotOptions,
+} from "@replanejs/sdk";
+
 // Types
 export type {
   ReplaneContextValue,
-  ReplaneProviderProps,
-  ReplaneProviderWithClientProps,
-  ReplaneProviderWithOptionsProps,
-  ReplaneProviderWithSnapshotProps,
-  UseConfigOptions,
+  ReplaneContextProps,
+  ReplaneContextWithClientProps,
+  ReplaneContextWithOptionsProps,
+  ConfigOptions,
 } from "./types";
+
+// Type guards
+export { hasClient, hasOptions } from "./types";

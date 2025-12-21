@@ -1,7 +1,7 @@
 import { readable, type Readable } from "svelte/store";
 import type { ReplaneClient } from "@replanejs/sdk";
 import { getReplaneContext } from "./context";
-import type { ReplaneContextValue, UseConfigOptions } from "./types";
+import type { ReplaneContextValue, ConfigOptions } from "./types";
 
 /**
  * Get the Replane context containing the client.
@@ -14,15 +14,15 @@ import type { ReplaneContextValue, UseConfigOptions } from "./types";
  * @example
  * ```svelte
  * <script>
- *   import { useReplane } from '@replanejs/svelte';
+ *   import { getReplane } from '@replanejs/svelte';
  *
- *   const { client } = useReplane();
- *   // Use client directly: client.get('configName')
+ *   const { client } = getReplane();
+ *   // Access client directly: client.get('configName')
  * </script>
  * ```
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function useReplane<T extends Record<string, unknown> = any>(): ReplaneContextValue<T> {
+export function getReplane<T extends Record<string, unknown> = any>(): ReplaneContextValue<T> {
   return getReplaneContext<T>();
 }
 
@@ -39,10 +39,10 @@ export function useReplane<T extends Record<string, unknown> = any>(): ReplaneCo
  * @example
  * ```svelte
  * <script>
- *   import { useConfig } from '@replanejs/svelte';
+ *   import { config } from '@replanejs/svelte';
  *
- *   const featureEnabled = useConfig<boolean>('featureEnabled');
- *   const greeting = useConfig<string>('greeting', {
+ *   const featureEnabled = config<boolean>('featureEnabled');
+ *   const greeting = config<string>('greeting', {
  *     context: { userId: '123' }
  *   });
  * </script>
@@ -52,7 +52,7 @@ export function useReplane<T extends Record<string, unknown> = any>(): ReplaneCo
  * {/if}
  * ```
  */
-export function useConfig<T>(name: string, options?: UseConfigOptions): Readable<T> {
+export function config<T>(name: string, options?: ConfigOptions): Readable<T> {
   const { client } = getReplaneContext();
 
   return readable<T>(client.get(name, options) as T, (set) => {
@@ -70,7 +70,7 @@ export function useConfig<T>(name: string, options?: UseConfigOptions): Readable
  * Create a reactive store for a config value using a pre-existing client.
  *
  * This is useful when you have direct access to a client and don't want to
- * use the context-based approach.
+ * use the context-based approach. Similar to readable() or derived().
  *
  * @param client - The Replane client to use
  * @param name - The name of the config to subscribe to
@@ -80,10 +80,10 @@ export function useConfig<T>(name: string, options?: UseConfigOptions): Readable
  * @example
  * ```svelte
  * <script>
- *   import { createConfigStore } from '@replanejs/svelte';
+ *   import { configFrom } from '@replanejs/svelte';
  *   import { client } from './replane-client';
  *
- *   const featureEnabled = createConfigStore<boolean>(client, 'featureEnabled');
+ *   const featureEnabled = configFrom<boolean>(client, 'featureEnabled');
  * </script>
  *
  * {#if $featureEnabled}
@@ -92,10 +92,10 @@ export function useConfig<T>(name: string, options?: UseConfigOptions): Readable
  * ```
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function createConfigStore<T, C extends Record<string, unknown> = any>(
+export function configFrom<T, C extends Record<string, unknown> = any>(
   client: ReplaneClient<C>,
   name: string,
-  options?: UseConfigOptions
+  options?: ConfigOptions
 ): Readable<T> {
   return readable<T>(client.get(name as keyof C, options) as T, (set) => {
     const unsubscribe = client.subscribe(name as keyof C, () => {
@@ -103,4 +103,82 @@ export function createConfigStore<T, C extends Record<string, unknown> = any>(
     });
     return unsubscribe;
   });
+}
+
+/**
+ * Creates a typed version of getReplane().
+ *
+ * By creating typed accessors once and importing them throughout your app,
+ * you get full type safety and autocomplete for config names and values.
+ *
+ * @example
+ * ```ts
+ * // $lib/replane/index.ts
+ * import { createTypedReplane } from '@replanejs/svelte';
+ *
+ * interface AppConfigs {
+ *   theme: { darkMode: boolean };
+ *   features: { beta: boolean };
+ * }
+ *
+ * export const getAppReplane = createTypedReplane<AppConfigs>();
+ * ```
+ *
+ * @example
+ * ```svelte
+ * <script>
+ *   import { getAppReplane } from '$lib/replane';
+ *
+ *   const { client } = getAppReplane();
+ *   const theme = client.get("theme"); // fully typed
+ * </script>
+ * ```
+ */
+export function createTypedReplane<TConfigs extends Record<string, unknown>>() {
+  return function (): ReplaneContextValue<TConfigs> {
+    return getReplane<TConfigs>();
+  };
+}
+
+/**
+ * Creates a typed version of config().
+ *
+ * By creating typed accessors once and importing them throughout your app,
+ * you get full type safety and autocomplete for config names and values.
+ *
+ * @example
+ * ```ts
+ * // $lib/replane/index.ts
+ * import { createTypedConfig } from '@replanejs/svelte';
+ *
+ * interface AppConfigs {
+ *   theme: { darkMode: boolean; primaryColor: string };
+ *   features: { beta: boolean; maxItems: number };
+ * }
+ *
+ * export const appConfig = createTypedConfig<AppConfigs>();
+ * ```
+ *
+ * @example
+ * ```svelte
+ * <script>
+ *   import { appConfig } from '$lib/replane';
+ *
+ *   // Config names autocomplete, return values are fully typed
+ *   const theme = appConfig("theme");
+ *   // $theme is typed as { darkMode: boolean; primaryColor: string }
+ * </script>
+ *
+ * <div style:color={$theme.primaryColor}>
+ *   {$theme.darkMode ? "Dark" : "Light"}
+ * </div>
+ * ```
+ */
+export function createTypedConfig<TConfigs extends Record<string, unknown>>() {
+  return function <K extends keyof TConfigs>(
+    name: K,
+    options?: ConfigOptions
+  ): Readable<TConfigs[K]> {
+    return config<TConfigs[K]>(String(name), options);
+  };
 }

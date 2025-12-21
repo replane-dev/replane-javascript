@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { useReplane, useConfig } from "@replanejs/svelte";
+  import { getReplane, config } from "@replanejs/svelte";
 
   interface ThemeConfig {
     primaryColor: string;
@@ -12,9 +12,9 @@
     experimentalFeatures: boolean;
   }
 
-  const { client } = useReplane();
-  const theme = useConfig<ThemeConfig>("theme-config");
-  const features = useConfig<FeatureFlags>("feature-flags");
+  const { client } = getReplane();
+  const theme = config<ThemeConfig>("theme-config");
+  const features = config<FeatureFlags>("feature-flags");
 
   // Get value with premium context override
   const premiumFeatures = $derived(

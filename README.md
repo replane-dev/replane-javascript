@@ -104,19 +104,34 @@ npm install @replanejs/svelte
 ```
 
 ```svelte
+<!-- +layout.svelte -->
 <script>
-  import { ReplaneProvider, useConfig } from "@replanejs/svelte";
+  import { ReplaneProvider, createReplaneClient } from "@replanejs/svelte";
 
-  const featureEnabled = useConfig("my-feature");
+  const client = await createReplaneClient({
+    baseUrl: "https://replane.example.com",
+    sdkKey: "your-sdk-key",
+  });
 </script>
 
-<ReplaneProvider client={replaneClient}>
-  {#if $featureEnabled}
-    <NewFeature />
-  {:else}
-    <OldFeature />
-  {/if}
+<ReplaneProvider {client}>
+  <slot />
 </ReplaneProvider>
+```
+
+```svelte
+<!-- Component.svelte -->
+<script>
+  import { config } from "@replanejs/svelte";
+
+  const feature = config("my-feature");
+</script>
+
+{#if $feature}
+  <NewFeature />
+{:else}
+  <OldFeature />
+{/if}
 ```
 
 ## Features

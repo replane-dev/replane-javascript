@@ -1,29 +1,33 @@
 <script lang="ts">
-  import { createReplaneClient, createInMemoryReplaneClient } from "@replanejs/sdk";
-  import { ReplaneProvider } from "@replanejs/svelte";
+  import { ReplaneContext, createInMemoryReplaneClient } from "@replanejs/svelte";
   import MainContent from "./lib/MainContent.svelte";
 
   // Environment variables
   const sdkKey = import.meta.env.VITE_REPLANE_SDK_KEY || "demo-sdk-key";
   const baseUrl = import.meta.env.VITE_REPLANE_BASE_URL || "https://replane.example.com";
 
-  // Create client with fallbacks for demo
-  // In production, use createReplaneClient with real credentials
-  const clientPromise = sdkKey === "demo-sdk-key"
-    ? Promise.resolve(
-        createInMemoryReplaneClient({
-          configs: {
-            "theme-config": { primaryColor: "#3b82f6", darkMode: false },
-            "feature-flags": {
-              newHeader: true,
-              showBanner: true,
-              experimentalFeatures: false,
-            },
-            "banner-message": "Welcome to the Replane Svelte Example!",
+  // Demo mode: use in-memory client
+  // Production mode: use options prop for async client creation
+  const isDemoMode = sdkKey === "demo-sdk-key";
+
+  // For demo mode, create an in-memory client
+  const demoClient = isDemoMode
+    ? createInMemoryReplaneClient({
+        configs: {
+          "theme-config": { primaryColor: "#3b82f6", darkMode: false },
+          "feature-flags": {
+            newHeader: true,
+            showBanner: true,
+            experimentalFeatures: false,
           },
-        })
-      )
-    : createReplaneClient({
+          "banner-message": "Welcome to the Replane Svelte Example!",
+        },
+      })
+    : null;
+
+  // For production mode, use options
+  const options = !isDemoMode
+    ? {
         sdkKey,
         baseUrl,
         fallbacks: {
@@ -35,37 +39,33 @@
           },
           "banner-message": "Welcome to the Replane Svelte Example!",
         },
-      });
-
-  let client = $state<Awaited<typeof clientPromise> | null>(null);
-  let loading = $state(true);
-  let error = $state<Error | null>(null);
-
-  // Initialize client
-  $effect(() => {
-    clientPromise
-      .then((c) => {
-        client = c;
-        loading = false;
-      })
-      .catch((e) => {
-        error = e;
-        loading = false;
-      });
-  });
+      }
+    : null;
 </script>
 
-{#if loading}
-  <div class="loading-screen">
-    <div class="spinner"></div>
-    <p>Loading configuration...</p>
-  </div>
-{:else if error}
-  <div class="loading-screen">
-    <p>Error loading configuration: {error.message}</p>
-  </div>
-{:else if client}
-  <ReplaneProvider {client}>
+{#if isDemoMode && demoClient}
+  <!-- Demo mode: use pre-created in-memory client -->
+  <ReplaneContext client={demoClient}>
     <MainContent />
-  </ReplaneProvider>
+  </ReplaneContext>
+{:else if options}
+  <!-- Production mode: use options with async client creation -->
+  <svelte:boundary>
+    <ReplaneContext {options}>
+      <MainContent />
+
+      {#snippet loader()}
+        <div class="loading-screen">
+          <div class="spinner"></div>
+          <p>Loading configuration...</p>
+        </div>
+      {/snippet}
+    </ReplaneContext>
+
+    {#snippet failed(error)}
+      <div class="loading-screen">
+        <p>Error loading configuration: {error.message}</p>
+      </div>
+    {/snippet}
+  </svelte:boundary>
 {/if}

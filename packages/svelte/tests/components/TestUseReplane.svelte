@@ -8,7 +8,8 @@
 
   let { client }: Props = $props();
 
-  // Set context (simulating what ReplaneProvider does)
+  // Set context (simulating what ReplaneContext does)
+  // svelte-ignore state_referenced_locally
   setReplaneContext(client);
 
   // Get context to verify it works

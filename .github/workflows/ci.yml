@@ -83,31 +83,43 @@ jobs:
             fi
           }
 
-          # SDK (ESM)
-          sdk_esm=$(stat -c%s packages/sdk/dist/index.js)
-          sdk_esm_gz=$(gzip -c packages/sdk/dist/index.js | wc -c | tr -d ' ')
-
-          # React (ESM + CJS)
-          react_esm=$(stat -c%s packages/react/dist/index.js)
-          react_cjs=$(stat -c%s packages/react/dist/index.cjs)
-          react_esm_gz=$(gzip -c packages/react/dist/index.js | wc -c | tr -d ' ')
-          react_cjs_gz=$(gzip -c packages/react/dist/index.cjs | wc -c | tr -d ' ')
-
-          # Svelte (all JS files combined)
-          svelte_esm=$(cat packages/svelte/dist/*.js | wc -c | tr -d ' ')
-          svelte_esm_gz=$(cat packages/svelte/dist/*.js | gzip -c | wc -c | tr -d ' ')
-
-          # Generate markdown report
+          # Start markdown report
           {
             echo "## Bundle Sizes"
             echo ""
             echo "| Package | Format | Size | Gzipped |"
             echo "|---------|--------|------|----------|"
-            echo "| @replanejs/sdk | ESM | $(format_bytes $sdk_esm) | $(format_bytes $sdk_esm_gz) |"
-            echo "| @replanejs/react | ESM | $(format_bytes $react_esm) | $(format_bytes $react_esm_gz) |"
-            echo "| @replanejs/react | CJS | $(format_bytes $react_cjs) | $(format_bytes $react_cjs_gz) |"
-            echo "| @replanejs/svelte | ESM | $(format_bytes $svelte_esm) | $(format_bytes $svelte_esm_gz) |"
           } > bundle-size-report.md
+
+          # Auto-discover and report all packages
+          for pkg_dir in packages/*/; do
+            pkg_name=$(basename "$pkg_dir")
+            dist_dir="${pkg_dir}dist"
+            
+            # Skip if no dist directory
+            [ -d "$dist_dir" ] || continue
+            
+            # Get package name from package.json
+            if [ -f "${pkg_dir}package.json" ]; then
+              npm_name=$(jq -r '.name' "${pkg_dir}package.json")
+            else
+              npm_name="@replanejs/${pkg_name}"
+            fi
+            
+            # Check for ESM bundle (index.js)
+            if [ -f "${dist_dir}/index.js" ]; then
+              esm_size=$(stat -c%s "${dist_dir}/index.js")
+              esm_gz=$(gzip -c "${dist_dir}/index.js" | wc -c | tr -d ' ')
+              echo "| ${npm_name} | ESM | $(format_bytes $esm_size) | $(format_bytes $esm_gz) |" >> bundle-size-report.md
+            fi
+            
+            # Check for CJS bundle (index.cjs)
+            if [ -f "${dist_dir}/index.cjs" ]; then
+              cjs_size=$(stat -c%s "${dist_dir}/index.cjs")
+              cjs_gz=$(gzip -c "${dist_dir}/index.cjs" | wc -c | tr -d ' ')
+              echo "| ${npm_name} | CJS | $(format_bytes $cjs_size) | $(format_bytes $cjs_gz) |" >> bundle-size-report.md
+            fi
+          done
 
           cat bundle-size-report.md
 

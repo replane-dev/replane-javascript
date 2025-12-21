@@ -21,7 +21,7 @@ export function setReplaneContext<T extends Record<string, unknown>>(client: Rep
 export function getReplaneContext<T extends Record<string, unknown> = any>(): ReplaneContextValue<T> {
   const context = getContext<ReplaneContextValue<T> | undefined>(REPLANE_CONTEXT_KEY);
   if (!context) {
-    throw new Error("useReplane must be used within a ReplaneProvider");
+    throw new Error("getReplane() must be used within a ReplaneProvider");
   }
   return context;
 }

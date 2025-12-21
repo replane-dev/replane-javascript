@@ -5,8 +5,7 @@ import type { ReplaneClient, ReplaneClientOptions } from "@replanejs/sdk";
 import * as sdk from "@replanejs/sdk";
 
 // Import test components and utilities
-import ReplaneProvider from "../src/ReplaneProvider.svelte";
-import ReplaneProviderAsync from "../src/ReplaneProviderAsync.svelte";
+import ReplaneContext from "../src/ReplaneContext.svelte";
 import TestUseReplane from "./components/TestUseReplane.svelte";
 import TestUseConfig from "./components/TestUseConfig.svelte";
 import TestMultipleConfigs from "./components/TestMultipleConfigs.svelte";
@@ -14,6 +13,7 @@ import TestConfigWithContext from "./components/TestConfigWithContext.svelte";
 import TestNestedChildren from "./components/TestNestedChildren.svelte";
 import TestUseReplaneOutsideProvider from "./components/TestUseReplaneOutsideProvider.svelte";
 import TestCreateConfigStore from "./components/TestCreateConfigStore.svelte";
+import TestProviderWithOptions from "./components/TestProviderWithOptions.svelte";
 
 // ============================================================================
 // Test Utilities
@@ -76,14 +76,14 @@ const defaultTestOptions: ReplaneClientOptions<any> = {
 };
 
 // ============================================================================
-// ReplaneProvider with client prop
+// ReplaneContext with client prop
 // ============================================================================
 
-describe("ReplaneProvider with client prop", () => {
+describe("ReplaneContext with client prop", () => {
   it("renders children immediately", () => {
     const client = createMockClient();
 
-    render(ReplaneProvider, {
+    render(ReplaneContext, {
       props: {
         client,
         children: vi.fn(),
@@ -129,23 +129,21 @@ describe("ReplaneProvider with client prop", () => {
 });
 
 // ============================================================================
-// ReplaneProviderAsync - Loading States
+// ReplaneContext with options prop - Loading States
 // ============================================================================
 
-describe("ReplaneProviderAsync - Loading States", () => {
+describe("ReplaneContext with options prop - Loading States", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockCreateClient: any;
   let mockClient: ReturnType<typeof createMockClient>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let resolveClient: (client: ReplaneClient<any>) => void;
-  let rejectClient: (error: Error) => void;
 
   beforeEach(() => {
     mockClient = createMockClient({ feature: true });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const clientPromise = new Promise<ReplaneClient<any>>((resolve, reject) => {
+    const clientPromise = new Promise<ReplaneClient<any>>((resolve) => {
       resolveClient = resolve;
-      rejectClient = reject;
     });
 
     mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockReturnValue(clientPromise);
@@ -156,84 +154,71 @@ describe("ReplaneProviderAsync - Loading States", () => {
   });
 
   it("shows loader while initializing", async () => {
-    render(ReplaneProviderAsync, {
+    render(TestProviderWithOptions, {
       props: {
         options: defaultTestOptions,
-        children: vi.fn(),
-        loader: vi.fn(),
       },
     });
 
     // Provider should be in loading state
     expect(mockCreateClient).toHaveBeenCalledWith(defaultTestOptions);
+    expect(screen.getByTestId("loader")).toBeInTheDocument();
   });
 
   it("transitions from loading to ready after initialization", async () => {
-    const onError = vi.fn();
-
-    render(ReplaneProviderAsync, {
+    render(TestProviderWithOptions, {
       props: {
         options: defaultTestOptions,
-        children: vi.fn(),
-        loader: vi.fn(),
-        onError,
       },
     });
+
+    expect(screen.getByTestId("loader")).toBeInTheDocument();
 
     resolveClient(mockClient);
     await tick();
 
     await waitFor(() => {
-      expect(onError).not.toHaveBeenCalled();
+      expect(screen.queryByTestId("loader")).not.toBeInTheDocument();
+      expect(screen.getByTestId("content")).toBeInTheDocument();
     });
   });
 
-  it("calls onError when initialization fails", async () => {
-    const onError = vi.fn();
+  it("throws error when initialization fails (for error boundary)", async () => {
     const error = new Error("Connection failed");
+    mockCreateClient.mockRejectedValue(error);
 
-    render(ReplaneProviderAsync, {
+    render(TestProviderWithOptions, {
       props: {
         options: defaultTestOptions,
-        children: vi.fn(),
-        onError,
       },
     });
 
-    rejectClient(error);
-    await tick();
-
     await waitFor(() => {
-      expect(onError).toHaveBeenCalledWith(error);
+      // The error should be caught by the boundary in the test component
+      expect(screen.getByTestId("error")).toHaveTextContent("Connection failed");
     });
   });
 
-  it("calls onError with wrapped error for non-Error rejections", async () => {
+  it("wraps non-Error rejections in Error", async () => {
     mockCreateClient.mockRejectedValue("string error");
-    const onError = vi.fn();
 
-    render(ReplaneProviderAsync, {
+    render(TestProviderWithOptions, {
       props: {
         options: defaultTestOptions,
-        children: vi.fn(),
-        onError,
       },
     });
 
     await waitFor(() => {
-      expect(onError).toHaveBeenCalled();
-      const calledError = onError.mock.calls[0][0];
-      expect(calledError).toBeInstanceOf(Error);
-      expect(calledError.message).toBe("string error");
+      expect(screen.getByTestId("error")).toHaveTextContent("string error");
     });
   });
 });
 
 // ============================================================================
-// ReplaneProviderAsync - Client Lifecycle
+// ReplaneContext with options prop - Client Lifecycle
 // ============================================================================
 
-describe("ReplaneProviderAsync - Client Lifecycle", () => {
+describe("ReplaneContext with options prop - Client Lifecycle", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockCreateClient: any;
 
@@ -245,10 +230,9 @@ describe("ReplaneProviderAsync - Client Lifecycle", () => {
     const mockClient = createMockClient();
     mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
-    render(ReplaneProviderAsync, {
+    render(TestProviderWithOptions, {
       props: {
         options: defaultTestOptions,
-        children: vi.fn(),
       },
     });
 
@@ -261,14 +245,15 @@ describe("ReplaneProviderAsync - Client Lifecycle", () => {
     const mockClient = createMockClient();
     mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
 
-    const { unmount } = render(ReplaneProviderAsync, {
+    const { unmount } = render(TestProviderWithOptions, {
       props: {
         options: defaultTestOptions,
-        children: vi.fn(),
       },
     });
 
-    await tick();
+    await waitFor(() => {
+      expect(screen.getByTestId("content")).toBeInTheDocument();
+    });
 
     unmount();
 
@@ -288,10 +273,9 @@ describe("ReplaneProviderAsync - Client Lifecycle", () => {
 
     mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockReturnValue(clientPromise);
 
-    const { unmount } = render(ReplaneProviderAsync, {
+    const { unmount } = render(TestProviderWithOptions, {
       props: {
         options: defaultTestOptions,
-        children: vi.fn(),
       },
     });
 
@@ -309,13 +293,13 @@ describe("ReplaneProviderAsync - Client Lifecycle", () => {
 });
 
 // ============================================================================
-// useReplane
+// getReplane
 // ============================================================================
 
-describe("useReplane", () => {
+describe("getReplane", () => {
   it("throws descriptive error when used outside ReplaneProvider", () => {
     expect(() => render(TestUseReplaneOutsideProvider)).toThrow(
-      "useReplane must be used within a ReplaneProvider"
+      "getReplane() must be used within a ReplaneProvider"
     );
   });
 
@@ -331,10 +315,10 @@ describe("useReplane", () => {
 });
 
 // ============================================================================
-// useConfig - Basic Functionality
+// config - Basic Functionality
 // ============================================================================
 
-describe("useConfig - Basic Functionality", () => {
+describe("config - Basic Functionality", () => {
   it("returns config value for existing config", () => {
     const client = createMockClient({ myConfig: "myValue" });
 
@@ -434,10 +418,10 @@ describe("useConfig - Basic Functionality", () => {
 });
 
 // ============================================================================
-// useConfig - Subscriptions
+// config - Subscriptions
 // ============================================================================
 
-describe("useConfig - Subscriptions", () => {
+describe("config - Subscriptions", () => {
   it("subscribes to config on mount", () => {
     const client = createMockClient({ counter: 0 });
 
@@ -562,10 +546,10 @@ describe("Multiple configs", () => {
 });
 
 // ============================================================================
-// createConfigStore
+// configFrom
 // ============================================================================
 
-describe("createConfigStore", () => {
+describe("configFrom", () => {
   it("creates a reactive store from client", () => {
     const client = createMockClient({ directStore: "storeValue" });
 

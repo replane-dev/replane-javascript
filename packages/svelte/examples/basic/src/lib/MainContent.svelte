@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { useConfig } from "@replanejs/svelte";
+  import { config } from "@replanejs/svelte";
   import NewHeader from "./NewHeader.svelte";
   import OldHeader from "./OldHeader.svelte";
   import ConfigDisplay from "./ConfigDisplay.svelte";
@@ -15,10 +15,10 @@
     experimentalFeatures: boolean;
   }
 
-  // useConfig returns a Svelte store - use $ prefix for auto-subscription
-  const theme = useConfig<ThemeConfig>("theme-config");
-  const features = useConfig<FeatureFlags>("feature-flags");
-  const bannerMessage = useConfig<string>("banner-message");
+  // config() returns a Svelte store - use $ prefix for auto-subscription
+  const theme = config<ThemeConfig>("theme-config");
+  const features = config<FeatureFlags>("feature-flags");
+  const bannerMessage = config<string>("banner-message");
 </script>
 
 <div
