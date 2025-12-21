@@ -253,6 +253,10 @@ All stores automatically subscribe to realtime updates via SSE. When a config ch
 {/if}
 ```
 
+## Community
+
+Have questions or want to discuss Replane? Join the conversation in [GitHub Discussions](https://github.com/orgs/replane-dev/discussions).
+
 ## License
 
 MIT

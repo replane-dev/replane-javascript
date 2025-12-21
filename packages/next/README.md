@@ -285,6 +285,10 @@ See the [examples](./examples) directory for complete working examples:
 - **[next-app-router](./examples/next-app-router)** - App Router with ReplaneRoot
 - **[next-pages-router](./examples/next-pages-router)** - Pages Router with getInitialProps
 
+## Community
+
+Have questions or want to discuss Replane? Join the conversation in [GitHub Discussions](https://github.com/orgs/replane-dev/discussions).
+
 ## License
 
 MIT

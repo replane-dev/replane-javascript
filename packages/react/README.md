@@ -357,6 +357,10 @@ import { ErrorBoundary } from 'react-error-boundary';
 </ErrorBoundary>
 ```
 
+## Community
+
+Have questions or want to discuss Replane? Join the conversation in [GitHub Discussions](https://github.com/orgs/replane-dev/discussions).
+
 ## License
 
 MIT
