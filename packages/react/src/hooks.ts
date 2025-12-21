@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useSyncExternalStore } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import { ReplaneContext } from "./context";
 import type { UntypedReplaneConfig } from "./types";
 import type { ReplaneClient, GetConfigOptions } from "@replanejs/sdk";
@@ -14,13 +14,18 @@ export function useReplane<T extends object = UntypedReplaneConfig>(): ReplaneCl
 export function useConfig<T>(name: string, options?: GetConfigOptions): T {
   const client = useReplane();
 
-  const value = useSyncExternalStore(
-    (onStoreChange) => {
-      return client.subscribe(name, onStoreChange);
+  const subscribe = useCallback(
+    (callback: () => void) => {
+      return client.subscribe(name, callback);
     },
-    () => client.get(name, options) as T,
-    () => client.get(name, options) as T
+    [client, name]
   );
+
+  const get = useCallback(() => {
+    return client.get(name, options) as T;
+  }, [client, name, options]);
+
+  const value = useSyncExternalStore(subscribe, get, get);
 
   return value;
 }
@@ -84,7 +89,11 @@ export function createConfigHook<TConfigs extends object>() {
  * @param cleanup - Function that cleans up the resource
  * @param deps - Dependencies array (resource is recreated when these change)
  */
-export function useStateful<T>(factory: () => T, cleanup: (value: T) => void, deps: React.DependencyList): T {
+export function useStateful<T>(
+  factory: () => T,
+  cleanup: (value: T) => void,
+  deps: React.DependencyList
+): T {
   const valueRef = useRef<T | null>(null);
   const initializedRef = useRef(false);
 
