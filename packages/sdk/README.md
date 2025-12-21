@@ -473,11 +473,6 @@ unsubscribeMaxUsers();
 replane.close();
 ```
 
-## Roadmap
-
-- Config caching
-- Config invalidation
-
 ## Community
 
 Have questions or want to discuss Replane? Join the conversation in [GitHub Discussions](https://github.com/orgs/replane-dev/discussions).
@@ -485,4 +480,3 @@ Have questions or want to discuss Replane? Join the conversation in [GitHub Disc
 ## License
 
 MIT
-
