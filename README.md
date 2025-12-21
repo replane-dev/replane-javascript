@@ -92,7 +92,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 }
 
 // app/page.tsx (client component)
-("use client");
+"use client";
 import { useConfig } from "@replanejs/next";
 
 export default function Page() {
@@ -118,9 +118,9 @@ npm install @replanejs/svelte
   });
 </script>
 
-<ReplaneProvider {client}>
+<ReplaneContext {client}>
   <slot />
-</ReplaneProvider>
+</ReplaneContext>
 ```
 
 ```svelte
