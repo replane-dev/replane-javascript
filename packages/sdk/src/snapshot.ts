@@ -10,7 +10,7 @@ export interface GetReplaneSnapshotOptions<T extends object> extends ReplaneClie
    * for instant subsequent calls within this duration.
    * @default 60_000 (1 minute)
    */
-  cacheTtlMs?: number;
+  keepAliveMs?: number;
 }
 
 interface CachedClient {
@@ -27,10 +27,10 @@ function getCacheKey<T extends object>(options: ReplaneClientOptions<T>): string
 
 type TimeoutId = ReturnType<typeof setTimeout>;
 
-function setupCleanupTimeout(cacheKey: string, cacheTtlMs: number): TimeoutId {
+function setupCleanupTimeout(cacheKey: string, keepAliveMs: number): TimeoutId {
   return setTimeout(() => {
     clientCache.delete(cacheKey);
-  }, cacheTtlMs);
+  }, keepAliveMs);
 }
 
 /**
@@ -49,7 +49,7 @@ function setupCleanupTimeout(cacheKey: string, cacheTtlMs: number): TimeoutId {
 export async function getReplaneSnapshot<T extends object>(
   options: GetReplaneSnapshotOptions<T>
 ): Promise<ReplaneSnapshot<T>> {
-  const { cacheTtlMs = 60_000, ...clientOptions } = options;
+  const { keepAliveMs = 60_000, ...clientOptions } = options;
 
   const cacheKey = getCacheKey(clientOptions);
   const cached = clientCache.get(cacheKey);
@@ -57,7 +57,7 @@ export async function getReplaneSnapshot<T extends object>(
   // Return from cache if valid
   if (cached) {
     clearTimeout(cached.timeoutId);
-    cached.timeoutId = setupCleanupTimeout(cacheKey, cacheTtlMs);
+    cached.timeoutId = setupCleanupTimeout(cacheKey, keepAliveMs);
 
     const client = await cached.clientPromise;
     return client.getSnapshot() as ReplaneSnapshot<T>;
@@ -67,7 +67,7 @@ export async function getReplaneSnapshot<T extends object>(
   const clientPromise = createReplaneClient<T>(clientOptions);
   const entry: CachedClient = {
     clientPromise: clientPromise,
-    timeoutId: setupCleanupTimeout(cacheKey, cacheTtlMs),
+    timeoutId: setupCleanupTimeout(cacheKey, keepAliveMs),
   };
   clientCache.set(cacheKey, entry);
 

@@ -8,5 +8,5 @@ export type {
 } from "./types";
 
 // Re-export snapshot utilities from SDK
-export { getReplaneSnapshot, clearSnapshotCache } from "@replanejs/sdk";
+export { getReplaneSnapshot } from "@replanejs/sdk";
 export type { GetReplaneSnapshotOptions } from "@replanejs/sdk";

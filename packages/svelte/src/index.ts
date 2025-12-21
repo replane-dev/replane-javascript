@@ -13,7 +13,6 @@ export {
   createInMemoryReplaneClient,
   restoreReplaneClient,
   getReplaneSnapshot,
-  clearSnapshotCache,
   ReplaneError,
   ReplaneErrorCode,
 } from "@replanejs/sdk";

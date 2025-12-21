@@ -157,10 +157,10 @@ describe("getReplaneSnapshot", () => {
     });
 
     it("should expire cache after TTL", async () => {
-      const cacheTtlMs = 100; // Use short TTL for test
+      const keepAliveMs = 100; // Use short TTL for test
 
       // First call
-      const snapshot1Promise = getSnapshot({ cacheTtlMs });
+      const snapshot1Promise = getSnapshot({ keepAliveMs });
       const connection1 = await mockServer.acceptConnection();
       await connection1.push({
         type: "init",
@@ -170,10 +170,10 @@ describe("getReplaneSnapshot", () => {
       await sync();
 
       // Wait for TTL to expire
-      await delay(cacheTtlMs + 50);
+      await delay(keepAliveMs + 50);
 
       // Second call - should create new client since cache expired
-      const snapshot2Promise = getSnapshot({ cacheTtlMs });
+      const snapshot2Promise = getSnapshot({ keepAliveMs });
       const connection2 = await mockServer.acceptConnection();
       await connection2.push({
         type: "init",
@@ -184,7 +184,6 @@ describe("getReplaneSnapshot", () => {
 
       expect(snapshot2.configs[0].value).toBe("value2");
     });
-
   });
 
   describe("clearSnapshotCache", () => {

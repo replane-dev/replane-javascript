@@ -63,7 +63,7 @@ export function ThemeToggle() {
 
 ### Pages Router
 
-**1. Set up ReplaneProvider in _app.tsx:**
+**1. Set up ReplaneProvider in \_app.tsx:**
 
 ```tsx
 // pages/_app.tsx
@@ -258,28 +258,9 @@ Fetches a snapshot of all configs. Use in `getServerSideProps`, `getStaticProps`
 const snapshot = await getReplaneSnapshot<AppConfigs>({
   baseUrl: process.env.REPLANE_BASE_URL!,
   sdkKey: process.env.REPLANE_SDK_KEY!,
-  cacheTtlMs: 60_000, // optional, default 60 seconds
+  // by default, getReplaneSnapshot will reuse the created client for 60 seconds for fast subsequent calls, the client will be syncing with the server in the background during this time
+  keepAliveMs: 60_000,
 });
-```
-
-#### `clearSnapshotCache(): Promise<void>`
-
-Clears the internal client cache. Useful for testing.
-
-```tsx
-await clearSnapshotCache();
-```
-
-## Environment Variables
-
-```env
-# Server-side only (for SSR/SSG)
-REPLANE_BASE_URL=https://api.replane.io
-REPLANE_SDK_KEY=your-sdk-key
-
-# Client-side (for live updates)
-NEXT_PUBLIC_REPLANE_BASE_URL=https://api.replane.io
-NEXT_PUBLIC_REPLANE_SDK_KEY=your-sdk-key
 ```
 
 ## Examples

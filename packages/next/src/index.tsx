@@ -86,7 +86,6 @@ export {
   createReplaneHook,
   createConfigHook,
   clearSuspenseCache,
-  clearSnapshotCache,
 } from "@replanejs/react";
 
 export type {
