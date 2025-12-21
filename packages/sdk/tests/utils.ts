@@ -51,7 +51,18 @@ export function createReplaneServerMock(handler: ReplaneServerMockHandler) {
 
     const sseStream = new ReadableStream<SseEvent>({
       async start(controller) {
-        signal?.addEventListener("abort", () => controller.close(), { once: true });
+        let closed = false;
+        const safeClose = () => {
+          if (!closed) {
+            closed = true;
+            try {
+              controller.close();
+            } catch {
+              // Controller may already be closed by the pipeline
+            }
+          }
+        };
+        signal?.addEventListener("abort", safeClose, { once: true });
 
         try {
           controller.enqueue({ type: "connected" });
@@ -66,11 +77,9 @@ export function createReplaneServerMock(handler: ReplaneServerMockHandler) {
             }
           }
 
-          if (!signal?.aborted) {
-            controller.close();
-          }
+          safeClose();
         } catch (error) {
-          if (!signal?.aborted) {
+          if (!closed) {
             controller.error(error);
           }
         }

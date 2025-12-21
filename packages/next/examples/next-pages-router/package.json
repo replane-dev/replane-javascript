@@ -1,0 +1,23 @@
+{
+  "name": "next-pages-router-example",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@replanejs/next": "^0.7.5",
+    "next": "^15.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.3",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.3.7",
+    "typescript": "^5.4.0"
+  }
+}

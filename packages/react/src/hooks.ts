@@ -1,4 +1,4 @@
-import { useContext, useSyncExternalStore } from "react";
+import { useContext, useEffect, useRef, useSyncExternalStore } from "react";
 import { ReplaneContext } from "./context";
 import type { UntypedReplaneConfig } from "./types";
 import type { ReplaneClient, GetConfigOptions } from "@replanejs/sdk";
@@ -74,4 +74,41 @@ export function createConfigHook<TConfigs extends object>() {
   ): TConfigs[K] {
     return useConfig<TConfigs[K]>(String(name), options);
   };
+}
+
+/**
+ * Hook for creating stateful resources with cleanup support.
+ * Unlike useMemo, this guarantees cleanup when dependencies change or on unmount.
+ *
+ * @param factory - Function that creates the resource
+ * @param cleanup - Function that cleans up the resource
+ * @param deps - Dependencies array (resource is recreated when these change)
+ */
+export function useStateful<T>(factory: () => T, cleanup: (value: T) => void, deps: React.DependencyList): T {
+  const valueRef = useRef<T | null>(null);
+  const initializedRef = useRef(false);
+
+  // Create initial value synchronously on first render
+  if (!initializedRef.current) {
+    valueRef.current = factory();
+    initializedRef.current = true;
+  }
+
+  useEffect(() => {
+    // On mount or deps change, we may need to recreate
+    // If this is not the initial mount, recreate the value
+    if (valueRef.current === null) {
+      valueRef.current = factory();
+    }
+
+    return () => {
+      if (valueRef.current !== null) {
+        cleanup(valueRef.current);
+        valueRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+
+  return valueRef.current as T;
 }

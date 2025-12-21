@@ -1,5 +1,7 @@
 packages:
   - packages/*
+  # Examples are reference implementations (run them individually with proper .env.local)
+  # - examples/*
 
 onlyBuiltDependencies:
   - esbuild

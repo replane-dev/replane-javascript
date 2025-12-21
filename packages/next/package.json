@@ -1,0 +1,76 @@
+{
+  "name": "@replanejs/next",
+  "version": "0.7.4",
+  "description": "Next.js SDK for Replane - feature flags and remote configuration with SSR support",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'No tests yet'",
+    "test:watch": "echo 'No tests yet'",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "replane",
+    "next",
+    "nextjs",
+    "feature-flags",
+    "remote-config",
+    "configuration",
+    "sdk",
+    "ssr",
+    "app-router",
+    "pages-router"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/replane-dev/replane-javascript",
+    "directory": "packages/next"
+  },
+  "bugs": {
+    "url": "https://github.com/replane-dev/replane-javascript/issues"
+  },
+  "homepage": "https://github.com/replane-dev/replane-javascript#readme",
+  "peerDependencies": {
+    "next": ">=13.0.0",
+    "react": ">=18.0.0"
+  },
+  "dependencies": {
+    "@replanejs/react": "workspace:^",
+    "@replanejs/sdk": "workspace:^"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.3",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.3.7",
+    "next": "^15.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.3.1",
+    "tsdown": "^0.11.9",
+    "typescript": "^5.4.0",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

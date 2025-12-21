@@ -20,3 +20,7 @@ export type {
   ReplaneClientOptions,
   RestoreReplaneClientOptions,
 } from "./client-types";
+
+// Snapshot utilities
+export { getReplaneSnapshot, clearSnapshotCache } from "./snapshot";
+export type { GetReplaneSnapshotOptions } from "./snapshot";

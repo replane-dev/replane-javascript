@@ -4,11 +4,12 @@ Official JavaScript/TypeScript SDKs for [Replane](https://github.com/replane-dev
 
 ## Packages
 
-| Package | Description | npm |
-|---------|-------------|-----|
-| [`@replanejs/sdk`](./packages/sdk) | Core SDK for Node.js, Deno, Bun, and browsers | [![npm](https://img.shields.io/npm/v/@replanejs/sdk)](https://www.npmjs.com/package/@replanejs/sdk) |
-| [`@replanejs/react`](./packages/react) | React bindings with hooks and context | [![npm](https://img.shields.io/npm/v/@replanejs/react)](https://www.npmjs.com/package/@replanejs/react) |
-| [`@replanejs/svelte`](./packages/svelte) | Svelte bindings with stores | [![npm](https://img.shields.io/npm/v/@replanejs/svelte)](https://www.npmjs.com/package/@replanejs/svelte) |
+| Package                                  | Description                                   | npm                                                                                                       |
+| ---------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| [`@replanejs/sdk`](./packages/sdk)       | Core SDK for Node.js, Deno, Bun, and browsers | [![npm](https://img.shields.io/npm/v/@replanejs/sdk)](https://www.npmjs.com/package/@replanejs/sdk)       |
+| [`@replanejs/react`](./packages/react)   | React bindings with hooks and context         | [![npm](https://img.shields.io/npm/v/@replanejs/react)](https://www.npmjs.com/package/@replanejs/react)   |
+| [`@replanejs/next`](./packages/next)     | Next.js SDK with SSR/SSG support              | [![npm](https://img.shields.io/npm/v/@replanejs/next)](https://www.npmjs.com/package/@replanejs/next)     |
+| [`@replanejs/svelte`](./packages/svelte) | Svelte bindings with stores                   | [![npm](https://img.shields.io/npm/v/@replanejs/svelte)](https://www.npmjs.com/package/@replanejs/svelte) |
 
 ## Quick Start
 
@@ -40,7 +41,12 @@ import { ReplaneProvider, useConfig } from "@replanejs/react";
 
 function App() {
   return (
-    <ReplaneProvider client={replaneClient}>
+    <ReplaneProvider
+      options={{
+        baseUrl: "https://replane.example.com",
+        sdkKey: process.env.REPLANE_SDK_KEY!,
+      }}
+    >
       <MyComponent />
     </ReplaneProvider>
   );
@@ -49,6 +55,45 @@ function App() {
 function MyComponent() {
   const featureEnabled = useConfig("my-feature");
   return featureEnabled ? <NewFeature /> : <OldFeature />;
+}
+```
+
+### Next.js
+
+```bash
+npm install @replanejs/next
+```
+
+**App Router:**
+
+```tsx
+// app/layout.tsx
+import { ReplaneRoot } from "@replanejs/next";
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html>
+      <body>
+        <ReplaneRoot
+          options={{
+            baseUrl: process.env.NEXT_PUBLIC_REPLANE_BASE_URL!,
+            sdkKey: process.env.NEXT_PUBLIC_REPLANE_SDK_KEY!,
+          }}
+        >
+          {children}
+        </ReplaneRoot>
+      </body>
+    </html>
+  );
+}
+
+// app/page.tsx (client component)
+("use client");
+import { useConfig } from "@replanejs/next";
+
+export default function Page() {
+  const theme = useConfig<{ darkMode: boolean }>("theme");
+  return <div>{theme.darkMode ? "Dark" : "Light"}</div>;
 }
 ```
 
@@ -61,7 +106,7 @@ npm install @replanejs/svelte
 ```svelte
 <script>
   import { ReplaneProvider, useConfig } from "@replanejs/svelte";
-  
+
   const featureEnabled = useConfig("my-feature");
 </script>
 
@@ -78,18 +123,19 @@ npm install @replanejs/svelte
 
 - **Realtime updates** — Configs update instantly via Server-Sent Events (SSE)
 - **Context-based overrides** — Feature flags, A/B testing, gradual rollouts
-- **Type-safe** — Full TypeScript support with inference
-- **Framework integrations** — React, Svelte, and more
+- **Type-safe** — Full TypeScript support with generics and inference
+- **Framework integrations** — React, Next.js, Svelte, and more
 - **Tiny footprint** — Zero runtime dependencies in core SDK
-- **SSR support** — Server-side rendering with hydration
+- **SSR/SSG support** — Server-side rendering with hydration
 
 ## Examples
 
-See the [`examples/`](./examples) directory for complete working examples:
+See the package directories for complete working examples:
 
-- [`examples/sdk`](./examples/sdk) — Core SDK usage
-- [`examples/react`](./examples/react) — React integration
-- [`examples/svelte`](./examples/svelte) — SvelteKit
+- [`packages/sdk/examples`](./packages/sdk/examples) — Core SDK usage
+- [`packages/react/examples`](./packages/react/examples) — React integration
+- [`packages/next/examples`](./packages/next/examples) — Next.js (App Router & Pages Router)
+- [`packages/svelte/examples`](./packages/svelte/examples) — SvelteKit
 
 ## Development
 

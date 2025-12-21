@@ -70,6 +70,47 @@ jobs:
       - name: Build
         run: pnpm run build
 
+      - name: Generate bundle size report
+        id: bundle-size
+        run: |
+          # Helper function to format bytes
+          format_bytes() {
+            local bytes=$1
+            if [ $bytes -ge 1024 ]; then
+              printf "%.2f KB" $(echo "scale=2; $bytes/1024" | bc)
+            else
+              printf "%d B" $bytes
+            fi
+          }
+
+          # SDK (ESM)
+          sdk_esm=$(stat -c%s packages/sdk/dist/index.js)
+          sdk_esm_gz=$(gzip -c packages/sdk/dist/index.js | wc -c | tr -d ' ')
+
+          # React (ESM + CJS)
+          react_esm=$(stat -c%s packages/react/dist/index.js)
+          react_cjs=$(stat -c%s packages/react/dist/index.cjs)
+          react_esm_gz=$(gzip -c packages/react/dist/index.js | wc -c | tr -d ' ')
+          react_cjs_gz=$(gzip -c packages/react/dist/index.cjs | wc -c | tr -d ' ')
+
+          # Svelte (all JS files combined)
+          svelte_esm=$(cat packages/svelte/dist/*.js | wc -c | tr -d ' ')
+          svelte_esm_gz=$(cat packages/svelte/dist/*.js | gzip -c | wc -c | tr -d ' ')
+
+          # Generate markdown report
+          {
+            echo "## Bundle Sizes"
+            echo ""
+            echo "| Package | Format | Size | Gzipped |"
+            echo "|---------|--------|------|----------|"
+            echo "| @replanejs/sdk | ESM | $(format_bytes $sdk_esm) | $(format_bytes $sdk_esm_gz) |"
+            echo "| @replanejs/react | ESM | $(format_bytes $react_esm) | $(format_bytes $react_esm_gz) |"
+            echo "| @replanejs/react | CJS | $(format_bytes $react_cjs) | $(format_bytes $react_cjs_gz) |"
+            echo "| @replanejs/svelte | ESM | $(format_bytes $svelte_esm) | $(format_bytes $svelte_esm_gz) |"
+          } > bundle-size-report.md
+
+          cat bundle-size-report.md
+
       - name: Extract version from tag
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
@@ -94,5 +135,21 @@ jobs:
 
       - name: Create GitHub Release
         run: npx changelogithub
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Append bundle size to release
+        run: |
+          # Get current release body
+          CURRENT_BODY=$(gh release view "${{ github.ref_name }}" --json body -q '.body')
+
+          # Append bundle size report (with blank line separator)
+          BUNDLE_REPORT=$(cat bundle-size-report.md)
+          NEW_BODY="${CURRENT_BODY}
+
+${BUNDLE_REPORT}"
+
+          # Update release with new body
+          gh release edit "${{ github.ref_name }}" --notes "$NEW_BODY"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

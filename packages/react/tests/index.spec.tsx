@@ -2539,12 +2539,17 @@ describe("Edge Cases", () => {
 });
 
 // ============================================================================
-// ReplaneProvider with restoreOptions prop
+// ReplaneProvider with snapshot prop (SSR/hydration)
 // ============================================================================
 
-describe("ReplaneProvider with restoreOptions prop", () => {
+describe("ReplaneProvider with snapshot prop", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockRestoreClient: any;
+
+  const defaultOptions = {
+    baseUrl: "https://replane.example.com",
+    sdkKey: "rp_test_key",
+  };
 
   afterEach(() => {
     mockRestoreClient?.mockRestore();
@@ -2554,24 +2559,26 @@ describe("ReplaneProvider with restoreOptions prop", () => {
     const mockClient = createMockClient({ feature: "restored-value" });
     mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
 
+    const snapshot = {
+      configs: [{ name: "feature", value: "restored-value", overrides: [] }],
+    };
+
     render(
-      <ReplaneProvider
-        restoreOptions={{
-          snapshot: {
-            configs: [{ name: "feature", value: "restored-value", overrides: [] }],
-          },
-        }}
-      >
+      <ReplaneProvider options={defaultOptions} snapshot={snapshot}>
         <div data-testid="child">Hello</div>
       </ReplaneProvider>
     );
 
     expect(screen.getByTestId("child")).toBeInTheDocument();
-    expect(mockRestoreClient).toHaveBeenCalledWith({
-      snapshot: {
-        configs: [{ name: "feature", value: "restored-value", overrides: [] }],
-      },
-    });
+    expect(mockRestoreClient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        snapshot,
+        connection: expect.objectContaining({
+          baseUrl: defaultOptions.baseUrl,
+          sdkKey: defaultOptions.sdkKey,
+        }),
+      })
+    );
   });
 
   it("provides restored client to children via context", () => {
@@ -2589,10 +2596,9 @@ describe("ReplaneProvider with restoreOptions prop", () => {
 
     render(
       <ReplaneProvider
-        restoreOptions={{
-          snapshot: {
-            configs: [{ name: "feature", value: "test-value", overrides: [] }],
-          },
+        options={defaultOptions}
+        snapshot={{
+          configs: [{ name: "feature", value: "test-value", overrides: [] }],
         }}
       >
         <TestComponent />
@@ -2619,13 +2625,12 @@ describe("ReplaneProvider with restoreOptions prop", () => {
 
     render(
       <ReplaneProvider
-        restoreOptions={{
-          snapshot: {
-            configs: [
-              { name: "theme", value: "dark", overrides: [] },
-              { name: "count", value: 42, overrides: [] },
-            ],
-          },
+        options={defaultOptions}
+        snapshot={{
+          configs: [
+            { name: "theme", value: "dark", overrides: [] },
+            { name: "count", value: 42, overrides: [] },
+          ],
         }}
       >
         <TestComponent />
@@ -2636,71 +2641,84 @@ describe("ReplaneProvider with restoreOptions prop", () => {
     expect(screen.getByTestId("count")).toHaveTextContent("42");
   });
 
-  it("passes connection options to restoreReplaneClient", () => {
+  it("passes connection options from options prop to restoreReplaneClient", () => {
     const mockClient = createMockClient({ feature: "value" });
     mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
 
-    const restoreOptions = {
-      snapshot: {
-        configs: [{ name: "feature", value: "value", overrides: [] }],
-      },
-      connection: {
-        baseUrl: "https://replane.example.com",
-        sdkKey: "rp_live_key",
-      },
+    const options = {
+      baseUrl: "https://replane.example.com",
+      sdkKey: "rp_live_key",
+    };
+
+    const snapshot = {
+      configs: [{ name: "feature", value: "value", overrides: [] }],
     };
 
     render(
-      <ReplaneProvider restoreOptions={restoreOptions}>
+      <ReplaneProvider options={options} snapshot={snapshot}>
         <div data-testid="child">Hello</div>
       </ReplaneProvider>
     );
 
-    expect(mockRestoreClient).toHaveBeenCalledWith(restoreOptions);
+    expect(mockRestoreClient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        snapshot,
+        connection: expect.objectContaining({
+          baseUrl: options.baseUrl,
+          sdkKey: options.sdkKey,
+        }),
+      })
+    );
   });
 
-  it("passes context override to restoreReplaneClient", () => {
+  it("passes context from options to restoreReplaneClient", () => {
     const mockClient = createMockClient({ feature: "premium-value" });
     mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
 
-    const restoreOptions = {
-      snapshot: {
-        configs: [{ name: "feature", value: "premium-value", overrides: [] }],
-        context: { userId: "123" },
-      },
+    const options = {
+      baseUrl: "https://replane.example.com",
+      sdkKey: "rp_test_key",
       context: { plan: "premium" },
     };
 
+    const snapshot = {
+      configs: [{ name: "feature", value: "premium-value", overrides: [] }],
+      context: { userId: "123" },
+    };
+
     render(
-      <ReplaneProvider restoreOptions={restoreOptions}>
+      <ReplaneProvider options={options} snapshot={snapshot}>
         <div data-testid="child">Hello</div>
       </ReplaneProvider>
     );
 
-    expect(mockRestoreClient).toHaveBeenCalledWith(restoreOptions);
+    expect(mockRestoreClient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        snapshot,
+        context: options.context,
+      })
+    );
   });
 
-  it("memoizes client based on restoreOptions reference", () => {
+  it("memoizes client based on snapshot and options reference", () => {
     const mockClient = createMockClient();
     mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
 
-    const restoreOptions = {
-      snapshot: {
-        configs: [{ name: "feature", value: "value", overrides: [] }],
-      },
+    const snapshot = {
+      configs: [{ name: "feature", value: "value", overrides: [] }],
     };
 
     const { rerender } = render(
-      <ReplaneProvider restoreOptions={restoreOptions}>
+      <ReplaneProvider options={defaultOptions} snapshot={snapshot}>
         <div>Content</div>
       </ReplaneProvider>
     );
 
     expect(mockRestoreClient).toHaveBeenCalledTimes(1);
 
-    // Re-render with same options object - should not call restore again
+    // Re-render with same options and snapshot objects - should not call restore again
     rerender(
-      <ReplaneProvider restoreOptions={restoreOptions}>
+      <ReplaneProvider options={defaultOptions} snapshot={snapshot}>
         <div>Content</div>
       </ReplaneProvider>
     );
@@ -2708,7 +2726,7 @@ describe("ReplaneProvider with restoreOptions prop", () => {
     expect(mockRestoreClient).toHaveBeenCalledTimes(1);
   });
 
-  it("creates new client when restoreOptions reference changes", () => {
+  it("creates new client when snapshot reference changes", () => {
     const mockClient1 = createMockClient({ feature: "value1" });
     const mockClient2 = createMockClient({ feature: "value2" });
     mockRestoreClient = vi
@@ -2718,9 +2736,8 @@ describe("ReplaneProvider with restoreOptions prop", () => {
 
     const { rerender } = render(
       <ReplaneProvider
-        restoreOptions={{
-          snapshot: { configs: [{ name: "feature", value: "value1", overrides: [] }] },
-        }}
+        options={defaultOptions}
+        snapshot={{ configs: [{ name: "feature", value: "value1", overrides: [] }] }}
       >
         <div>Content</div>
       </ReplaneProvider>
@@ -2728,12 +2745,11 @@ describe("ReplaneProvider with restoreOptions prop", () => {
 
     expect(mockRestoreClient).toHaveBeenCalledTimes(1);
 
-    // Re-render with new options object - should call restore again
+    // Re-render with new snapshot object - should call restore again
     rerender(
       <ReplaneProvider
-        restoreOptions={{
-          snapshot: { configs: [{ name: "feature", value: "value2", overrides: [] }] },
-        }}
+        options={defaultOptions}
+        snapshot={{ configs: [{ name: "feature", value: "value2", overrides: [] }] }}
       >
         <div>Content</div>
       </ReplaneProvider>
@@ -2764,13 +2780,12 @@ describe("ReplaneProvider with restoreOptions prop", () => {
 
     render(
       <ReplaneProvider
-        restoreOptions={{
-          snapshot: {
-            configs: [
-              { name: "theme", value: { darkMode: true }, overrides: [] },
-              { name: "maxItems", value: 100, overrides: [] },
-            ],
-          },
+        options={defaultOptions}
+        snapshot={{
+          configs: [
+            { name: "theme", value: { darkMode: true }, overrides: [] },
+            { name: "maxItems", value: 100, overrides: [] },
+          ],
         }}
       >
         <TestComponent />
@@ -2805,10 +2820,9 @@ describe("ReplaneProvider with restoreOptions prop", () => {
 
     render(
       <ReplaneProvider
-        restoreOptions={{
-          snapshot: {
-            configs: [{ name: "feature-flags", value: { beta: true, newUI: false }, overrides: [] }],
-          },
+        options={defaultOptions}
+        snapshot={{
+          configs: [{ name: "feature-flags", value: { beta: true, newUI: false }, overrides: [] }],
         }}
       >
         <TestComponent />
@@ -2823,13 +2837,12 @@ describe("ReplaneProvider with restoreOptions prop", () => {
     const mockClient = createMockClient({ feature: "value" });
     mockRestoreClient = vi.spyOn(sdk, "restoreReplaneClient").mockReturnValue(mockClient);
 
-    // Note: restoreOptions doesn't accept loader since it's synchronous
+    // Note: snapshot restoration is synchronous, loader is ignored
     render(
       <ReplaneProvider
-        restoreOptions={{
-          snapshot: {
-            configs: [{ name: "feature", value: "value", overrides: [] }],
-          },
+        options={defaultOptions}
+        snapshot={{
+          configs: [{ name: "feature", value: "value", overrides: [] }],
         }}
       >
         <div data-testid="content">Content</div>

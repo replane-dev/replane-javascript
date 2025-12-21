@@ -1,11 +1,9 @@
 import { defineConfig } from "tsdown";
 
-export default defineConfig([
-  {
-    entry: ["./src/index.ts"],
-    format: ["esm", "cjs"],
-    platform: "neutral",
-    dts: true,
-    external: ["react", "@replanejs/sdk"],
-  },
-]);
+export default defineConfig({
+  entry: ["./src/index.ts"],
+  format: ["esm", "cjs"],
+  platform: "neutral",
+  dts: true,
+  external: ["react", "@replanejs/sdk"],
+});
