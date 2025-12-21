@@ -11,7 +11,7 @@ export function useReplane<T extends object = UntypedReplaneConfig>(): ReplaneCl
   return context.client as ReplaneClient<T>;
 }
 
-export function useConfig<T>(name: string, options?: GetConfigOptions): T {
+export function useConfig<T>(name: string, options?: GetConfigOptions<T>): T {
   const client = useReplane();
 
   const subscribe = useCallback(
@@ -75,7 +75,7 @@ export function createReplaneHook<TConfigs extends object>() {
 export function createConfigHook<TConfigs extends object>() {
   return function useTypedConfig<K extends keyof TConfigs>(
     name: K,
-    options?: GetConfigOptions
+    options?: GetConfigOptions<TConfigs[K]>
   ): TConfigs[K] {
     return useConfig<TConfigs[K]>(String(name), options);
   };

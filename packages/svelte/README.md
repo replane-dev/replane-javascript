@@ -19,13 +19,13 @@ npm install @replanejs/svelte
   import { ReplaneContext, config } from '@replanejs/svelte';
   import { createReplaneClient } from '@replanejs/svelte';
 
-  const client = await createReplaneClient({
+  const replane = await createReplaneClient({
     baseUrl: 'https://your-replane-server.com',
     sdkKey: 'your-sdk-key',
   });
 </script>
 
-<ReplaneContext {client}>
+<ReplaneContext client={replane}>
   <MyComponent />
 </ReplaneContext>
 ```
@@ -77,10 +77,10 @@ Get direct access to the Replane client from context.
 <script>
   import { getReplane } from '@replanejs/svelte';
 
-  const { client } = getReplane();
+  const replane = getReplane();
 
   function handleClick() {
-    const value = client.get('some-config');
+    const value = replane.get('some-config');
     console.log(value);
   }
 </script>
@@ -90,14 +90,15 @@ Get direct access to the Replane client from context.
 
 ### configFrom
 
-Create a reactive store from a client directly (without context).
+Create a reactive store from a client directly (without context). Type-safe with full autocomplete for config names.
 
 ```svelte
 <script>
   import { configFrom } from '@replanejs/svelte';
-  import { client } from './replane-client';
+  import { replane } from './replane-client';
 
-  const featureEnabled = configFrom<boolean>(client, 'featureEnabled');
+  // Config name is validated against TConfigs, return type is inferred
+  const featureEnabled = configFrom(replane, 'featureEnabled');
 </script>
 
 {#if $featureEnabled}
@@ -117,13 +118,13 @@ Can be used in three ways:
 <script>
   import { ReplaneContext, createReplaneClient } from '@replanejs/svelte';
 
-  const client = await createReplaneClient({
+  const replane = await createReplaneClient({
     baseUrl: 'https://your-replane-server.com',
     sdkKey: 'your-sdk-key',
   });
 </script>
 
-<ReplaneContext {client}>
+<ReplaneContext client={replane}>
   <App />
 </ReplaneContext>
 ```
@@ -193,11 +194,15 @@ export const getAppReplane = createTypedReplane<AppConfigs>();
 
 ```svelte
 <script lang="ts">
-  import { appConfig } from '$lib/replane';
+  import { appConfig, getAppReplane } from '$lib/replane';
 
   // Config names autocomplete, values are fully typed
   const theme = appConfig("theme");
   // $theme is { darkMode: boolean; primaryColor: string }
+
+  // Direct client access
+  const replane = getAppReplane();
+  const features = replane.get("features"); // fully typed
 </script>
 
 <div style:color={$theme.primaryColor}>

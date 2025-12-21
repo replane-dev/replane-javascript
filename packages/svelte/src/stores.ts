@@ -1,14 +1,13 @@
 import { readable, type Readable } from "svelte/store";
-import type { ReplaneClient } from "@replanejs/sdk";
+import type { GetConfigOptions, ReplaneClient } from "@replanejs/sdk";
 import { getReplaneContext } from "./context";
-import type { ReplaneContextValue, ConfigOptions } from "./types";
 
 /**
- * Get the Replane context containing the client.
+ * Get the Replane client from context.
  *
  * Must be called during component initialization (in the script section, not in event handlers).
  *
- * @returns The Replane context with the client
+ * @returns The Replane client
  * @throws Error if called outside a ReplaneProvider
  *
  * @example
@@ -16,14 +15,14 @@ import type { ReplaneContextValue, ConfigOptions } from "./types";
  * <script>
  *   import { getReplane } from '@replanejs/svelte';
  *
- *   const { client } = getReplane();
- *   // Access client directly: client.get('configName')
+ *   const replane = getReplane();
+ *   // Access client directly: replane.get('configName')
  * </script>
  * ```
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function getReplane<T extends Record<string, unknown> = any>(): ReplaneContextValue<T> {
-  return getReplaneContext<T>();
+export function getReplane<T extends Record<string, unknown> = any>(): ReplaneClient<T> {
+  return getReplaneContext<T>().client;
 }
 
 /**
@@ -52,7 +51,7 @@ export function getReplane<T extends Record<string, unknown> = any>(): ReplaneCo
  * {/if}
  * ```
  */
-export function config<T>(name: string, options?: ConfigOptions): Readable<T> {
+export function config<T>(name: string, options?: GetConfigOptions<T>): Readable<T> {
   const { client } = getReplaneContext();
 
   return readable<T>(client.get(name, options) as T, (set) => {
@@ -72,7 +71,7 @@ export function config<T>(name: string, options?: ConfigOptions): Readable<T> {
  * This is useful when you have direct access to a client and don't want to
  * use the context-based approach. Similar to readable() or derived().
  *
- * @param client - The Replane client to use
+ * @param replane - The Replane client to use
  * @param name - The name of the config to subscribe to
  * @param options - Optional context for override evaluation
  * @returns A Svelte readable store containing the config value
@@ -81,9 +80,9 @@ export function config<T>(name: string, options?: ConfigOptions): Readable<T> {
  * ```svelte
  * <script>
  *   import { configFrom } from '@replanejs/svelte';
- *   import { client } from './replane-client';
+ *   import { replane } from './replane-client';
  *
- *   const featureEnabled = configFrom<boolean>(client, 'featureEnabled');
+ *   const featureEnabled = configFrom(replane, 'featureEnabled');
  * </script>
  *
  * {#if $featureEnabled}
@@ -91,15 +90,14 @@ export function config<T>(name: string, options?: ConfigOptions): Readable<T> {
  * {/if}
  * ```
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function configFrom<T, C extends Record<string, unknown> = any>(
-  client: ReplaneClient<C>,
-  name: string,
-  options?: ConfigOptions
-): Readable<T> {
-  return readable<T>(client.get(name as keyof C, options) as T, (set) => {
-    const unsubscribe = client.subscribe(name as keyof C, () => {
-      set(client.get(name as keyof C, options) as T);
+export function configFrom<TConfigs extends Record<string, unknown>, K extends keyof TConfigs>(
+  replane: ReplaneClient<TConfigs>,
+  name: K,
+  options?: GetConfigOptions<TConfigs[K]>
+): Readable<TConfigs[K]> {
+  return readable<TConfigs[K]>(replane.get(name, options), (set) => {
+    const unsubscribe = replane.subscribe(name, () => {
+      set(replane.get(name, options));
     });
     return unsubscribe;
   });
@@ -129,13 +127,13 @@ export function configFrom<T, C extends Record<string, unknown> = any>(
  * <script>
  *   import { getAppReplane } from '$lib/replane';
  *
- *   const { client } = getAppReplane();
- *   const theme = client.get("theme"); // fully typed
+ *   const replane = getAppReplane();
+ *   const theme = replane.get("theme"); // fully typed
  * </script>
  * ```
  */
 export function createTypedReplane<TConfigs extends Record<string, unknown>>() {
-  return function (): ReplaneContextValue<TConfigs> {
+  return function (): ReplaneClient<TConfigs> {
     return getReplane<TConfigs>();
   };
 }
@@ -177,7 +175,7 @@ export function createTypedReplane<TConfigs extends Record<string, unknown>>() {
 export function createTypedConfig<TConfigs extends Record<string, unknown>>() {
   return function <K extends keyof TConfigs>(
     name: K,
-    options?: ConfigOptions
+    options?: GetConfigOptions<TConfigs[K]>
   ): Readable<TConfigs[K]> {
     return config<TConfigs[K]>(String(name), options);
   };

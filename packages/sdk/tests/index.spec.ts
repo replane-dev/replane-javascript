@@ -103,6 +103,40 @@ describe("createReplaneClient", () => {
       expect(() => client.get("nonexistent")).toThrow("Config not found: nonexistent");
     });
 
+    it("should return default value when config not found and default is provided", async () => {
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "value1" }],
+      });
+
+      const client = await clientPromise;
+      await sync();
+
+      expect(client.get("nonexistent", { default: "fallback" })).toBe("fallback");
+      expect(client.get("nonexistent", { default: 42 })).toBe(42);
+      expect(client.get("nonexistent", { default: null })).toBe(null);
+      expect(client.get("nonexistent", { default: false })).toBe(false);
+      expect(client.get("nonexistent", { default: { nested: "value" } })).toEqual({
+        nested: "value",
+      });
+    });
+
+    it("should return actual value when config exists even if default is provided", async () => {
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "actual" }],
+      });
+
+      const client = await clientPromise;
+      await sync();
+
+      expect(client.get("config1", { default: "fallback" })).toBe("actual");
+    });
+
     it("should handle config values of different types", async () => {
       clientPromise = createClient();
       const connection = await mockServer.acceptConnection();
@@ -1900,6 +1934,28 @@ describe("createInMemoryReplaneClient", () => {
     expect(() => client.get("nonexistent" as never)).toThrow("Config not found: nonexistent");
   });
 
+  it("should return default value when config not found and default is provided", () => {
+    const client = createInMemoryReplaneClient({
+      config1: "value1",
+    });
+
+    expect(client.get("nonexistent" as never, { default: "fallback" as never })).toBe("fallback");
+    expect(client.get("nonexistent" as never, { default: 42 as never })).toBe(42);
+    expect(client.get("nonexistent" as never, { default: null as never })).toBe(null);
+    expect(client.get("nonexistent" as never, { default: false as never })).toBe(false);
+    expect(client.get("nonexistent" as never, { default: { nested: "value" } as never })).toEqual({
+      nested: "value",
+    });
+  });
+
+  it("should return actual value when config exists even if default is provided", () => {
+    const client = createInMemoryReplaneClient({
+      config1: "actual",
+    });
+
+    expect(client.get("config1", { default: "fallback" })).toBe("actual");
+  });
+
   it("should handle complex values", () => {
     const client = createInMemoryReplaneClient({
       array: [1, 2, 3],
@@ -2005,6 +2061,32 @@ describe("restoreReplaneClient", () => {
 
       expect(() => client.get("nonexistent")).toThrow(ReplaneError);
       expect(() => client.get("nonexistent")).toThrow("Config not found: nonexistent");
+    });
+
+    it("should return default value when config not found and default is provided", () => {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
+        configs: [{ name: "config1", value: "value1", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+
+      expect(client.get("nonexistent", { default: "fallback" })).toBe("fallback");
+      expect(client.get("nonexistent", { default: 42 })).toBe(42);
+      expect(client.get("nonexistent", { default: null })).toBe(null);
+      expect(client.get("nonexistent", { default: false })).toBe(false);
+      expect(client.get("nonexistent", { default: { nested: "value" } })).toEqual({
+        nested: "value",
+      });
+    });
+
+    it("should return actual value when config exists even if default is provided", () => {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
+        configs: [{ name: "config1", value: "actual", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({ snapshot });
+
+      expect(client.get("config1", { default: "fallback" })).toBe("actual");
     });
 
     it("should have a no-op close method", () => {
@@ -2230,7 +2312,9 @@ describe("restoreReplaneClient", () => {
             overrides: [
               {
                 name: "non-na-override",
-                conditions: [{ operator: "not_in", property: "country", value: ["US", "CA", "MX"] }],
+                conditions: [
+                  { operator: "not_in", property: "country", value: ["US", "CA", "MX"] },
+                ],
                 value: "non-na-value",
               },
             ],

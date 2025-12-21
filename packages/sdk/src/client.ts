@@ -99,10 +99,13 @@ function createClientCore<T extends object = Record<string, unknown>>(
     }
   }
 
-  function get<K extends keyof T>(configName: K, getConfigOptions: GetConfigOptions = {}): T[K] {
+  function get<K extends keyof T>(configName: K, getConfigOptions: GetConfigOptions<T[K]> = {}): T[K] {
     const config = configs.get(String(configName));
 
     if (config === undefined) {
+      if ("default" in getConfigOptions) {
+        return getConfigOptions.default as T[K];
+      }
       throw new ReplaneError({
         message: `Config not found: ${String(configName)}`,
         code: ReplaneErrorCode.NotFound,
@@ -221,9 +224,12 @@ export function createInMemoryReplaneClient<T extends object = Record<string, un
   initialData: T
 ): ReplaneClient<T> {
   return {
-    get: (configName) => {
+    get: (configName, options) => {
       const config = initialData[configName];
       if (config === undefined) {
+        if (options && "default" in options) {
+          return options.default as T[typeof configName];
+        }
         throw new ReplaneError({
           message: `Config not found: ${String(configName)}`,
           code: ReplaneErrorCode.NotFound,

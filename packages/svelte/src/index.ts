@@ -33,7 +33,6 @@ export type {
   ReplaneContextProps,
   ReplaneContextWithClientProps,
   ReplaneContextWithOptionsProps,
-  ConfigOptions,
 } from "./types";
 
 // Type guards

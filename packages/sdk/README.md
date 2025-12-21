@@ -118,13 +118,15 @@ Parameters:
 - `name` (K extends keyof T) – config name to fetch. TypeScript will enforce that this is a valid config name from your `Configs` interface.
 - `options` (object) – optional configuration:
   - `context` (object) – context merged with client-level context for override evaluation.
+  - `default` (T[K]) – default value to return if the config is not found. When provided, the method will not throw.
 
 Returns the config value of type `T[K]` (synchronous). The return type is automatically inferred from your `Configs` interface.
 
 Notes:
 
 - The Replane client receives realtime updates via SSE in the background.
-- If the config is not found, throws a `ReplaneError` with code `not_found`.
+- If the config is not found and no default is provided, throws a `ReplaneError` with code `not_found`.
+- If the config is not found and a default is provided, returns the default value without throwing.
 - Context-based overrides are evaluated automatically based on context.
 
 Example:
@@ -147,6 +149,9 @@ const enabled = replane.get("billing-enabled");
 const userEnabled = replane.get("billing-enabled", {
   context: { userId: "user-123", plan: "premium" },
 });
+
+// Get value with default - won't throw if config doesn't exist
+const maxConnections = replane.get("max-connections", { default: 10 });
 
 // Clean up when done
 replane.close();

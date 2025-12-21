@@ -66,13 +66,3 @@ export function hasOptions<T extends Record<string, unknown>>(
 ): props is ReplaneContextWithOptionsProps<T> {
   return "options" in props && props.options !== undefined;
 }
-
-/**
- * Options for config()
- */
-export interface ConfigOptions {
-  /**
-   * Context for override evaluation (merged with client-level context).
-   */
-  context?: Record<string, string | number | boolean | null>;
-}

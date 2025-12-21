@@ -303,7 +303,7 @@ describe("getReplane", () => {
     );
   });
 
-  it("returns context object with client property", () => {
+  it("returns the Replane client directly", () => {
     const client = createMockClient();
 
     render(TestUseReplane, {

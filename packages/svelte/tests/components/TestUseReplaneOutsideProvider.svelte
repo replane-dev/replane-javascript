@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { getReplaneContext } from "../../src/context";
+  import { getReplane } from "../../src/stores";
 
   // This should throw an error because context is not set
-  const context = getReplaneContext();
+  const replane = getReplane();
 </script>
 
-<div data-testid="should-not-render">{context.client ? "true" : "false"}</div>
+<div data-testid="should-not-render">{replane ? "true" : "false"}</div>

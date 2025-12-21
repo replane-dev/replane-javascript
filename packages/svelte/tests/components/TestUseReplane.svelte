@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ReplaneClient } from "@replanejs/sdk";
-  import { setReplaneContext, getReplaneContext } from "../../src/context";
+  import { setReplaneContext } from "../../src/context";
+  import { getReplane } from "../../src/stores";
 
   interface Props {
     client: ReplaneClient<any>;
@@ -12,9 +13,9 @@
   // svelte-ignore state_referenced_locally
   setReplaneContext(client);
 
-  // Get context to verify it works
-  const context = getReplaneContext();
-  const hasClient = context?.client ? "true" : "false";
+  // Get replane client to verify it works
+  const replane = getReplane();
+  const hasClient = replane ? "true" : "false";
 </script>
 
 <div data-testid="has-client">{hasClient}</div>

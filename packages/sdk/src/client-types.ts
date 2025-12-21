@@ -19,11 +19,16 @@ export interface ReplaneLogger {
 /**
  * Options for getting a config value
  */
-export interface GetConfigOptions {
+export interface GetConfigOptions<T> {
   /**
    * Context for override evaluation (merged with client-level context).
    */
   context?: ReplaneContext;
+  /**
+   * Default value to return if the config is not found.
+   * When provided, the method will not throw if the config doesn't exist.
+   */
+  default?: T;
 }
 
 /**
@@ -56,7 +61,7 @@ export interface ReplaneSnapshot<_T extends object = object> {
  */
 export interface ReplaneClient<T extends object> {
   /** Get a config by its name. */
-  get<K extends keyof T>(configName: K, options?: GetConfigOptions): T[K];
+  get<K extends keyof T>(configName: K, options?: GetConfigOptions<T[K]>): T[K];
   /** Subscribe to config changes.
    *  @param callback - A function to call when an config is changed. The callback will be called with the new config value.
    *  @returns A function to unsubscribe from the config changes.

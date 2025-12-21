@@ -12,13 +12,13 @@
     experimentalFeatures: boolean;
   }
 
-  const { client } = getReplane();
+  const replane = getReplane();
   const theme = config<ThemeConfig>("theme-config");
   const features = config<FeatureFlags>("feature-flags");
 
   // Get value with premium context override
   const premiumFeatures = $derived(
-    client.get("feature-flags", { context: { plan: "premium" } })
+    replane.get("feature-flags", { context: { plan: "premium" } })
   );
 </script>
 
@@ -43,7 +43,7 @@
   <div class="config-card">
     <h3>With Context Override</h3>
     <p>You can pass context for user-specific evaluation:</p>
-    <pre>{`const premiumFeatures = client.get("feature-flags", {
+    <pre>{`const premiumFeatures = replane.get("feature-flags", {
   context: { userId: "123", plan: "premium" }
 });`}</pre>
     <p>Current value with premium context:</p>
