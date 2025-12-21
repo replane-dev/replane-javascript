@@ -299,7 +299,7 @@ describe("ReplaneContext with options prop - Client Lifecycle", () => {
 describe("getReplane", () => {
   it("throws descriptive error when used outside ReplaneProvider", () => {
     expect(() => render(TestUseReplaneOutsideProvider)).toThrow(
-      "getReplane() must be used within a ReplaneProvider"
+      "getReplane() must be used within a ReplaneContext"
     );
   });
 
