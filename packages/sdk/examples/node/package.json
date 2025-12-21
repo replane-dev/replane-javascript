@@ -10,7 +10,7 @@
     "start:prod": "node dist/index.js"
   },
   "dependencies": {
-    "@replanejs/sdk": "file:../.."
+    "@replanejs/sdk": "^0.8.0"
   },
   "devDependencies": {
     "@types/node": "^22.15.17",

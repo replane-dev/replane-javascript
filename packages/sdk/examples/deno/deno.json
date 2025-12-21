@@ -5,6 +5,6 @@
     "start": "deno run --allow-net --allow-env src/index.ts"
   },
   "imports": {
-    "@replanejs/sdk": "npm:@replanejs/sdk@^0.7.0"
+    "@replanejs/sdk": "npm:@replanejs/sdk@^0.8.0"
   }
 }

@@ -8,6 +8,6 @@
     "start": "bun run src/index.ts"
   },
   "dependencies": {
-    "@replanejs/sdk": "file:../.."
+    "@replanejs/sdk": "^0.8.0"
   }
 }
