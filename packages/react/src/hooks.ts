@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useCallback, useContext, useEffect, useRef, useSyncExternalStore } from "react";
 import { ReplaneContext } from "./context";
 import type { UntypedReplaneConfig } from "./types";
 import type { ReplaneClient, GetConfigOptions } from "@replanejs/sdk";

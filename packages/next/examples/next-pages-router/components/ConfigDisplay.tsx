@@ -1,14 +1,12 @@
-import { useAppConfig, useAppReplane } from "@/replane/hooks";
+import { useAppConfig } from "@/replane/hooks";
 
 export function ConfigDisplay() {
   // Use the typed hook - config names autocomplete and values are fully typed
   const theme = useAppConfig("theme");
   const features = useAppConfig("features");
 
-  // Alternative: use the client directly for more control
-  // const replane = useAppReplane();
-  // const theme = replane.get("theme");
-  // const allConfigs = replane.getSnapshot().configs;
+  // Alternative: use the useConfig hook directly
+  // const theme = useConfig<{ darkMode: boolean; primaryColor: string }>("theme");
 
   return (
     <div
