@@ -7,7 +7,6 @@ on:
       - "v*"
   pull_request:
     branches: [main]
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -146,9 +145,9 @@ jobs:
 
           # Append bundle size report (with blank line separator)
           BUNDLE_REPORT=$(cat bundle-size-report.md)
-          NEW_BODY="${CURRENT_BODY}
 
-${BUNDLE_REPORT}"
+          # Combine with newline separator
+          printf -v NEW_BODY '%s\n\n%s' "$CURRENT_BODY" "$BUNDLE_REPORT"
 
           # Update release with new body
           gh release edit "${{ github.ref_name }}" --notes "$NEW_BODY"
