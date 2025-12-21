@@ -106,6 +106,16 @@ jobs:
               npm_name="@replanejs/${pkg_name}"
             fi
             
+            # Special handling for Svelte (unbundled, multiple JS files)
+            if [ "$pkg_name" = "svelte" ]; then
+              esm_size=$(cat "${dist_dir}"/*.js 2>/dev/null | wc -c | tr -d ' ')
+              esm_gz=$(cat "${dist_dir}"/*.js 2>/dev/null | gzip -c | wc -c | tr -d ' ')
+              if [ "$esm_size" -gt 0 ]; then
+                echo "| ${npm_name} | ESM | $(format_bytes $esm_size) | $(format_bytes $esm_gz) |" >> bundle-size-report.md
+              fi
+              continue
+            fi
+            
             # Check for ESM bundle (index.js)
             if [ -f "${dist_dir}/index.js" ]; then
               esm_size=$(stat -c%s "${dist_dir}/index.js")
