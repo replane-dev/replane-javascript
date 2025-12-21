@@ -19,8 +19,8 @@ export function setReplaneContext<T extends Record<string, unknown>>(
  * Get the Replane context from Svelte context.
  * @internal
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function getReplaneContext<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   T extends Record<string, unknown> = any,
 >(): ReplaneContextValue<T> {
   const context = getContext<ReplaneContextValue<T> | undefined>(REPLANE_CONTEXT_KEY);
