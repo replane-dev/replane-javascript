@@ -1,0 +1,13 @@
+{
+  "name": "replanejs-sdk-bun-example",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Example Bun project using @replanejs/sdk",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "@replanejs/sdk": "file:../.."
+  }
+}

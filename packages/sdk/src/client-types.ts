@@ -1,9 +1,4 @@
-import type { ConfigDto } from "./types";
-
-/**
- * Base constraint for config objects.
- */
-export type Configs = object;
+import type { ConfigDto, RenderedOverride } from "./types";
 
 /**
  * Context object for override evaluation.
@@ -34,7 +29,7 @@ export interface GetConfigOptions {
 /**
  * Helper type for mapping configs to their names and values
  */
-export type MapConfig<T extends Configs> = {
+export type MapConfig<T extends object> = {
   [K in keyof T]: {
     name: K;
     value: T[K];
@@ -45,16 +40,12 @@ export type MapConfig<T extends Configs> = {
  * Serializable snapshot of the client state.
  * Can be used to restore a client on the client-side from server-fetched configs.
  */
-export interface ReplaneSnapshot<_T extends Configs = Configs> {
+export interface ReplaneSnapshot<_T extends object = object> {
   /** Serialized config data */
   configs: Array<{
     name: string;
     value: unknown;
-    overrides: Array<{
-      name: string;
-      conditions: unknown[];
-      value: unknown;
-    }>;
+    overrides: RenderedOverride[];
   }>;
   /** Default context used for override evaluation */
   context?: ReplaneContext;
@@ -63,7 +54,7 @@ export interface ReplaneSnapshot<_T extends Configs = Configs> {
 /**
  * The Replane client interface
  */
-export interface ReplaneClient<T extends Configs> {
+export interface ReplaneClient<T extends object> {
   /** Get a config by its name. */
   get<K extends keyof T>(configName: K, options?: GetConfigOptions): T[K];
   /** Subscribe to config changes.
@@ -92,7 +83,7 @@ export interface ReplaneClient<T extends Configs> {
 /**
  * Options for creating a Replane client
  */
-export interface ReplaneClientOptions<T extends Configs> {
+export interface ReplaneClientOptions<T extends object> {
   /**
    * Base URL of the Replane instance (no trailing slash).
    * @example
@@ -185,7 +176,7 @@ export interface ReplaneClientOptions<T extends Configs> {
 /**
  * Options for restoring a Replane client from a snapshot
  */
-export interface RestoreReplaneClientOptions<T extends Configs> {
+export interface RestoreReplaneClientOptions<T extends object> {
   /**
    * Snapshot from a server-side client's getSnapshot() call.
    */

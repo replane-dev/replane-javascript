@@ -1,6 +1,5 @@
-import type { ConfigDto, RenderedOverride } from "./types";
+import type { ConfigDto } from "./types";
 import type {
-  Configs,
   ReplaneContext,
   ReplaneLogger,
   GetConfigOptions,
@@ -32,7 +31,7 @@ interface ClientCoreOptions {
 /**
  * Result from creating the client core
  */
-interface ClientCoreResult<T extends Configs> {
+interface ClientCoreResult<T extends object> {
   client: ReplaneClient<T>;
   configs: Map<string, ConfigDto>;
   startStreaming: () => Promise<void>;
@@ -42,7 +41,7 @@ interface ClientCoreResult<T extends Configs> {
 /**
  * Creates the core client logic shared between createReplaneClient and restoreReplaneClient
  */
-function createClientCore<T extends Configs = Record<string, unknown>>(
+function createClientCore<T extends object = Record<string, unknown>>(
   options: ClientCoreOptions
 ): ClientCoreResult<T> {
   const { initialConfigs, context, logger, storage, streamOptions, requiredConfigs } = options;
@@ -201,7 +200,7 @@ function createClientCore<T extends Configs = Record<string, unknown>>(
  * const value = client.get('my-config');
  * ```
  */
-export async function createReplaneClient<T extends Configs = Record<string, unknown>>(
+export async function createReplaneClient<T extends object = Record<string, unknown>>(
   sdkOptions: ReplaneClientOptions<T>
 ): Promise<ReplaneClient<T>> {
   const storage = new ReplaneRemoteStorage();
@@ -218,7 +217,7 @@ export async function createReplaneClient<T extends Configs = Record<string, unk
  * const value = client.get('my-config'); // 123
  * ```
  */
-export function createInMemoryReplaneClient<T extends Configs = Record<string, unknown>>(
+export function createInMemoryReplaneClient<T extends object = Record<string, unknown>>(
   initialData: T
 ): ReplaneClient<T> {
   return {
@@ -265,7 +264,7 @@ export function createInMemoryReplaneClient<T extends Configs = Record<string, u
  * const value = client.get('my-config');
  * ```
  */
-export function restoreReplaneClient<T extends Configs = Record<string, unknown>>(
+export function restoreReplaneClient<T extends object = Record<string, unknown>>(
   options: RestoreReplaneClientOptions<T>
 ): ReplaneClient<T> {
   const { snapshot, connection } = options;
@@ -276,7 +275,7 @@ export function restoreReplaneClient<T extends Configs = Record<string, unknown>
   const initialConfigs: ConfigDto[] = snapshot.configs.map((config) => ({
     name: config.name,
     value: config.value,
-    overrides: config.overrides as RenderedOverride[],
+    overrides: config.overrides,
   }));
 
   let storage: ReplaneRemoteStorage | null = null;
@@ -321,7 +320,7 @@ export function restoreReplaneClient<T extends Configs = Record<string, unknown>
 /**
  * Internal function to create a Replane client with the given options and storage
  */
-async function createReplaneClientInternal<T extends Configs = Record<string, unknown>>(
+async function createReplaneClientInternal<T extends object = Record<string, unknown>>(
   sdkOptions: ReplaneFinalOptions,
   storage: ReplaneStorage
 ): Promise<ReplaneClient<T>> {
@@ -388,7 +387,7 @@ async function createReplaneClientInternal<T extends Configs = Record<string, un
 /**
  * Convert user options to final options with defaults
  */
-function toFinalOptions<T extends Configs>(defaults: ReplaneClientOptions<T>): ReplaneFinalOptions {
+function toFinalOptions<T extends object>(defaults: ReplaneClientOptions<T>): ReplaneFinalOptions {
   return {
     sdkKey: defaults.sdkKey,
     baseUrl: defaults.baseUrl.replace(/\/+$/, ""),

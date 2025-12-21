@@ -1,0 +1,10 @@
+{
+  "name": "replanejs-sdk-deno-example",
+  "version": "0.0.0",
+  "tasks": {
+    "start": "deno run --allow-net --allow-env src/index.ts"
+  },
+  "imports": {
+    "@replanejs/sdk": "npm:@replanejs/sdk@^0.7.0"
+  }
+}

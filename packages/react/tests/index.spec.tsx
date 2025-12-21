@@ -2,7 +2,13 @@ import { Suspense, Component, useState, useCallback, StrictMode } from "react";
 import type { ReactNode, ErrorInfo } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act, waitFor } from "@testing-library/react";
-import { ReplaneProvider, useReplane, useConfig, clearSuspenseCache } from "../src/index";
+import {
+  ReplaneProvider,
+  useReplane,
+  useConfig,
+  createConfigHook,
+  clearSuspenseCache,
+} from "../src/index";
 import type { ReplaneClient, ReplaneClientOptions } from "@replanejs/sdk";
 import * as sdk from "@replanejs/sdk";
 
@@ -343,17 +349,21 @@ describe("ReplaneProvider with options prop - Loading States", () => {
     expect(screen.queryByTestId("loader")).not.toBeInTheDocument();
   });
 
-  it("shows loader on error (does not render children)", async () => {
+  it("throws error to error boundary on initialization failure", async () => {
     const onError = vi.fn();
 
     render(
-      <ReplaneProvider
-        options={defaultTestOptions}
+      <ErrorBoundary
+        fallback={<div data-testid="error-fallback">Error occurred</div>}
         onError={onError}
-        loader={<div data-testid="loader">Loading...</div>}
       >
-        <div data-testid="content">Content</div>
-      </ReplaneProvider>
+        <ReplaneProvider
+          options={defaultTestOptions}
+          loader={<div data-testid="loader">Loading...</div>}
+        >
+          <div data-testid="content">Content</div>
+        </ReplaneProvider>
+      </ErrorBoundary>
     );
 
     await act(async () => {
@@ -361,12 +371,12 @@ describe("ReplaneProvider with options prop - Loading States", () => {
     });
 
     await waitFor(() => {
-      expect(onError).toHaveBeenCalled();
+      expect(screen.getByTestId("error-fallback")).toBeInTheDocument();
     });
 
-    // Should show loader, not content
-    expect(screen.getByTestId("loader")).toBeInTheDocument();
+    // Should show error fallback, not content or loader
     expect(screen.queryByTestId("content")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("loader")).not.toBeInTheDocument();
   });
 });
 
@@ -525,62 +535,288 @@ describe("ReplaneProvider with options prop - Error Handling", () => {
     clearSuspenseCache();
   });
 
-  it("calls onError callback when initialization fails", async () => {
+  it("throws error to error boundary when initialization fails", async () => {
     const error = new Error("Network error");
     mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockRejectedValue(error);
 
     const onError = vi.fn();
 
     render(
-      <ReplaneProvider options={defaultTestOptions} onError={onError}>
-        <div>Content</div>
-      </ReplaneProvider>
+      <ErrorBoundary
+        fallback={<div data-testid="error-fallback">Error occurred</div>}
+        onError={onError}
+      >
+        <ReplaneProvider options={defaultTestOptions}>
+          <div data-testid="content">Content</div>
+        </ReplaneProvider>
+      </ErrorBoundary>
     );
 
     await waitFor(() => {
-      expect(onError).toHaveBeenCalledWith(error);
+      expect(screen.getByTestId("error-fallback")).toBeInTheDocument();
     });
+
+    expect(onError).toHaveBeenCalled();
+    expect(onError.mock.calls[0][0]).toBe(error);
   });
 
-  it("calls onError with wrapped error for non-Error rejections", async () => {
+  it("wraps non-Error rejections before throwing", async () => {
     mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockRejectedValue("string error");
 
     const onError = vi.fn();
 
     render(
-      <ReplaneProvider options={defaultTestOptions} onError={onError}>
-        <div>Content</div>
-      </ReplaneProvider>
+      <ErrorBoundary
+        fallback={<div data-testid="error-fallback">Error occurred</div>}
+        onError={onError}
+      >
+        <ReplaneProvider options={defaultTestOptions}>
+          <div data-testid="content">Content</div>
+        </ReplaneProvider>
+      </ErrorBoundary>
     );
 
     await waitFor(() => {
-      expect(onError).toHaveBeenCalled();
-      const calledError = onError.mock.calls[0][0];
-      expect(calledError).toBeInstanceOf(Error);
-      expect(calledError.message).toBe("string error");
+      expect(screen.getByTestId("error-fallback")).toBeInTheDocument();
     });
+
+    expect(onError).toHaveBeenCalled();
+    const calledError = onError.mock.calls[0][0];
+    expect(calledError).toBeInstanceOf(Error);
+    expect(calledError.message).toBe("string error");
   });
 
   it("does not render children after error", async () => {
     mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockRejectedValue(new Error("Failed"));
 
     render(
-      <ReplaneProvider
-        options={defaultTestOptions}
-        onError={() => {}}
-        loader={<div data-testid="loader">Loading</div>}
-      >
-        <div data-testid="content">Content</div>
-      </ReplaneProvider>
+      <ErrorBoundary fallback={<div data-testid="error-fallback">Error occurred</div>}>
+        <ReplaneProvider
+          options={defaultTestOptions}
+          loader={<div data-testid="loader">Loading</div>}
+        >
+          <div data-testid="content">Content</div>
+        </ReplaneProvider>
+      </ErrorBoundary>
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("loader")).toBeInTheDocument();
+      expect(screen.getByTestId("error-fallback")).toBeInTheDocument();
     });
 
     // Wait a bit more to ensure content never appears
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(screen.queryByTestId("content")).not.toBeInTheDocument();
+  });
+
+  it("passes error info with component stack to error boundary", async () => {
+    mockCreateClient = vi
+      .spyOn(sdk, "createReplaneClient")
+      .mockRejectedValue(new Error("Init failed"));
+
+    const onError = vi.fn();
+
+    render(
+      <ErrorBoundary
+        fallback={<div data-testid="error-fallback">Error occurred</div>}
+        onError={onError}
+      >
+        <ReplaneProvider options={defaultTestOptions}>
+          <div data-testid="content">Content</div>
+        </ReplaneProvider>
+      </ErrorBoundary>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("error-fallback")).toBeInTheDocument();
+    });
+
+    expect(onError).toHaveBeenCalled();
+    // Second argument is ErrorInfo which contains componentStack
+    const errorInfo = onError.mock.calls[0][1];
+    expect(errorInfo).toHaveProperty("componentStack");
+    expect(typeof errorInfo.componentStack).toBe("string");
+  });
+
+  it("allows recovery when error boundary resets and client succeeds", async () => {
+    let shouldFail = true;
+    const mockClient = createMockClient({ recovered: true });
+
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockImplementation(() => {
+      if (shouldFail) {
+        return Promise.reject(new Error("Temporary failure"));
+      }
+      return Promise.resolve(mockClient);
+    });
+
+    // Resettable error boundary for testing recovery
+    function ResettableErrorBoundary({ children }: { children: ReactNode }) {
+      const [key, setKey] = useState(0);
+      const [hasError, setHasError] = useState(false);
+
+      if (hasError) {
+        return (
+          <div>
+            <div data-testid="error-fallback">Error occurred</div>
+            <button
+              data-testid="retry-button"
+              onClick={() => {
+                setHasError(false);
+                setKey((k) => k + 1);
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        );
+      }
+
+      return (
+        <ErrorBoundary key={key} fallback={<></>} onError={() => setHasError(true)}>
+          {children}
+        </ErrorBoundary>
+      );
+    }
+
+    function TestComponent() {
+      const value = useConfig<boolean>("recovered");
+      return <div data-testid="recovered">{String(value)}</div>;
+    }
+
+    render(
+      <ResettableErrorBoundary>
+        <ReplaneProvider options={defaultTestOptions}>
+          <TestComponent />
+        </ReplaneProvider>
+      </ResettableErrorBoundary>
+    );
+
+    // Wait for initial error
+    await waitFor(() => {
+      expect(screen.getByTestId("error-fallback")).toBeInTheDocument();
+    });
+
+    // Fix the mock to succeed on retry
+    shouldFail = false;
+    clearSuspenseCache();
+
+    // Click retry
+    await act(async () => {
+      screen.getByTestId("retry-button").click();
+    });
+
+    // Should now show recovered content
+    await waitFor(() => {
+      expect(screen.getByTestId("recovered")).toHaveTextContent("true");
+    });
+    expect(screen.queryByTestId("error-fallback")).not.toBeInTheDocument();
+  });
+
+  it("handles different error types correctly", async () => {
+    const typeError = new TypeError("Type mismatch");
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockRejectedValue(typeError);
+
+    const onError = vi.fn();
+
+    render(
+      <ErrorBoundary
+        fallback={<div data-testid="error-fallback">Error occurred</div>}
+        onError={onError}
+      >
+        <ReplaneProvider options={defaultTestOptions}>
+          <div data-testid="content">Content</div>
+        </ReplaneProvider>
+      </ErrorBoundary>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("error-fallback")).toBeInTheDocument();
+    });
+
+    expect(onError).toHaveBeenCalled();
+    const caughtError = onError.mock.calls[0][0];
+    expect(caughtError).toBe(typeError);
+    expect(caughtError).toBeInstanceOf(TypeError);
+    expect(caughtError.message).toBe("Type mismatch");
+  });
+
+  it("isolates errors to their own error boundary with nested providers", async () => {
+    const mockClient = createMockClient({ outer: "works" });
+    let callCount = 0;
+
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        // First call (outer) succeeds
+        return Promise.resolve(mockClient);
+      }
+      // Second call (inner) fails
+      return Promise.reject(new Error("Inner failed"));
+    });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const innerOptions: ReplaneClientOptions<any> = {
+      baseUrl: "https://inner.replane.dev",
+      sdkKey: "rp_inner_key",
+    };
+
+    function OuterContent() {
+      const value = useConfig<string>("outer");
+      return <div data-testid="outer-content">{value}</div>;
+    }
+
+    render(
+      <ErrorBoundary fallback={<div data-testid="outer-error">Outer error</div>}>
+        <ReplaneProvider options={defaultTestOptions}>
+          <OuterContent />
+          <ErrorBoundary fallback={<div data-testid="inner-error">Inner error</div>}>
+            <ReplaneProvider options={innerOptions}>
+              <div data-testid="inner-content">Inner</div>
+            </ReplaneProvider>
+          </ErrorBoundary>
+        </ReplaneProvider>
+      </ErrorBoundary>
+    );
+
+    // Wait for both providers to initialize
+    await waitFor(() => {
+      expect(screen.getByTestId("outer-content")).toHaveTextContent("works");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("inner-error")).toBeInTheDocument();
+    });
+
+    // Outer content should still be visible
+    expect(screen.getByTestId("outer-content")).toBeInTheDocument();
+    // Outer error should not be triggered
+    expect(screen.queryByTestId("outer-error")).not.toBeInTheDocument();
+    // Inner content should not be visible
+    expect(screen.queryByTestId("inner-content")).not.toBeInTheDocument();
+  });
+
+  it("does not call client.close when error occurs during initialization", async () => {
+    mockCreateClient = vi
+      .spyOn(sdk, "createReplaneClient")
+      .mockRejectedValue(new Error("Init failed"));
+
+    const { unmount } = render(
+      <ErrorBoundary fallback={<div data-testid="error-fallback">Error</div>}>
+        <ReplaneProvider options={defaultTestOptions}>
+          <div>Content</div>
+        </ReplaneProvider>
+      </ErrorBoundary>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("error-fallback")).toBeInTheDocument();
+    });
+
+    // No client was created, so close shouldn't be called
+    unmount();
+
+    // Since client creation failed, there's no client to close
+    // This verifies we don't try to call close on undefined
   });
 });
 
@@ -769,6 +1005,170 @@ describe("ReplaneProvider with suspense", () => {
 
     expect(screen.queryByTestId("content")).not.toBeInTheDocument();
     expect(screen.queryByTestId("suspense-fallback")).not.toBeInTheDocument();
+  });
+
+  it("caches error and throws consistently with suspense", async () => {
+    const error = new Error("Cached error");
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockRejectedValue(error);
+
+    const onError = vi.fn();
+
+    // First render - should fail
+    const { unmount } = render(
+      <ErrorBoundary
+        fallback={<div data-testid="error-fallback">Error occurred</div>}
+        onError={onError}
+      >
+        <Suspense fallback={<div>Loading...</div>}>
+          <ReplaneProvider options={defaultTestOptions} suspense>
+            <div data-testid="content">Content</div>
+          </ReplaneProvider>
+        </Suspense>
+      </ErrorBoundary>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("error-fallback")).toBeInTheDocument();
+    });
+
+    expect(onError).toHaveBeenCalledTimes(1);
+
+    unmount();
+
+    // Second render with same options - should get cached error immediately
+    const onError2 = vi.fn();
+
+    render(
+      <ErrorBoundary
+        fallback={<div data-testid="error-fallback-2">Error occurred again</div>}
+        onError={onError2}
+      >
+        <Suspense fallback={<div data-testid="suspense-fallback">Loading...</div>}>
+          <ReplaneProvider options={defaultTestOptions} suspense>
+            <div data-testid="content">Content</div>
+          </ReplaneProvider>
+        </Suspense>
+      </ErrorBoundary>
+    );
+
+    // Should immediately show error (not suspense fallback) due to cached error
+    await waitFor(() => {
+      expect(screen.getByTestId("error-fallback-2")).toBeInTheDocument();
+    });
+
+    // createReplaneClient should only be called once
+    expect(mockCreateClient).toHaveBeenCalledTimes(1);
+  });
+
+  it("wraps non-Error rejections in suspense mode", async () => {
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockRejectedValue("string rejection");
+
+    const onError = vi.fn();
+
+    render(
+      <ErrorBoundary
+        fallback={<div data-testid="error-fallback">Error occurred</div>}
+        onError={onError}
+      >
+        <Suspense fallback={<div>Loading...</div>}>
+          <ReplaneProvider options={defaultTestOptions} suspense>
+            <div data-testid="content">Content</div>
+          </ReplaneProvider>
+        </Suspense>
+      </ErrorBoundary>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("error-fallback")).toBeInTheDocument();
+    });
+
+    expect(onError).toHaveBeenCalled();
+    const caughtError = onError.mock.calls[0][0];
+    expect(caughtError).toBeInstanceOf(Error);
+    expect(caughtError.message).toBe("string rejection");
+  });
+
+  it("allows recovery after clearing suspense cache on error", async () => {
+    let shouldFail = true;
+    const mockClient = createMockClient({ recovered: true });
+
+    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockImplementation(() => {
+      if (shouldFail) {
+        return Promise.reject(new Error("Temporary failure"));
+      }
+      return Promise.resolve(mockClient);
+    });
+
+    // Resettable error boundary for testing recovery
+    function ResettableErrorBoundary({ children }: { children: ReactNode }) {
+      const [key, setKey] = useState(0);
+      const [hasError, setHasError] = useState(false);
+
+      if (hasError) {
+        return (
+          <div>
+            <div data-testid="error-fallback">Error occurred</div>
+            <button
+              data-testid="retry-button"
+              onClick={() => {
+                clearSuspenseCache();
+                setHasError(false);
+                setKey((k) => k + 1);
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        );
+      }
+
+      return (
+        <ErrorBoundary key={key} fallback={<></>} onError={() => setHasError(true)}>
+          {children}
+        </ErrorBoundary>
+      );
+    }
+
+    function TestComponent() {
+      const value = useConfig<boolean>("recovered");
+      return <div data-testid="recovered">{String(value)}</div>;
+    }
+
+    render(
+      <ResettableErrorBoundary>
+        <Suspense fallback={<div data-testid="loading">Loading...</div>}>
+          <ReplaneProvider options={defaultTestOptions} suspense>
+            <TestComponent />
+          </ReplaneProvider>
+        </Suspense>
+      </ResettableErrorBoundary>
+    );
+
+    // Wait for initial error
+    await waitFor(() => {
+      expect(screen.getByTestId("error-fallback")).toBeInTheDocument();
+    });
+
+    // Fix the mock to succeed on retry
+    shouldFail = false;
+
+    // Click retry (which also clears suspense cache)
+    await act(async () => {
+      screen.getByTestId("retry-button").click();
+    });
+
+    // Should show loading first
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId("loading") || screen.queryByTestId("recovered")
+      ).toBeInTheDocument();
+    });
+
+    // Should eventually show recovered content
+    await waitFor(() => {
+      expect(screen.getByTestId("recovered")).toHaveTextContent("true");
+    });
+    expect(screen.queryByTestId("error-fallback")).not.toBeInTheDocument();
   });
 });
 
@@ -1258,6 +1658,302 @@ describe("useConfig hook - Subscriptions", () => {
     // Should unsubscribe from configA and subscribe to configB
     expect(unsubscribeA).toHaveBeenCalled();
     expect(client.subscribe).toHaveBeenCalledWith("configB", expect.any(Function));
+  });
+});
+
+// ============================================================================
+// createConfigHook
+// ============================================================================
+
+describe("createConfigHook", () => {
+  // Define typed config interface for tests
+  interface AppConfig {
+    theme: { primaryColor: string; darkMode: boolean };
+    featureFlags: { newUI: boolean; beta: boolean };
+    maxItems: number;
+    appName: string;
+  }
+
+  it("creates a typed hook that returns correct config values", () => {
+    const client = createMockClient({
+      theme: { primaryColor: "#ff0000", darkMode: true },
+      featureFlags: { newUI: true, beta: false },
+      maxItems: 100,
+      appName: "TestApp",
+    });
+
+    const useAppConfig = createConfigHook<AppConfig>();
+
+    function TestComponent() {
+      const theme = useAppConfig("theme");
+      const maxItems = useAppConfig("maxItems");
+      const appName = useAppConfig("appName");
+      return (
+        <>
+          <div data-testid="theme">{JSON.stringify(theme)}</div>
+          <div data-testid="maxItems">{maxItems}</div>
+          <div data-testid="appName">{appName}</div>
+        </>
+      );
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("theme")).toHaveTextContent(
+      JSON.stringify({ primaryColor: "#ff0000", darkMode: true })
+    );
+    expect(screen.getByTestId("maxItems")).toHaveTextContent("100");
+    expect(screen.getByTestId("appName")).toHaveTextContent("TestApp");
+  });
+
+  it("subscribes to config changes like useConfig", () => {
+    const client = createMockClient({
+      theme: { primaryColor: "#ff0000", darkMode: false },
+    });
+
+    const useAppConfig = createConfigHook<AppConfig>();
+
+    function TestComponent() {
+      const theme = useAppConfig("theme");
+      return <div data-testid="darkMode">{String(theme.darkMode)}</div>;
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("darkMode")).toHaveTextContent("false");
+
+    act(() => {
+      client._updateConfig("theme", { primaryColor: "#ff0000", darkMode: true });
+    });
+
+    expect(screen.getByTestId("darkMode")).toHaveTextContent("true");
+  });
+
+  it("passes options to underlying useConfig", () => {
+    const client = createMockClient({
+      featureFlags: { newUI: true, beta: true },
+    });
+
+    const useAppConfig = createConfigHook<AppConfig>();
+
+    function TestComponent() {
+      const features = useAppConfig("featureFlags", {
+        context: { userId: "123", plan: "premium" },
+      });
+      return <div data-testid="features">{JSON.stringify(features)}</div>;
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(client.get).toHaveBeenCalledWith("featureFlags", {
+      context: { userId: "123", plan: "premium" },
+    });
+  });
+
+  it("can create multiple independent typed hooks", () => {
+    interface ThemeConfig {
+      color: string;
+    }
+
+    interface FeatureConfig {
+      enabled: boolean;
+    }
+
+    const client = createMockClient({
+      color: "blue",
+      enabled: true,
+    });
+
+    const useTheme = createConfigHook<ThemeConfig>();
+    const useFeatures = createConfigHook<FeatureConfig>();
+
+    function TestComponent() {
+      const color = useTheme("color");
+      const enabled = useFeatures("enabled");
+      return (
+        <>
+          <div data-testid="color">{color}</div>
+          <div data-testid="enabled">{String(enabled)}</div>
+        </>
+      );
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("color")).toHaveTextContent("blue");
+    expect(screen.getByTestId("enabled")).toHaveTextContent("true");
+  });
+
+  it("throws error when used outside ReplaneProvider", () => {
+    const useAppConfig = createConfigHook<AppConfig>();
+
+    function TestComponent() {
+      useAppConfig("theme");
+      return null;
+    }
+
+    expect(() => render(<TestComponent />)).toThrow(
+      "useReplane must be used within a ReplaneProvider"
+    );
+  });
+
+  it("unsubscribes on unmount", () => {
+    const client = createMockClient({ maxItems: 50 });
+    const unsubscribe = vi.fn();
+    vi.mocked(client.subscribe).mockReturnValue(unsubscribe);
+
+    const useAppConfig = createConfigHook<AppConfig>();
+
+    function TestComponent() {
+      useAppConfig("maxItems");
+      return null;
+    }
+
+    const { unmount } = render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(unsubscribe).not.toHaveBeenCalled();
+
+    unmount();
+
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("works with nested object config types", () => {
+    interface DeepConfig {
+      settings: {
+        ui: {
+          theme: {
+            colors: {
+              primary: string;
+              secondary: string;
+            };
+          };
+        };
+      };
+    }
+
+    const client = createMockClient({
+      settings: {
+        ui: {
+          theme: {
+            colors: {
+              primary: "#000",
+              secondary: "#fff",
+            },
+          },
+        },
+      },
+    });
+
+    const useDeepConfig = createConfigHook<DeepConfig>();
+
+    function TestComponent() {
+      const settings = useDeepConfig("settings");
+      return <div data-testid="primary">{settings.ui.theme.colors.primary}</div>;
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("primary")).toHaveTextContent("#000");
+  });
+
+  it("works with array config types", () => {
+    interface ListConfig {
+      items: string[];
+      users: { id: number; name: string }[];
+    }
+
+    const client = createMockClient({
+      items: ["a", "b", "c"],
+      users: [
+        { id: 1, name: "Alice" },
+        { id: 2, name: "Bob" },
+      ],
+    });
+
+    const useListConfig = createConfigHook<ListConfig>();
+
+    function TestComponent() {
+      const items = useListConfig("items");
+      const users = useListConfig("users");
+      return (
+        <>
+          <div data-testid="items">{items.join(",")}</div>
+          <div data-testid="userCount">{users.length}</div>
+        </>
+      );
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("items")).toHaveTextContent("a,b,c");
+    expect(screen.getByTestId("userCount")).toHaveTextContent("2");
+  });
+
+  it("handles config name changes correctly", () => {
+    const client = createMockClient({
+      maxItems: 100,
+      appName: "TestApp",
+    });
+
+    const unsubscribeMaxItems = vi.fn();
+    const unsubscribeAppName = vi.fn();
+
+    vi.mocked(client.subscribe).mockImplementation((name: string | number | symbol) => {
+      return name === "maxItems" ? unsubscribeMaxItems : unsubscribeAppName;
+    });
+
+    const useAppConfig = createConfigHook<AppConfig>();
+
+    function TestComponent({ configName }: { configName: keyof AppConfig }) {
+      const value = useAppConfig(configName);
+      return <div data-testid="value">{String(value)}</div>;
+    }
+
+    const { rerender } = render(
+      <ReplaneProvider client={client}>
+        <TestComponent configName="maxItems" />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("value")).toHaveTextContent("100");
+
+    rerender(
+      <ReplaneProvider client={client}>
+        <TestComponent configName="appName" />
+      </ReplaneProvider>
+    );
+
+    expect(unsubscribeMaxItems).toHaveBeenCalled();
+    expect(screen.getByTestId("value")).toHaveTextContent("TestApp");
   });
 });
 

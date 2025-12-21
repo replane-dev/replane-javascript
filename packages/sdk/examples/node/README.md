@@ -1,6 +1,6 @@
-# @replanejs/sdk Example
+# @replanejs/sdk - Node.js Example
 
-A simple Node.js example demonstrating how to use `@replanejs/sdk` for dynamic configuration with real-time updates.
+A Node.js example demonstrating how to use `@replanejs/sdk` for dynamic configuration with real-time updates.
 
 ## Setup
 

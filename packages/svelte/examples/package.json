@@ -10,8 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@replanejs/svelte": "file:../../packages/svelte",
-    "@replanejs/sdk": "file:../../packages/sdk"
+    "@replanejs/svelte": "file:..",
+    "@replanejs/sdk": "file:../../sdk"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^5.0.3",

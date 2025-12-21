@@ -1,16 +1,16 @@
 import type { ReplaneClient, ReplaneClientOptions } from "@replanejs/sdk";
 import type { ReactNode } from "react";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ReplaneContextValue<T extends object = any> {
+export type UntypedReplaneConfig = Record<string, unknown>;
+
+export interface ReplaneContextValue<T extends object = UntypedReplaneConfig> {
   client: ReplaneClient<T>;
 }
 
 /**
  * Props for ReplaneProvider when using a pre-created client.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ReplaneProviderWithClientProps<T extends object = any> {
+export interface ReplaneProviderWithClientProps<T extends object = UntypedReplaneConfig> {
   /** Pre-created ReplaneClient instance */
   client: ReplaneClient<T>;
   children: ReactNode;
@@ -19,8 +19,7 @@ export interface ReplaneProviderWithClientProps<T extends object = any> {
 /**
  * Props for ReplaneProvider when letting it manage the client internally.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ReplaneProviderWithOptionsProps<T extends object = any> {
+export interface ReplaneProviderWithOptionsProps<T extends object = UntypedReplaneConfig> {
   /** Options to create the ReplaneClient */
   options: ReplaneClientOptions<T>;
   children: ReactNode;
@@ -35,14 +34,9 @@ export interface ReplaneProviderWithOptionsProps<T extends object = any> {
    * @default false
    */
   suspense?: boolean;
-  /**
-   * Callback when client initialization fails.
-   */
-  onError?: (error: Error) => void;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ReplaneProviderProps<T extends object = any> =
+export type ReplaneProviderProps<T extends object = UntypedReplaneConfig> =
   | ReplaneProviderWithClientProps<T>
   | ReplaneProviderWithOptionsProps<T>;
 

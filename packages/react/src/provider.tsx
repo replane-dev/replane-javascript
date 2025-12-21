@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { ReplaneContext } from "./context";
-import { useReplaneClient, useReplaneClientSuspense } from "./useReplaneClient";
+import { useReplaneClientInternal, useReplaneClientSuspense } from "./useReplaneClient";
 import type {
   ReplaneProviderProps,
   ReplaneProviderWithClientProps,
@@ -22,23 +22,22 @@ function ReplaneProviderWithClient<T extends object>({
 
 /**
  * Internal provider component for options-based client creation (non-suspense).
+ * Throws errors during rendering so they can be caught by Error Boundaries.
  */
 function ReplaneProviderWithOptions<T extends object>({
   options,
   children,
   loader,
-  onError,
 }: ReplaneProviderWithOptionsProps<T>) {
-  const state = useReplaneClient<T>(options, onError);
+  const state = useReplaneClientInternal<T>(options);
 
   if (state.status === "loading") {
     return <>{loader ?? null}</>;
   }
 
   if (state.status === "error") {
-    // Error was already reported via onError callback
-    // Return loader or null to prevent rendering children without a client
-    return <>{loader ?? null}</>;
+    // Throw error during render so it can be caught by Error Boundary
+    throw state.error;
   }
 
   const value: ReplaneContextValue<T> = { client: state.client };
@@ -60,7 +59,7 @@ function ReplaneProviderWithSuspense<T extends object>({
 /**
  * Provider component that makes a ReplaneClient available to the component tree.
  *
- * Can be used in two ways:
+ * Can be used in three ways:
  *
  * 1. With a pre-created client:
  * ```tsx
@@ -72,25 +71,32 @@ function ReplaneProviderWithSuspense<T extends object>({
  *
  * 2. With options (client managed internally):
  * ```tsx
- * <ReplaneProvider
- *   options={{ baseUrl: '...', sdkKey: '...' }}
- *   loader={<LoadingSpinner />}
- * >
- *   <App />
- * </ReplaneProvider>
+ * <ErrorBoundary fallback={<ErrorMessage />}>
+ *   <ReplaneProvider
+ *     options={{ baseUrl: '...', sdkKey: '...' }}
+ *     loader={<LoadingSpinner />}
+ *   >
+ *     <App />
+ *   </ReplaneProvider>
+ * </ErrorBoundary>
  * ```
  *
  * 3. With Suspense:
  * ```tsx
- * <Suspense fallback={<LoadingSpinner />}>
- *   <ReplaneProvider
- *     options={{ baseUrl: '...', sdkKey: '...' }}
- *     suspense
- *   >
- *     <App />
- *   </ReplaneProvider>
- * </Suspense>
+ * <ErrorBoundary fallback={<ErrorMessage />}>
+ *   <Suspense fallback={<LoadingSpinner />}>
+ *     <ReplaneProvider
+ *       options={{ baseUrl: '...', sdkKey: '...' }}
+ *       suspense
+ *     >
+ *       <App />
+ *     </ReplaneProvider>
+ *   </Suspense>
+ * </ErrorBoundary>
  * ```
+ *
+ * Errors during client initialization are thrown during rendering,
+ * allowing them to be caught by React Error Boundaries.
  */
 export function ReplaneProvider<T extends object>(props: ReplaneProviderProps<T>) {
   if (hasClient(props)) {

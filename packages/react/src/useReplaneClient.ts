@@ -8,7 +8,7 @@ type ClientState<T extends object> =
   | { status: "error"; client: null; error: Error };
 
 // Cache for suspense promise tracking
-const suspenseCache = new  Map<
+const suspenseCache = new Map<
   string,
   {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -23,14 +23,15 @@ function getCacheKey<T extends object>(options: ReplaneClientOptions<T>): string
   return `${options.baseUrl}:${options.sdkKey}`;
 }
 
+type ErrorConstructor = new (message: string, options?: { cause?: unknown }) => Error;
+
 /**
  * Hook to manage ReplaneClient creation internally.
  * Handles loading state and cleanup.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function useReplaneClient<T extends object = any>(
-  options: ReplaneClientOptions<T>,
-  onError?: (error: Error) => void
+export function useReplaneClientInternal<T extends object = any>(
+  options: ReplaneClientOptions<T>
 ): ClientState<T> {
   const [state, setState] = useState<ClientState<T>>({
     status: "loading",
@@ -54,9 +55,9 @@ export function useReplaneClient<T extends object = any>(
         setState({ status: "ready", client, error: null });
       } catch (err) {
         if (cancelled) return;
-        const error = err instanceof Error ? err : new Error(String(err));
+        const error =
+          err instanceof Error ? err : new (Error as ErrorConstructor)(String(err), { cause: err });
         setState({ status: "error", client: null, error });
-        onError?.(error);
       }
     }
 
@@ -69,9 +70,6 @@ export function useReplaneClient<T extends object = any>(
         clientRef.current = null;
       }
     };
-    // We intentionally only run this effect once on mount
-    // Options changes would require remounting the provider
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return state;
