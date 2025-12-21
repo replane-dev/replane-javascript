@@ -1,5 +1,9 @@
 # Replane JavaScript SDK
 
+[![npm](https://img.shields.io/npm/v/@replanejs/sdk)](https://www.npmjs.com/package/@replanejs/sdk)
+[![License](https://img.shields.io/github/license/replane-dev/replane-javascript)](https://github.com/replane-dev/replane-javascript/blob/main/LICENSE)
+[![Community](https://img.shields.io/badge/discussions-join-blue?logo=github)](https://github.com/orgs/replane-dev/discussions)
+
 Small TypeScript client for watching configuration values from a Replane API with realtime updates and context-based override evaluation.
 
 Part of the Replane project: [replane-dev/replane](https://github.com/replane-dev/replane).

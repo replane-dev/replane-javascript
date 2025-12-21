@@ -2,6 +2,10 @@
 
 Official JavaScript/TypeScript SDKs for [Replane](https://github.com/replane-dev/replane) — feature flags and remote configuration with realtime updates.
 
+[![CI](https://github.com/replane-dev/replane-javascript/actions/workflows/ci.yml/badge.svg)](https://github.com/replane-dev/replane-javascript/actions)
+[![License](https://img.shields.io/github/license/replane-dev/replane-javascript)](https://github.com/replane-dev/replane-javascript/blob/main/LICENSE)
+[![Community](https://img.shields.io/badge/discussions-join-blue?logo=github)](https://github.com/orgs/replane-dev/discussions)
+
 ## Packages
 
 | Package                                  | Description                                   | npm                                                                                                       |
@@ -169,6 +173,10 @@ pnpm test
 # Type check
 pnpm typecheck
 ```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and contribution guidelines.
 
 ## Community
 

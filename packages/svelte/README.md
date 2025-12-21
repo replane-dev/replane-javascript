@@ -1,5 +1,9 @@
 # @replanejs/svelte
 
+[![npm](https://img.shields.io/npm/v/@replanejs/svelte)](https://www.npmjs.com/package/@replanejs/svelte)
+[![License](https://img.shields.io/github/license/replane-dev/replane-javascript)](https://github.com/replane-dev/replane-javascript/blob/main/LICENSE)
+[![Community](https://img.shields.io/badge/discussions-join-blue?logo=github)](https://github.com/orgs/replane-dev/discussions)
+
 Svelte SDK for [Replane](https://github.com/replane-dev/replane-javascript) - feature flags and remote configuration with reactive stores.
 
 ## Installation

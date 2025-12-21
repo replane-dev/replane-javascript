@@ -1,5 +1,9 @@
 # @replanejs/react
 
+[![npm](https://img.shields.io/npm/v/@replanejs/react)](https://www.npmjs.com/package/@replanejs/react)
+[![License](https://img.shields.io/github/license/replane-dev/replane-javascript)](https://github.com/replane-dev/replane-javascript/blob/main/LICENSE)
+[![Community](https://img.shields.io/badge/discussions-join-blue?logo=github)](https://github.com/orgs/replane-dev/discussions)
+
 React SDK for [Replane](https://github.com/replane-dev/replane-javascript) - feature flags and remote configuration.
 
 ## Installation
