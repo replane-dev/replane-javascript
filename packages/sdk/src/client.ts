@@ -292,19 +292,7 @@ export function restoreReplaneClient<T extends object = Record<string, unknown>>
 
   if (connection) {
     storage = new ReplaneRemoteStorage();
-    streamOptions = {
-      sdkKey: connection.sdkKey,
-      baseUrl: connection.baseUrl.replace(/\/+$/, ""),
-      fetchFn: connection.fetchFn ?? globalThis.fetch.bind(globalThis),
-      requestTimeoutMs: connection.requestTimeoutMs ?? 2000,
-      initializationTimeoutMs: 5000, // Not used for restore
-      inactivityTimeoutMs: connection.inactivityTimeoutMs ?? 30_000,
-      logger,
-      retryDelayMs: connection.retryDelayMs ?? 200,
-      context,
-      requiredConfigs: [],
-      fallbacks: [],
-    };
+    streamOptions = toFinalOptions(connection);
   }
 
   const { client, startStreaming } = createClientCore<T>({

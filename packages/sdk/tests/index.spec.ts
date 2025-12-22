@@ -1383,8 +1383,8 @@ describe("createReplaneClient", () => {
     it("should not throw error when SDK key is missing", async () => {
       await expect(
         createReplaneClient({
-          sdkKey: "",
-          baseUrl: "https://replane.my-host.com",
+          sdkKey: undefined as unknown as string,
+          baseUrl: undefined as unknown as string,
           fetchFn: mockServer.fetchFn,
           logger: silentLogger,
           initializationTimeoutMs: 200,
