@@ -1,6 +1,6 @@
 {
   "name": "replanejs-sdk-browser-example",
-  "version": "0.8.6",
+  "version": "0.8.7",
   "private": true,
   "description": "Example browser project using @replanejs/sdk",
   "type": "module",
