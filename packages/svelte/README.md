@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/github/license/replane-dev/replane-javascript)](https://github.com/replane-dev/replane-javascript/blob/main/LICENSE)
 [![Community](https://img.shields.io/badge/discussions-join-blue?logo=github)](https://github.com/orgs/replane-dev/discussions)
 
-Svelte SDK for [Replane](https://github.com/replane-dev/replane-javascript) - feature flags and remote configuration with reactive stores.
+Svelte SDK for [Replane](https://github.com/replane-dev/replane) - feature flags and remote configuration with reactive stores.
 
 ## Installation
 
@@ -181,7 +181,7 @@ For better type safety, create typed versions of the store functions:
 
 ```ts
 // $lib/replane/index.ts
-import { createTypedConfig, createTypedReplane } from '@replanejs/svelte';
+import { createTypedConfig, createTypedReplane } from "@replanejs/svelte";
 
 interface AppConfigs {
   theme: { darkMode: boolean; primaryColor: string };
@@ -216,7 +216,7 @@ For server-side rendering, fetch configs on the server and restore on the client
 
 ```ts
 // src/routes/+layout.server.ts
-import { getReplaneSnapshot } from '@replanejs/svelte';
+import { getReplaneSnapshot } from "@replanejs/svelte";
 
 export async function load() {
   const snapshot = await getReplaneSnapshot({
