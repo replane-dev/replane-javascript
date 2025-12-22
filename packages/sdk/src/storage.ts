@@ -102,6 +102,7 @@ export class ReplaneRemoteStorage implements ReplaneStorage {
         headers: {
           Authorization: this.getAuthHeader(options),
           "Content-Type": "application/json",
+          "X-Replane-Agent": options.agent,
         },
         body: JSON.stringify(options.getBody()),
         timeoutMs: options.requestTimeoutMs,

@@ -15,6 +15,7 @@ import { ReplaneRemoteStorage } from "./storage";
 import { ReplaneError, ReplaneErrorCode } from "./error";
 import { evaluateOverrides } from "./evaluation";
 import { Deferred } from "./utils";
+import { DEFAULT_AGENT } from "./version";
 
 /**
  * Internal options for creating the client core
@@ -411,5 +412,6 @@ function toFinalOptions<T extends object>(defaults: ReplaneClientOptions<T>): Re
         version: -1,
         value,
       })),
+    agent: defaults.agent ?? DEFAULT_AGENT,
   };
 }

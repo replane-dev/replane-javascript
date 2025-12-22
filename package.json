@@ -1,6 +1,7 @@
 {
   "name": "replanejs",
   "private": true,
+  "type": "module",
   "description": "Replane JavaScript SDKs monorepo",
   "scripts": {
     "build": "pnpm -r build",

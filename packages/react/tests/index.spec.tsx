@@ -409,7 +409,11 @@ describe("ReplaneProvider with options prop - Client Lifecycle", () => {
     );
 
     await waitFor(() => {
-      expect(mockCreateClient).toHaveBeenCalledWith(defaultTestOptions);
+      expect(mockCreateClient).toHaveBeenCalledWith(
+        expect.objectContaining(defaultTestOptions)
+      );
+      // Should include the agent property
+      expect(mockCreateClient.mock.calls[0][0]).toHaveProperty("agent");
     });
   });
 

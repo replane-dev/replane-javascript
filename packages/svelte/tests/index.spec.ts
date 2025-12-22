@@ -161,7 +161,9 @@ describe("ReplaneContext with options prop - Loading States", () => {
     });
 
     // Provider should be in loading state
-    expect(mockCreateClient).toHaveBeenCalledWith(defaultTestOptions);
+    expect(mockCreateClient).toHaveBeenCalledWith(
+      expect.objectContaining(defaultTestOptions)
+    );
     expect(screen.getByTestId("loader")).toBeInTheDocument();
   });
 
@@ -237,7 +239,9 @@ describe("ReplaneContext with options prop - Client Lifecycle", () => {
     });
 
     await waitFor(() => {
-      expect(mockCreateClient).toHaveBeenCalledWith(defaultTestOptions);
+      expect(mockCreateClient).toHaveBeenCalledWith(
+        expect.objectContaining(defaultTestOptions)
+      );
     });
   });
 

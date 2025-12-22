@@ -12,6 +12,7 @@ import type {
   ReplaneContextValue,
 } from "./types";
 import { hasClient } from "./types";
+import { DEFAULT_AGENT } from "./version";
 
 /**
  * Internal provider component for pre-created client.
@@ -47,6 +48,7 @@ function ReplaneProviderWithSnapshot<T extends object>({
           retryDelayMs: options.retryDelayMs,
           inactivityTimeoutMs: options.inactivityTimeoutMs,
           logger: options.logger,
+          agent: options.agent ?? DEFAULT_AGENT,
         },
         context: options.context,
       }),

@@ -41,6 +41,7 @@
   ],
   "sideEffects": false,
   "scripts": {
+    "prebuild": "node ../../scripts/update-version.js .",
     "build": "tsdown",
     "dev": "tsdown --watch",
     "test": "vitest run",

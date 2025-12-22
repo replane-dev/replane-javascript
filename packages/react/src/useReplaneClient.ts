@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createReplaneClient } from "@replanejs/sdk";
 import type { ReplaneClient, ReplaneClientOptions } from "@replanejs/sdk";
+import { DEFAULT_AGENT } from "./version";
 
 type ClientState<T extends object> =
   | { status: "loading"; client: null; error: null }
@@ -48,7 +49,10 @@ export function useReplaneClientInternal<T extends object = any>(
 
     async function initClient() {
       try {
-        const client = await createReplaneClient<T>(optionsRef.current);
+        const client = await createReplaneClient<T>({
+          ...optionsRef.current,
+          agent: optionsRef.current.agent ?? DEFAULT_AGENT,
+        });
         if (cancelled) {
           client.close();
           return;
@@ -100,7 +104,10 @@ export function useReplaneClientSuspense<T extends object = any>(
   }
 
   // First time - create the promise
-  const promise = createReplaneClient<T>(options)
+  const promise = createReplaneClient<T>({
+    ...options,
+    agent: options.agent ?? DEFAULT_AGENT,
+  })
     .then((client) => {
       const entry = suspenseCache.get(cacheKey);
       if (entry) {

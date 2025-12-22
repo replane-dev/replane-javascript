@@ -6,6 +6,7 @@
 import type { ReactNode } from "react";
 import { getReplaneSnapshot, type ReplaneClientOptions } from "@replanejs/sdk";
 import { ReplaneProvider } from "@replanejs/react";
+import { DEFAULT_AGENT } from "./version";
 
 /**
  * Props for ReplaneRoot server component
@@ -50,10 +51,14 @@ export interface ReplaneRootProps<T extends object> {
  * ```
  */
 export async function ReplaneRoot<T extends object>({ options, children }: ReplaneRootProps<T>) {
-  const snapshot = await getReplaneSnapshot(options);
+  const optionsWithAgent = {
+    ...options,
+    agent: options.agent ?? DEFAULT_AGENT,
+  };
+  const snapshot = await getReplaneSnapshot(optionsWithAgent);
 
   return (
-    <ReplaneProvider options={options} snapshot={snapshot}>
+    <ReplaneProvider options={optionsWithAgent} snapshot={snapshot}>
       {children}
     </ReplaneProvider>
   );

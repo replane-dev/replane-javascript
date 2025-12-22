@@ -176,6 +176,12 @@ export interface ReplaneClientOptions<T extends object> {
   fallbacks?: {
     [K in keyof T]: T[K];
   };
+
+  /**
+   * Agent identifier sent in X-Replane-Agent header.
+   * Defaults to SDK identifier (e.g., "replane-js/x.y.z").
+   */
+  agent?: string;
 }
 
 /**
@@ -223,6 +229,11 @@ export interface RestoreReplaneClientOptions<T extends object> {
      * Optional logger (defaults to console).
      */
     logger?: ReplaneLogger;
+    /**
+     * Agent identifier sent in X-Replane-Agent header.
+     * Defaults to SDK identifier (e.g., "replane-js/x.y.z").
+     */
+    agent?: string;
   };
   /**
    * Override the context from the snapshot.
@@ -245,4 +256,5 @@ export interface ReplaneFinalOptions {
   context: ReplaneContext;
   requiredConfigs: string[];
   fallbacks: ConfigDto[];
+  agent: string;
 }

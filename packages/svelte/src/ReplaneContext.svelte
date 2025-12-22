@@ -5,6 +5,7 @@
     ReplaneContextWithClientProps,
     ReplaneContextWithOptionsProps,
   } from "./types";
+  import { DEFAULT_AGENT } from "./version";
 
   export type {
     ReplaneContextProps,
@@ -55,6 +56,7 @@
             retryDelayMs: options.retryDelayMs,
             inactivityTimeoutMs: options.inactivityTimeoutMs,
             logger: options.logger,
+            agent: options.agent ?? DEFAULT_AGENT,
           },
           context: options.context,
         });
@@ -70,7 +72,10 @@
     // Async client creation
     state = { status: "loading", client: null, error: null };
 
-    createReplaneClient(options)
+    createReplaneClient({
+      ...options,
+      agent: options.agent ?? DEFAULT_AGENT,
+    })
       .then((client) => {
         if (cancelled) {
           client.close();
