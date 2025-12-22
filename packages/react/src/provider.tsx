@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useMemo } from "react";
 import { restoreReplaneClient } from "@replanejs/sdk";
@@ -32,7 +32,9 @@ function ReplaneProviderWithSnapshot<T extends object>({
   options,
   snapshot,
   children,
-}: ReplaneProviderWithOptionsProps<T> & { snapshot: NonNullable<ReplaneProviderWithOptionsProps<T>["snapshot"]> }) {
+}: ReplaneProviderWithOptionsProps<T> & {
+  snapshot: NonNullable<ReplaneProviderWithOptionsProps<T>["snapshot"]>;
+}) {
   const client = useStateful(
     () =>
       restoreReplaneClient<T>({

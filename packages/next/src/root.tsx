@@ -4,8 +4,7 @@
  */
 
 import type { ReactNode } from "react";
-import { getReplaneSnapshot } from "@replanejs/react";
-import { type ReplaneClientOptions } from "@replanejs/sdk";
+import { getReplaneSnapshot, type ReplaneClientOptions } from "@replanejs/sdk";
 import { ReplaneProvider } from "@replanejs/react";
 
 /**

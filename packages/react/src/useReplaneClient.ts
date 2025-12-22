@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { createReplaneClient } from "@replanejs/sdk";
@@ -108,7 +108,7 @@ export function useReplaneClientSuspense<T extends object = any>(
       }
       return client;
     })
-    .catch((err) => {
+    .catch((err: unknown) => {
       const entry = suspenseCache.get(cacheKey);
       if (entry) {
         entry.error = err instanceof Error ? err : new Error(String(err));
