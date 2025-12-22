@@ -14,20 +14,20 @@
   };
 </script>
 
-<script lang="ts">
+<script lang="ts" generics="T extends object">
   import { createReplaneClient, restoreReplaneClient } from "@replanejs/sdk";
   import { setReplaneContext } from "./context";
   import { hasClient } from "./types";
 
-  let props: ReplaneContextProps = $props();
+  let props: ReplaneContextProps<T> = $props();
 
   type ClientState =
     | { status: "loading"; client: null; error: null }
-    | { status: "ready"; client: ReplaneClient<any>; error: null }
+    | { status: "ready"; client: ReplaneClient<T>; error: null }
     | { status: "error"; client: null; error: Error };
 
   let state = $state<ClientState>({ status: "loading", client: null, error: null });
-  let clientRef: ReplaneClient<any> | null = null;
+  let clientRef: ReplaneClient<T> | null = null;
   let cancelled = false;
 
   // Handle client initialization based on props
@@ -46,7 +46,7 @@
     if (snapshot) {
       // Restore from snapshot synchronously
       try {
-        const client = restoreReplaneClient({
+        const client = restoreReplaneClient<T>({
           snapshot,
           connection: {
             baseUrl: options.baseUrl,
@@ -72,7 +72,7 @@
     // Async client creation
     state = { status: "loading", client: null, error: null };
 
-    createReplaneClient({
+    createReplaneClient<T>({
       ...options,
       agent: options.agent ?? DEFAULT_AGENT,
     })
@@ -103,7 +103,7 @@
   // Set context when client is ready
   $effect(() => {
     if (state.status === "ready" && state.client) {
-      setReplaneContext(state.client);
+      setReplaneContext<T>(state.client);
     }
   });
 

@@ -8,9 +8,7 @@ const REPLANE_CONTEXT_KEY = Symbol("replane");
  * Set the Replane client in Svelte context.
  * @internal
  */
-export function setReplaneContext<T extends Record<string, unknown>>(
-  client: ReplaneClient<T>
-): void {
+export function setReplaneContext<T extends object>(client: ReplaneClient<T>): void {
   const value: ReplaneContextValue<T> = { client };
   setContext(REPLANE_CONTEXT_KEY, value);
 }
@@ -20,8 +18,7 @@ export function setReplaneContext<T extends Record<string, unknown>>(
  * @internal
  */
 export function getReplaneContext<
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  T extends Record<string, unknown> = any,
+  T extends object = Record<string, unknown>,
 >(): ReplaneContextValue<T> {
   const context = getContext<ReplaneContextValue<T> | undefined>(REPLANE_CONTEXT_KEY);
   if (!context) {

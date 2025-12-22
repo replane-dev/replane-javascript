@@ -1,5 +1,6 @@
+/* eslint-disable no-undef */
 import { readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 
 // Get the package directory from command line argument or current working directory
 const packageDir = process.argv[2] || process.cwd();

@@ -4,16 +4,14 @@ import type { Snippet } from "svelte";
 /**
  * Context value containing the Replane client
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ReplaneContextValue<T extends Record<string, unknown> = any> {
+export interface ReplaneContextValue<T extends object = Record<string, unknown>> {
   client: ReplaneClient<T>;
 }
 
 /**
  * Props for ReplaneContext when using a pre-created client.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ReplaneContextWithClientProps<T extends Record<string, unknown> = any> {
+export interface ReplaneContextWithClientProps<T extends object = Record<string, unknown>> {
   /** Pre-created ReplaneClient instance */
   client: ReplaneClient<T>;
   /** Children snippet */
@@ -23,8 +21,7 @@ export interface ReplaneContextWithClientProps<T extends Record<string, unknown>
 /**
  * Props for ReplaneContext when letting it manage the client internally.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export interface ReplaneContextWithOptionsProps<T extends Record<string, unknown> = any> {
+export interface ReplaneContextWithOptionsProps<T extends object = Record<string, unknown>> {
   /** Options to create or restore the ReplaneClient */
   options: ReplaneClientOptions<T>;
   /** Children snippet */
@@ -44,15 +41,14 @@ export interface ReplaneContextWithOptionsProps<T extends Record<string, unknown
   loader?: Snippet;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ReplaneContextProps<T extends Record<string, unknown> = any> =
+export type ReplaneContextProps<T extends object = Record<string, unknown>> =
   | ReplaneContextWithClientProps<T>
   | ReplaneContextWithOptionsProps<T>;
 
 /**
  * Type guard to check if props contain a pre-created client.
  */
-export function hasClient<T extends Record<string, unknown>>(
+export function hasClient<T extends object>(
   props: ReplaneContextProps<T>
 ): props is ReplaneContextWithClientProps<T> {
   return "client" in props && props.client !== undefined;
@@ -61,7 +57,7 @@ export function hasClient<T extends Record<string, unknown>>(
 /**
  * Type guard to check if props contain options (with or without snapshot).
  */
-export function hasOptions<T extends Record<string, unknown>>(
+export function hasOptions<T extends object>(
   props: ReplaneContextProps<T>
 ): props is ReplaneContextWithOptionsProps<T> {
   return "options" in props && props.options !== undefined;
