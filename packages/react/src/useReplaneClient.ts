@@ -1,3 +1,5 @@
+'use client';
+
 import { useEffect, useRef, useState } from "react";
 import { createReplaneClient } from "@replanejs/sdk";
 import type { ReplaneClient, ReplaneClientOptions } from "@replanejs/sdk";

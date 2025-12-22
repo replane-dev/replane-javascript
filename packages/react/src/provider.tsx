@@ -1,3 +1,5 @@
+'use client';
+
 import { useMemo } from "react";
 import { restoreReplaneClient } from "@replanejs/sdk";
 import { ReplaneContext } from "./context";
