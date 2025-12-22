@@ -1,5 +1,3 @@
-"use client";
-
 export { ReplaneProvider } from "./provider";
 export { useReplane, useConfig, createReplaneHook, createConfigHook } from "./hooks";
 export { clearSuspenseCache } from "./useReplaneClient";
