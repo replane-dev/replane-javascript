@@ -99,7 +99,10 @@ function createClientCore<T extends object = Record<string, unknown>>(
     }
   }
 
-  function get<K extends keyof T>(configName: K, getConfigOptions: GetConfigOptions<T[K]> = {}): T[K] {
+  function get<K extends keyof T>(
+    configName: K,
+    getConfigOptions: GetConfigOptions<T[K]> = {}
+  ): T[K] {
     const config = configs.get(String(configName));
 
     if (config === undefined) {
@@ -395,8 +398,8 @@ async function createReplaneClientInternal<T extends object = Record<string, unk
  */
 function toFinalOptions<T extends object>(defaults: ReplaneClientOptions<T>): ReplaneFinalOptions {
   return {
-    sdkKey: defaults.sdkKey,
-    baseUrl: defaults.baseUrl.replace(/\/+$/, ""),
+    sdkKey: defaults.sdkKey ?? "",
+    baseUrl: (defaults.baseUrl ?? "").replace(/\/+$/, ""),
     fetchFn:
       defaults.fetchFn ??
       // some browsers require binding the fetch function to window
