@@ -1380,15 +1380,16 @@ describe("createReplaneClient", () => {
   });
 
   describe("initialization and fallbacks", () => {
-    it("should throw error when SDK key is missing", async () => {
+    it("should not throw error when SDK key is missing", async () => {
       await expect(
         createReplaneClient({
           sdkKey: "",
           baseUrl: "https://replane.my-host.com",
           fetchFn: mockServer.fetchFn,
           logger: silentLogger,
+          initializationTimeoutMs: 200,
         })
-      ).rejects.toThrow("SDK key is required");
+      ).rejects.toThrow("Replane client initialization timed out");
     });
 
     it("should use fallbacks and timeout when server does not respond", async () => {
