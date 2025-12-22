@@ -333,8 +333,6 @@ async function createReplaneClientInternal<T extends object = Record<string, unk
   sdkOptions: ReplaneFinalOptions,
   storage: ReplaneStorage
 ): Promise<ReplaneClient<T>> {
-  if (!sdkOptions.sdkKey) throw new Error("SDK key is required");
-
   const { client, configs, startStreaming, clientReady } = createClientCore<T>({
     initialConfigs: sdkOptions.fallbacks,
     context: sdkOptions.context,
