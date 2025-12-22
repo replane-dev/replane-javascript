@@ -2581,6 +2581,33 @@ describe("restoreReplaneClient", () => {
       mockServer.close();
     });
 
+    it("should not throw error when SDK key and baseUrl are missing", async () => {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
+        configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: undefined as unknown as string,
+          baseUrl: undefined as unknown as string,
+          fetchFn: mockServer.fetchFn,
+          logger: silentLogger,
+        },
+      });
+
+      // Should work with snapshot data even though connection is invalid
+      expect(client.get("config1")).toBe("snapshot-value");
+
+      // Give time for the background streaming to fail
+      await sync();
+
+      // Should still work after streaming failure
+      expect(client.get("config1")).toBe("snapshot-value");
+
+      client.close();
+    });
+
     it("should restore from snapshot and connect for live updates", async () => {
       const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
