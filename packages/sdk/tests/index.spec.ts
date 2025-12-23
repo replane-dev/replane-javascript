@@ -1469,6 +1469,61 @@ describe("createReplaneClient", () => {
       const client = await clientPromise;
       expect(client.get("config1")).toBe("fallback1");
     });
+
+    it("should call onConnectionError callback when initial connection fails with fallbacks", async () => {
+      const onConnectionError = vi.fn();
+      const failingFetch = vi.fn().mockRejectedValue(new Error("Connection refused"));
+
+      clientPromise = createReplaneClient<Record<string, unknown>>({
+        sdkKey: "test-sdk-key",
+        baseUrl: "https://replane.my-host.com",
+        fetchFn: failingFetch,
+        logger: silentLogger,
+        fallbacks: { config1: "fallback-value" },
+        initializationTimeoutMs: 50,
+        retryDelayMs: 10,
+        onConnectionError,
+      });
+
+      const client = await clientPromise;
+      expect(client.get("config1")).toBe("fallback-value");
+
+      // Wait a bit for retry attempts
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // onConnectionError should have been called
+      expect(onConnectionError).toHaveBeenCalled();
+      expect(onConnectionError.mock.calls[0][0]).toBeInstanceOf(Error);
+      expect((onConnectionError.mock.calls[0][0] as Error).message).toBe("Connection refused");
+
+      client.close();
+    });
+
+    it("should call onConnected callback when initial connection succeeds", async () => {
+      const onConnected = vi.fn();
+
+      clientPromise = createReplaneClient<Record<string, unknown>>({
+        sdkKey: "test-sdk-key",
+        baseUrl: "https://replane.my-host.com",
+        fetchFn: mockServer.fetchFn,
+        logger: silentLogger,
+        onConnected,
+      });
+
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "value1" }],
+      });
+
+      const client = await clientPromise;
+      await sync();
+
+      // onConnected should have been called once
+      expect(onConnected).toHaveBeenCalledTimes(1);
+
+      client.close();
+    });
   });
 
   describe("base URL normalization", () => {
@@ -3326,6 +3381,308 @@ describe("restoreReplaneClient", () => {
       expect(connection.requestBody.currentConfigs).toContainEqual(
         expect.objectContaining({ name: "config2", value: "snapshot-value2" })
       );
+
+      client.close();
+    });
+
+    it("should call onConnectionError callback when connection fails", async () => {
+      const onConnectionError = vi.fn();
+      const failingFetch = vi.fn().mockRejectedValue(new Error("Connection refused"));
+
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
+        configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: failingFetch,
+          logger: silentLogger,
+          requestTimeoutMs: 50,
+          retryDelayMs: 10,
+          onConnectionError,
+        },
+      });
+
+      // Wait for fetch attempt and retry
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // onConnectionError should have been called at least once
+      expect(onConnectionError).toHaveBeenCalled();
+      expect(onConnectionError.mock.calls[0][0]).toBeInstanceOf(Error);
+      expect((onConnectionError.mock.calls[0][0] as Error).message).toBe("Connection refused");
+
+      // Client should still work with snapshot data
+      expect(client.get("config1")).toBe("snapshot-value");
+
+      client.close();
+    });
+
+    it("should call onConnectionError callback on each retry attempt", async () => {
+      const onConnectionError = vi.fn();
+      const failingFetch = vi.fn().mockRejectedValue(new Error("Network error"));
+
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
+        configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: failingFetch,
+          logger: silentLogger,
+          requestTimeoutMs: 10,
+          retryDelayMs: 10,
+          onConnectionError,
+        },
+      });
+
+      // Wait for multiple retry attempts
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // onConnectionError should have been called multiple times (once per retry)
+      expect(onConnectionError.mock.calls.length).toBeGreaterThan(1);
+
+      client.close();
+    });
+
+    it("should not call onConnectionError when connection succeeds", async () => {
+      const onConnectionError = vi.fn();
+
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
+        configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: mockServer.fetchFn,
+          logger: silentLogger,
+          onConnectionError,
+        },
+      });
+
+      // Accept connection and send init
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "server-value" }],
+      });
+      await sync();
+
+      // onConnectionError should not have been called
+      expect(onConnectionError).not.toHaveBeenCalled();
+
+      client.close();
+    });
+
+    it("should call onConnectionError when connection is lost and retrying", async () => {
+      const onConnectionError = vi.fn();
+      let callCount = 0;
+      const failOnSecondFetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        callCount++;
+        if (callCount === 2) {
+          throw new Error("Connection lost");
+        }
+        return mockServer.fetchFn(url, init);
+      });
+
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
+        configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: failOnSecondFetch,
+          logger: silentLogger,
+          inactivityTimeoutMs: 50,
+          retryDelayMs: 10,
+          onConnectionError,
+        },
+      });
+
+      // Accept first connection
+      const connection1 = await mockServer.acceptConnection();
+      await connection1.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "value1" }],
+      });
+      await sync();
+
+      expect(client.get("config1")).toBe("value1");
+
+      // Wait for inactivity timeout which will trigger reconnection
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // onConnectionError should have been called when second connection failed
+      expect(onConnectionError).toHaveBeenCalled();
+
+      client.close();
+    });
+
+    it("should call onConnected callback when connection is established", async () => {
+      const onConnected = vi.fn();
+
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
+        configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: mockServer.fetchFn,
+          logger: silentLogger,
+          onConnected,
+        },
+      });
+
+      // Accept connection and send init
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "server-value" }],
+      });
+      await sync();
+
+      // onConnected should have been called once
+      expect(onConnected).toHaveBeenCalledTimes(1);
+
+      client.close();
+    });
+
+    it("should call onConnected callback on each successful reconnection", async () => {
+      const onConnected = vi.fn();
+
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
+        configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: mockServer.fetchFn,
+          logger: silentLogger,
+          inactivityTimeoutMs: 50,
+          onConnected,
+        },
+      });
+
+      // Accept first connection
+      const connection1 = await mockServer.acceptConnection();
+      await connection1.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "value1" }],
+      });
+      await sync();
+
+      const callCountAfterFirst = onConnected.mock.calls.length;
+      expect(callCountAfterFirst).toBeGreaterThanOrEqual(1);
+
+      // Wait for inactivity timeout which will trigger reconnection
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Accept second connection
+      const connection2 = await mockServer.acceptConnection();
+      await connection2.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "value2" }],
+      });
+      await sync();
+
+      // onConnected should have been called more times after the reconnection
+      expect(onConnected.mock.calls.length).toBeGreaterThan(callCountAfterFirst);
+
+      client.close();
+    });
+
+    it("should not call onConnected when connection fails", async () => {
+      const onConnected = vi.fn();
+      const failingFetch = vi.fn().mockRejectedValue(new Error("Connection refused"));
+
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
+        configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: failingFetch,
+          logger: silentLogger,
+          requestTimeoutMs: 50,
+          retryDelayMs: 10,
+          onConnected,
+        },
+      });
+
+      // Wait for retry attempts
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // onConnected should not have been called
+      expect(onConnected).not.toHaveBeenCalled();
+
+      client.close();
+    });
+
+    it("should call both onConnected and onConnectionError appropriately", async () => {
+      const onConnected = vi.fn();
+      const onConnectionError = vi.fn();
+      let callCount = 0;
+      const failOnceFetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+        callCount++;
+        if (callCount === 1) {
+          throw new Error("First attempt failed");
+        }
+        return mockServer.fetchFn(url, init);
+      });
+
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
+        configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
+      };
+
+      const client = restoreReplaneClient({
+        snapshot,
+        connection: {
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: failOnceFetch,
+          logger: silentLogger,
+          requestTimeoutMs: 100,
+          retryDelayMs: 10,
+          onConnected,
+          onConnectionError,
+        },
+      });
+
+      // Wait for retry
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Accept connection after retry
+      const connection = await mockServer.acceptConnection();
+      await connection.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "server-value" }],
+      });
+      await sync();
+
+      // onConnectionError should have been called once (for the first failed attempt)
+      expect(onConnectionError).toHaveBeenCalledTimes(1);
+      // onConnected should have been called once (for the successful retry)
+      expect(onConnected).toHaveBeenCalledTimes(1);
 
       client.close();
     });

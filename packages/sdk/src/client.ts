@@ -383,28 +383,28 @@ async function createReplaneClientInternal<T extends object = Record<string, unk
 /**
  * Convert user options to final options with defaults
  */
-function toFinalOptions<T extends object>(defaults: ReplaneClientOptions<T>): ReplaneFinalOptions {
+function toFinalOptions<T extends object>(options: ReplaneClientOptions<T>): ReplaneFinalOptions {
   return {
-    sdkKey: defaults.sdkKey ?? "",
-    baseUrl: (defaults.baseUrl ?? "").replace(/\/+$/, ""),
+    sdkKey: options.sdkKey ?? "",
+    baseUrl: (options.baseUrl ?? "").replace(/\/+$/, ""),
     fetchFn:
-      defaults.fetchFn ??
+      options.fetchFn ??
       // some browsers require binding the fetch function to window
       globalThis.fetch.bind(globalThis),
-    requestTimeoutMs: defaults.requestTimeoutMs ?? 2000,
-    initializationTimeoutMs: defaults.initializationTimeoutMs ?? 5000,
-    inactivityTimeoutMs: defaults.inactivityTimeoutMs ?? 30_000,
-    logger: defaults.logger ?? console,
-    retryDelayMs: defaults.retryDelayMs ?? 200,
+    requestTimeoutMs: options.requestTimeoutMs ?? 2000,
+    initializationTimeoutMs: options.initializationTimeoutMs ?? 5000,
+    inactivityTimeoutMs: options.inactivityTimeoutMs ?? 30_000,
+    logger: options.logger ?? console,
+    retryDelayMs: options.retryDelayMs ?? 200,
     context: {
-      ...(defaults.context ?? {}),
+      ...(options.context ?? {}),
     },
-    requiredConfigs: Array.isArray(defaults.required)
-      ? defaults.required.map((name) => String(name))
-      : Object.entries(defaults.required ?? {})
+    requiredConfigs: Array.isArray(options.required)
+      ? options.required.map((name) => String(name))
+      : Object.entries(options.required ?? {})
           .filter(([_, value]) => value !== undefined)
           .map(([name]) => name),
-    fallbacks: Object.entries(defaults.fallbacks ?? {})
+    fallbacks: Object.entries(options.fallbacks ?? {})
       .filter(([_, value]) => value !== undefined)
       .map(([name, value]) => ({
         name,
@@ -412,6 +412,8 @@ function toFinalOptions<T extends object>(defaults: ReplaneClientOptions<T>): Re
         version: -1,
         value,
       })),
-    agent: defaults.agent ?? DEFAULT_AGENT,
+    agent: options.agent ?? DEFAULT_AGENT,
+    onConnectionError: options.onConnectionError,
+    onConnected: options.onConnected,
   };
 }

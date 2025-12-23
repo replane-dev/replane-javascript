@@ -182,6 +182,21 @@ export interface ReplaneClientOptions<T extends object> {
    * Defaults to SDK identifier (e.g., "replane-js/x.y.z").
    */
   agent?: string;
+
+  /**
+   * Callback invoked when a connection error occurs during SSE streaming.
+   * This is called on each retry attempt, useful for tracking connection health.
+   * The SDK will automatically retry connections, so this is informational.
+   * @param error - The error that caused the connection failure
+   */
+  onConnectionError?: (error: unknown) => void;
+
+  /**
+   * Callback invoked when the SSE connection is successfully established.
+   * This is called on initial connection and on every successful reconnection.
+   * Useful for tracking connection health and reconnection metrics.
+   */
+  onConnected?: () => void;
 }
 
 /**
@@ -234,6 +249,19 @@ export interface RestoreReplaneClientOptions<T extends object> {
      * Defaults to SDK identifier (e.g., "replane-js/x.y.z").
      */
     agent?: string;
+    /**
+     * Callback invoked when a connection error occurs during SSE streaming.
+     * This is called on each retry attempt, useful for tracking connection health.
+     * The SDK will automatically retry connections, so this is informational.
+     * @param error - The error that caused the connection failure
+     */
+    onConnectionError?: (error: unknown) => void;
+    /**
+     * Callback invoked when the SSE connection is successfully established.
+     * This is called on initial connection and on every successful reconnection.
+     * Useful for tracking connection health and reconnection metrics.
+     */
+    onConnected?: () => void;
   };
   /**
    * Override the context from the snapshot.
@@ -257,4 +285,6 @@ export interface ReplaneFinalOptions {
   requiredConfigs: string[];
   fallbacks: ConfigDto[];
   agent: string;
+  onConnectionError?: (error: unknown) => void;
+  onConnected?: () => void;
 }

@@ -17,6 +17,8 @@ export interface StartReplicationStreamOptions extends ReplaneFinalOptions {
   getBody: () => StartReplicationStreamBody;
   signal?: AbortSignal;
   onConnect?: () => void;
+  onConnectionError?: (error: unknown) => void;
+  onConnected?: () => void;
 }
 
 /**
@@ -69,6 +71,9 @@ export class ReplaneRemoteStorage implements ReplaneStorage {
               error
             );
 
+            // Call the connection error callback if provided
+            options.onConnectionError?.(error);
+
             await retryDelay(retryDelayMs);
           }
         }
@@ -112,6 +117,8 @@ export class ReplaneRemoteStorage implements ReplaneStorage {
         onConnect: () => {
           resetInactivityTimer();
           options.onConnect?.();
+          // Call the user's onConnected callback
+          options.onConnected?.();
         },
       });
 
