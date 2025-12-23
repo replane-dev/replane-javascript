@@ -1,0 +1,59 @@
+{
+  "name": "@replanejs/admin",
+  "version": "0.8.10",
+  "description": "Admin API SDK for Replane - programmatic management of projects, configs, environments, and SDK keys",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "prebuild": "node ../../scripts/update-version.js .",
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "replane",
+    "admin",
+    "api",
+    "sdk",
+    "feature-flags",
+    "remote-config",
+    "configuration",
+    "management"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/replane-dev/replane-javascript",
+    "directory": "packages/admin"
+  },
+  "bugs": {
+    "url": "https://github.com/replane-dev/replane-javascript/issues"
+  },
+  "homepage": "https://github.com/replane-dev/replane-javascript#readme",
+  "devDependencies": {
+    "tsdown": "^0.11.9",
+    "typescript": "^5.4.0",
+    "vitest": "^3.2.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

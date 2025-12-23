@@ -1,14 +1,14 @@
-/* eslint-disable no-undef */
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 // Get the package directory from command line argument or current working directory
+// eslint-disable-next-line no-undef
 const packageDir = process.argv[2] || process.cwd();
 
 const pkg = JSON.parse(readFileSync(join(packageDir, "package.json"), "utf-8"));
 
 // Determine SDK name from package name
-const sdkName = pkg.name.replace("@replanejs/sdk", "replane-js").replace("@replanejs/", "replane-");
+const sdkName = pkg.name.replace("@replanejs/", "replane-js-");
 
 const versionContent = `// Auto-generated - do not edit manually
 export const VERSION = "${pkg.version}";

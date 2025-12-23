@@ -178,7 +178,7 @@ export interface ReplaneClientOptions<T extends object> {
   };
 
   /**
-   * Agent identifier sent in X-Replane-Agent header.
+   * Agent identifier sent in User-Agent header.
    * Defaults to SDK identifier (e.g., "replane-js/x.y.z").
    */
   agent?: string;
@@ -230,7 +230,7 @@ export interface RestoreReplaneClientOptions<T extends object> {
      */
     logger?: ReplaneLogger;
     /**
-     * Agent identifier sent in X-Replane-Agent header.
+     * Agent identifier sent in User-Agent header.
      * Defaults to SDK identifier (e.g., "replane-js/x.y.z").
      */
     agent?: string;
