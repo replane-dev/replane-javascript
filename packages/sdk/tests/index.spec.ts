@@ -3527,13 +3527,15 @@ describe("restoreReplaneClient", () => {
     it("should call onConnectionError when connection is lost and retrying", async () => {
       const onConnectionError = vi.fn();
       let callCount = 0;
-      const failOnSecondFetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
-        callCount++;
-        if (callCount === 2) {
-          throw new Error("Connection lost");
-        }
-        return mockServer.fetchFn(url, init);
-      });
+      const failOnSecondFetch = vi
+        .fn()
+        .mockImplementation(async (url: string, init?: RequestInit) => {
+          callCount++;
+          if (callCount === 2) {
+            throw new Error("Connection lost");
+          }
+          return mockServer.fetchFn(url, init);
+        });
 
       const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
