@@ -323,7 +323,7 @@ async function createReplaneClientInternal<T extends object = Record<string, unk
   storage: ReplaneStorage
 ): Promise<ReplaneClient<T>> {
   const { client, configs, startStreaming, clientReady } = createClientCore<T>({
-    initialConfigs: sdkOptions.fallbacks,
+    initialConfigs: sdkOptions.defaults,
     context: sdkOptions.context,
     logger: sdkOptions.logger,
     storage,
@@ -337,8 +337,8 @@ async function createReplaneClientInternal<T extends object = Record<string, unk
   });
 
   const initializationTimeoutId = setTimeout(() => {
-    if (sdkOptions.fallbacks.length === 0) {
-      // no fallbacks, we have nothing to work with
+    if (sdkOptions.defaults.length === 0) {
+      // no defaults, we have nothing to work with
       client.close();
 
       clientReady.reject(
@@ -404,7 +404,7 @@ function toFinalOptions<T extends object>(options: ReplaneClientOptions<T>): Rep
       : Object.entries(options.required ?? {})
           .filter(([_, value]) => value !== undefined)
           .map(([name]) => name),
-    fallbacks: Object.entries(options.fallbacks ?? {})
+    defaults: Object.entries(options.defaults ?? {})
       .filter(([_, value]) => value !== undefined)
       .map(([name, value]) => ({
         name,

@@ -1379,7 +1379,7 @@ describe("createReplaneClient", () => {
     });
   });
 
-  describe("initialization and fallbacks", () => {
+  describe("initialization and defaults", () => {
     it("should not throw error when SDK key is missing", async () => {
       await expect(
         createReplaneClient({
@@ -1392,9 +1392,9 @@ describe("createReplaneClient", () => {
       ).rejects.toThrow("Replane client initialization timed out");
     });
 
-    it("should use fallbacks and timeout when server does not respond", async () => {
+    it("should use defaults and timeout when server does not respond", async () => {
       clientPromise = createClient<Record<string, unknown>>({
-        fallbacks: { config1: "fallback-value" },
+        defaults: { config1: "fallback-value" },
         initializationTimeoutMs: 50,
       });
 
@@ -1403,7 +1403,7 @@ describe("createReplaneClient", () => {
       expect(client.get("config1")).toBe("fallback-value");
     });
 
-    it("should throw timeout error when no fallbacks and server does not respond", async () => {
+    it("should throw timeout error when no defaults and server does not respond", async () => {
       clientPromise = createClient({
         initializationTimeoutMs: 50,
       });
@@ -1411,9 +1411,9 @@ describe("createReplaneClient", () => {
       await expect(clientPromise).rejects.toThrow("Replane client initialization timed out");
     });
 
-    it("should throw error when required config is missing from fallbacks", async () => {
+    it("should throw error when required config is missing from defaults", async () => {
       clientPromise = createClient<Record<string, unknown>>({
-        fallbacks: { config1: "fallback-value" },
+        defaults: { config1: "fallback-value" },
         required: ["config1", "config2"],
         initializationTimeoutMs: 50,
       });
@@ -1421,9 +1421,9 @@ describe("createReplaneClient", () => {
       await expect(clientPromise).rejects.toThrow("Required configs are missing: config2");
     });
 
-    it("should succeed when all required configs are in fallbacks", async () => {
+    it("should succeed when all required configs are in defaults", async () => {
       clientPromise = createClient<Record<string, unknown>>({
-        fallbacks: { config1: "fallback1", config2: "fallback2" },
+        defaults: { config1: "fallback1", config2: "fallback2" },
         required: ["config1", "config2"],
         initializationTimeoutMs: 50,
       });
@@ -1433,9 +1433,9 @@ describe("createReplaneClient", () => {
       expect(client.get("config2")).toBe("fallback2");
     });
 
-    it("should override fallbacks with server values", async () => {
+    it("should override defaults with server values", async () => {
       clientPromise = createClient<Record<string, unknown>>({
-        fallbacks: { config1: "fallback-value" },
+        defaults: { config1: "fallback-value" },
       });
       const connection = await mockServer.acceptConnection();
       await connection.push({
@@ -1450,7 +1450,7 @@ describe("createReplaneClient", () => {
 
     it("should accept required as object format", async () => {
       clientPromise = createClient<Record<string, unknown>>({
-        fallbacks: { config1: "fallback1", config2: "fallback2" },
+        defaults: { config1: "fallback1", config2: "fallback2" },
         required: { config1: true, config2: true },
         initializationTimeoutMs: 50,
       });
@@ -1461,7 +1461,7 @@ describe("createReplaneClient", () => {
 
     it("should handle empty required array", async () => {
       clientPromise = createClient<Record<string, unknown>>({
-        fallbacks: { config1: "fallback1" },
+        defaults: { config1: "fallback1" },
         required: [],
         initializationTimeoutMs: 50,
       });
@@ -1470,7 +1470,7 @@ describe("createReplaneClient", () => {
       expect(client.get("config1")).toBe("fallback1");
     });
 
-    it("should call onConnectionError callback when initial connection fails with fallbacks", async () => {
+    it("should call onConnectionError callback when initial connection fails with defaults", async () => {
       const onConnectionError = vi.fn();
       const failingFetch = vi.fn().mockRejectedValue(new Error("Connection refused"));
 
@@ -1479,7 +1479,7 @@ describe("createReplaneClient", () => {
         baseUrl: "https://replane.my-host.com",
         fetchFn: failingFetch,
         logger: silentLogger,
-        fallbacks: { config1: "fallback-value" },
+        defaults: { config1: "fallback-value" },
         initializationTimeoutMs: 50,
         retryDelayMs: 10,
         onConnectionError,

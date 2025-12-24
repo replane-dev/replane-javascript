@@ -98,16 +98,20 @@ Type parameter `T` defines the shape of your configs (a mapping of config names 
 
 #### Options
 
-- `baseUrl` (string) – Replane origin (no trailing slash needed).
+- `baseUrl` (string) – Replane origin (no trailing slash needed). Required.
 - `sdkKey` (string) – SDK key for authorization. Required. **Note:** Each SDK key is tied to a specific project and can only access configs from that project. To access configs from multiple projects, create multiple SDK keys and initialize separate client instances.
 - `required` (object or array) – mark specific configs as required. If any required config is missing, the client will throw an error during initialization. Can be an object with boolean values or an array of config names. Optional.
-- `fallbacks` (object) – fallback values to use if the initial request to fetch configs fails. Allows the client to start even when the API is unavailable. Optional.
+- `defaults` (object) – default values to use if the initial request to fetch configs fails or times out. These values are used immediately while waiting for server connection. Allows the client to start even when the API is unavailable. Optional.
 - `context` (object) – default context for all config evaluations. Can be overridden per-request in `get()`. Optional.
 - `fetchFn` (function) – custom fetch (e.g. `undici.fetch` or mocked fetch in tests). Optional.
-- `timeoutMs` (number) – abort the request after N ms. Default: 2000.
-- `retries` (number) – number of retry attempts on failures (5xx or network errors). Default: 2.
-- `retryDelayMs` (number) – base delay between retries in ms (a small jitter is applied). Default: 200.
+- `requestTimeoutMs` (number) – timeout for SSE requests in ms. Default: 2000.
+- `initializationTimeoutMs` (number) – timeout for SDK initialization in ms. Default: 5000.
+- `retryDelayMs` (number) – base delay between retries in ms. Default: 200.
+- `inactivityTimeoutMs` (number) – timeout for SSE inactivity before reconnecting in ms. Default: 30000.
 - `logger` (object) – custom logger with `debug`, `info`, `warn`, `error` methods. Default: `console`.
+- `agent` (string) – agent identifier sent in User-Agent header.
+- `onConnectionError` (function) – callback invoked when a connection error occurs during SSE streaming.
+- `onConnected` (function) – callback invoked when the SSE connection is successfully established.
 
 ### `replane.get<K>(name, options?)`
 
@@ -383,7 +387,7 @@ const replane = await createReplaneClient<Configs>({
 // If any required config is missing, initialization will throw
 ```
 
-### Fallback configs
+### Default configs
 
 ```ts
 interface Configs {
@@ -395,15 +399,15 @@ interface Configs {
 const replane = await createReplaneClient<Configs>({
   sdkKey: process.env.REPLANE_SDK_KEY!,
   baseUrl: "https://replane.my-host.com",
-  fallbacks: {
+  defaults: {
     "feature-flag": false, // Use false if fetch fails
     "max-connections": 10, // Use 10 if fetch fails
     "timeout-ms": 5000, // Use 5s if fetch fails
   },
 });
 
-// If the initial fetch fails, fallback values are used
-// Once the configs client connects, it will receive realtime updates
+// If the initial fetch fails or times out, default values are used
+// Once the client connects, it will receive realtime updates
 const maxConnections = replane.get("max-connections"); // 10 (or real value)
 ```
 

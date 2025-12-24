@@ -163,17 +163,17 @@ export interface ReplaneClientOptions<T extends object> {
     | Array<keyof T>;
 
   /**
-   * Fallback values to use if the initial request to fetch configs fails.
-   * When provided, all configs must be specified.
+   * Default values to use if the initial request to fetch configs fails or times out.
+   * These values are used immediately while waiting for server connection.
    * @example
    * {
-   *   fallbacks: {
+   *   defaults: {
    *     config1: "value1",
    *     config2: 42,
    *   },
    * }
    */
-  fallbacks?: {
+  defaults?: {
     [K in keyof T]: T[K];
   };
 
@@ -283,7 +283,7 @@ export interface ReplaneFinalOptions {
   retryDelayMs: number;
   context: ReplaneContext;
   requiredConfigs: string[];
-  fallbacks: ConfigDto[];
+  defaults: ConfigDto[];
   agent: string;
   onConnectionError?: (error: unknown) => void;
   onConnected?: () => void;
