@@ -73,6 +73,21 @@ import { ErrorBoundary } from "react-error-boundary";
 </ErrorBoundary>;
 ```
 
+#### Client Options
+
+The `options` prop accepts all options from `@replanejs/sdk`. Key options:
+
+| Option                    | Type                   | Required | Description                                |
+| ------------------------- | ---------------------- | -------- | ------------------------------------------ |
+| `baseUrl`                 | `string`               | Yes      | Replane server URL                         |
+| `sdkKey`                  | `string`               | Yes      | SDK key for authentication                 |
+| `context`                 | `Record<string, any>`  | No       | Default context for override evaluations   |
+| `defaults`                | `Record<string, any>`  | No       | Default values if server is unavailable    |
+| `required`                | `string[]` or `object` | No       | Configs that must exist for initialization |
+| `initializationTimeoutMs` | `number`               | No       | SDK initialization timeout (default: 5000) |
+
+See [`@replanejs/sdk` documentation](https://github.com/replane-dev/replane-javascript/tree/main/packages/sdk#options) for the complete list of options.
+
 #### 2. With pre-created client
 
 Use this when you need more control over client lifecycle:
