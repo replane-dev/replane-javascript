@@ -1965,6 +1965,31 @@ describe("createReplaneClient", () => {
       // Config should still be initial since client is closed
       expect(client.get("config1")).toBe("initial");
     });
+
+    it("should be safe to call close() multiple times", async () => {
+      clientPromise = createClient();
+      const connection = await mockServer.acceptConnection();
+
+      await connection.push({
+        type: "init",
+        configs: [{ name: "config1", overrides: [], value: "value1" }],
+      });
+
+      const client = await clientPromise;
+      await sync();
+
+      // First close
+      expect(() => client.close()).not.toThrow();
+
+      // Second close should also not throw
+      expect(() => client.close()).not.toThrow();
+
+      // Third close for good measure
+      expect(() => client.close()).not.toThrow();
+
+      // Client should still be usable for reading cached data
+      expect(client.get("config1")).toBe("value1");
+    });
   });
 });
 
@@ -2024,10 +2049,18 @@ describe("createInMemoryReplaneClient", () => {
     expect(client.get("null")).toBe(null);
   });
 
-  it("should have a no-op close method", () => {
+  it("should be safe to call close() multiple times", () => {
     const client = createInMemoryReplaneClient({ config1: "value1" });
 
+    // First close
     expect(() => client.close()).not.toThrow();
+
+    // Second close should also not throw
+    expect(() => client.close()).not.toThrow();
+
+    // Third close for good measure
+    expect(() => client.close()).not.toThrow();
+
     // Config should still work after close
     expect(client.get("config1")).toBe("value1");
   });
@@ -2145,14 +2178,23 @@ describe("restoreReplaneClient", () => {
       expect(client.get("config1", { default: "fallback" })).toBe("actual");
     });
 
-    it("should have a no-op close method", () => {
+    it("should be safe to call close() multiple times", () => {
       const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "value1", overrides: [] }],
       };
 
       const client = restoreReplaneClient({ snapshot });
 
+      // First close
       expect(() => client.close()).not.toThrow();
+
+      // Second close should also not throw
+      expect(() => client.close()).not.toThrow();
+
+      // Third close for good measure
+      expect(() => client.close()).not.toThrow();
+
+      // Config should still work after close
       expect(client.get("config1")).toBe("value1");
     });
 

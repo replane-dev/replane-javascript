@@ -259,7 +259,7 @@ replane.close();
 
 ### `replane.close()`
 
-Gracefully shuts down the Replane client and cleans up resources. Subsequent method calls will throw. Use this in environments where you manage resource lifecycles explicitly (e.g. shutting down a server or worker).
+Gracefully shuts down the Replane client and cleans up resources. Subsequent method calls is a no-op, it's safe to call multiple times. Use this in environments where you manage resource lifecycles explicitly (e.g. shutting down a server or worker).
 
 ```ts
 // During shutdown
