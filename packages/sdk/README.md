@@ -482,6 +482,18 @@ unsubscribeMaxUsers();
 replane.close();
 ```
 
+## Framework SDKs
+
+For React, Next.js, and Svelte applications, use the dedicated framework SDKs which provide hooks, context providers, and SSR support:
+
+| Framework   | Package             | Description                              |
+| ----------- | ------------------- | ---------------------------------------- |
+| **React**   | `@replanejs/react`  | Hooks and context for React apps         |
+| **Next.js** | `@replanejs/next`   | SSR/SSG support for Next.js              |
+| **Svelte**  | `@replanejs/svelte` | Reactive stores for Svelte and SvelteKit |
+
+See the [examples directory](./examples/) for runtime-specific examples (Node.js, Bun, Deno, Browser).
+
 ## Community
 
 Have questions or want to discuss Replane? Join the conversation in [GitHub Discussions](https://github.com/orgs/replane-dev/discussions).
