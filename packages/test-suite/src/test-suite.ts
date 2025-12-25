@@ -68,7 +68,7 @@ function createTestContext(
       return createReplaneClient<T>({
         sdkKey,
         baseUrl: options.edgeApiBaseUrl,
-        logger: silentLogger,
+        logger: options.debug ? console : silentLogger,
         initializationTimeoutMs: defaultTimeout,
         context: clientOptions?.context,
         defaults: clientOptions?.defaults as T | undefined,

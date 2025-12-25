@@ -13,6 +13,8 @@ export interface TestSuiteOptions {
   edgeApiBaseUrl: string;
   /** Default timeout for waiting operations in ms (default: 5000) */
   defaultTimeout?: number;
+  /** Enable debug logging */
+  debug?: boolean;
 }
 
 /**
