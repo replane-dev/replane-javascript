@@ -17,6 +17,8 @@ export default tseslint.config(
       ],
       "@typescript-eslint/no-explicit-any": "warn",
       "no-console": "off",
+      "@typescript-eslint/triple-slash-reference": "off",
+      "@typescript-eslint/no-empty-object-type": "off",
     },
   },
   // React-specific config for packages/react and packages/next
