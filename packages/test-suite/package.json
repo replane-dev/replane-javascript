@@ -42,7 +42,8 @@
     "prebuild": "node ../../scripts/update-version.js .",
     "build": "tsdown",
     "dev": "tsdown --watch",
-    "test": "dotenv -- vitest run",
+    "test": "echo 'Use test:e2e to run the test suite'",
+    "test:e2e": "dotenv -- vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

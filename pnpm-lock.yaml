@@ -189,10 +189,10 @@ importers:
   packages/test-suite:
     dependencies:
       '@replanejs/admin':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../admin
       '@replanejs/sdk':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../sdk
     devDependencies:
       dotenv-cli:
