@@ -30,7 +30,7 @@
     ? {
         sdkKey,
         baseUrl,
-        fallbacks: {
+        defaults: {
           "theme-config": { primaryColor: "#3b82f6", darkMode: false },
           "feature-flags": {
             newHeader: true,

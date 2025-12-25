@@ -29,7 +29,7 @@ async function main() {
     console.error("  REPLANE_BASE_URL - Your Replane API base URL");
     console.error("\nExample:");
     console.error(
-      '  REPLANE_SDK_KEY=your-key REPLANE_BASE_URL=https://replane.example.com npm start'
+      "  REPLANE_SDK_KEY=your-key REPLANE_BASE_URL=https://replane.example.com npm start"
     );
     process.exit(1);
   }
@@ -44,8 +44,8 @@ async function main() {
     context: {
       environment: "development",
     },
-    // Optional: fallback values if initial fetch fails
-    fallbacks: {
+    // Optional: default values if initial fetch fails
+    defaults: {
       "maintenance-mode": false,
       "feature-flags": {
         newDashboard: false,

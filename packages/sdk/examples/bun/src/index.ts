@@ -44,8 +44,8 @@ async function main() {
     context: {
       environment: "development",
     },
-    // Optional: fallback values if initial fetch fails
-    fallbacks: {
+    // Optional: default values if initial fetch fails
+    defaults: {
       "maintenance-mode": false,
       "feature-flags": {
         newDashboard: false,

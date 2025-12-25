@@ -1,4 +1,8 @@
-import { createReplaneClient, createInMemoryReplaneClient, type ReplaneClient } from "@replanejs/sdk";
+import {
+  createReplaneClient,
+  createInMemoryReplaneClient,
+  type ReplaneClient,
+} from "@replanejs/sdk";
 
 // Define your config types for type-safe access
 interface Configs {
@@ -125,7 +129,7 @@ async function main() {
         context: {
           environment: "browser",
         },
-        fallbacks: {
+        defaults: {
           "maintenance-mode": false,
           "feature-flags": {
             newDashboard: false,
