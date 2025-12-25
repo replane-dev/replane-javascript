@@ -245,7 +245,6 @@ export interface CreateConfigRequest {
   name: string;
   description: string;
   editors: string[];
-  maintainers: string[];
   base: ConfigBase;
   variants: ConfigVariant[];
 }
