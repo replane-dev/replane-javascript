@@ -41,6 +41,7 @@ describe("ReplaneAdmin - Initialization", () => {
     });
 
     expect(admin).toBeInstanceOf(ReplaneAdmin);
+    expect(admin.workspaces).toBeDefined();
     expect(admin.projects).toBeDefined();
     expect(admin.configs).toBeDefined();
     expect(admin.environments).toBeDefined();
@@ -244,7 +245,7 @@ describe("ReplaneAdmin - Error Handling", () => {
     });
 
     try {
-      await admin.projects.get("non-existent-id");
+      await admin.projects.get({ projectId: "non-existent-id" });
       expect.fail("Expected ReplaneAdminError to be thrown");
     } catch (error) {
       expect(error).toBeInstanceOf(ReplaneAdminError);
@@ -363,7 +364,7 @@ describe("Workspaces API", () => {
 
       mockFetch.mockResolvedValueOnce(jsonResponse(workspace));
 
-      const result = await admin.workspaces.get("ws-1");
+      const result = await admin.workspaces.get({ workspaceId: "ws-1" });
 
       expect(result).toMatchObject({
         id: "ws-1",
@@ -381,7 +382,7 @@ describe("Workspaces API", () => {
         })
       );
 
-      await admin.workspaces.get("ws-123");
+      await admin.workspaces.get({ workspaceId: "ws-123" });
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/workspaces/ws-123"),
@@ -427,7 +428,7 @@ describe("Workspaces API", () => {
     it("deletes a workspace", async () => {
       mockFetch.mockResolvedValueOnce(noContentResponse());
 
-      await admin.workspaces.delete("ws-1");
+      await admin.workspaces.delete({ workspaceId: "ws-1" });
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/workspaces/ws-1"),
@@ -438,7 +439,7 @@ describe("Workspaces API", () => {
     it("handles 204 No Content response", async () => {
       mockFetch.mockResolvedValueOnce(noContentResponse());
 
-      const result = await admin.workspaces.delete("ws-1");
+      const result = await admin.workspaces.delete({ workspaceId: "ws-1" });
 
       expect(result).toBeUndefined();
     });
@@ -515,7 +516,7 @@ describe("Projects API", () => {
 
       mockFetch.mockResolvedValueOnce(jsonResponse(project));
 
-      const result = await admin.projects.get("proj-1");
+      const result = await admin.projects.get({ projectId: "proj-1" });
 
       expect(result).toMatchObject({
         id: "proj-1",
@@ -535,7 +536,7 @@ describe("Projects API", () => {
         })
       );
 
-      await admin.projects.get("proj-123");
+      await admin.projects.get({ projectId: "proj-123" });
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/projects/proj-123"),
@@ -548,7 +549,8 @@ describe("Projects API", () => {
     it("creates a new project", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ id: "new-proj-id" }, 201));
 
-      const result = await admin.projects.create("ws-123", {
+      const result = await admin.projects.create({
+        workspaceId: "ws-123",
         name: "New Project",
         description: "New project description",
       });
@@ -559,7 +561,8 @@ describe("Projects API", () => {
     it("makes POST request to /workspaces/{workspaceId}/projects with JSON body", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ id: "new-proj-id" }, 201));
 
-      await admin.projects.create("ws-123", {
+      await admin.projects.create({
+        workspaceId: "ws-123",
         name: "New Project",
         description: "Description",
       });
@@ -584,7 +587,8 @@ describe("Projects API", () => {
     it("updates an existing project", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ id: "proj-1" }));
 
-      const result = await admin.projects.update("proj-1", {
+      const result = await admin.projects.update({
+        projectId: "proj-1",
         name: "Updated Name",
       });
 
@@ -594,7 +598,8 @@ describe("Projects API", () => {
     it("makes PATCH request with JSON body", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ id: "proj-1" }));
 
-      await admin.projects.update("proj-1", {
+      await admin.projects.update({
+        projectId: "proj-1",
         name: "Updated Name",
         description: "Updated description",
       });
@@ -616,7 +621,7 @@ describe("Projects API", () => {
     it("deletes a project", async () => {
       mockFetch.mockResolvedValueOnce(noContentResponse());
 
-      await admin.projects.delete("proj-1");
+      await admin.projects.delete({ projectId: "proj-1" });
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/projects/proj-1"),
@@ -627,7 +632,7 @@ describe("Projects API", () => {
     it("handles 204 No Content response", async () => {
       mockFetch.mockResolvedValueOnce(noContentResponse());
 
-      const result = await admin.projects.delete("proj-1");
+      const result = await admin.projects.delete({ projectId: "proj-1" });
 
       expect(result).toBeUndefined();
     });
@@ -667,7 +672,7 @@ describe("Configs API", () => {
 
       mockFetch.mockResolvedValueOnce(jsonResponse({ configs }));
 
-      const result = await admin.configs.list("proj-1");
+      const result = await admin.configs.list({ projectId: "proj-1" });
 
       expect(result.configs).toHaveLength(1);
       expect(result.configs[0]).toMatchObject({
@@ -679,7 +684,7 @@ describe("Configs API", () => {
     it("makes GET request to /projects/{projectId}/configs", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ configs: [] }));
 
-      await admin.configs.list("proj-123");
+      await admin.configs.list({ projectId: "proj-123" });
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/projects/proj-123/configs"),
@@ -708,7 +713,7 @@ describe("Configs API", () => {
 
       mockFetch.mockResolvedValueOnce(jsonResponse(config));
 
-      const result = await admin.configs.get("proj-1", "my-config");
+      const result = await admin.configs.get({ projectId: "proj-1", configName: "my-config" });
 
       expect(result).toMatchObject({
         id: "config-1",
@@ -731,7 +736,7 @@ describe("Configs API", () => {
         })
       );
 
-      await admin.configs.get("proj-1", "config with spaces");
+      await admin.configs.get({ projectId: "proj-1", configName: "config with spaces" });
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/configs/config%20with%20spaces"),
@@ -744,7 +749,8 @@ describe("Configs API", () => {
     it("creates a new config", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ id: "new-config-id" }, 201));
 
-      const result = await admin.configs.create("proj-1", {
+      const result = await admin.configs.create({
+        projectId: "proj-1",
         name: "new-config",
         description: "New config",
         editors: ["user@example.com"],
@@ -764,6 +770,7 @@ describe("Configs API", () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ id: "new-config-id" }, 201));
 
       const createData = {
+        projectId: "proj-1",
         name: "new-config",
         description: "New config",
         editors: ["user@example.com"],
@@ -784,13 +791,16 @@ describe("Configs API", () => {
         ],
       };
 
-      await admin.configs.create("proj-1", createData);
+      await admin.configs.create(createData);
+
+      // The body should not include projectId
+      const { projectId, ...bodyWithoutProjectId } = createData;
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/projects/proj-1/configs"),
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify(createData),
+          body: JSON.stringify(bodyWithoutProjectId),
         })
       );
     });
@@ -800,7 +810,9 @@ describe("Configs API", () => {
     it("updates an existing config", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ id: "config-1", version: 4 }));
 
-      const result = await admin.configs.update("proj-1", "my-config", {
+      const result = await admin.configs.update({
+        projectId: "proj-1",
+        configName: "my-config",
         description: "Updated description",
         editors: [],
         base: { value: true, schema: null, overrides: [] },
@@ -813,7 +825,9 @@ describe("Configs API", () => {
     it("makes PUT request to /projects/{projectId}/configs/{configName}", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ id: "config-1", version: 2 }));
 
-      await admin.configs.update("proj-1", "my-config", {
+      await admin.configs.update({
+        projectId: "proj-1",
+        configName: "my-config",
         description: "Updated",
         editors: [],
         base: { value: false, schema: null, overrides: [] },
@@ -831,7 +845,7 @@ describe("Configs API", () => {
     it("deletes a config", async () => {
       mockFetch.mockResolvedValueOnce(noContentResponse());
 
-      await admin.configs.delete("proj-1", "my-config");
+      await admin.configs.delete({ projectId: "proj-1", configName: "my-config" });
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/projects/proj-1/configs/my-config"),
@@ -869,7 +883,7 @@ describe("Environments API", () => {
 
       mockFetch.mockResolvedValueOnce(jsonResponse({ environments }));
 
-      const result = await admin.environments.list("proj-1");
+      const result = await admin.environments.list({ projectId: "proj-1" });
 
       expect(result.environments).toHaveLength(3);
       expect(result.environments[0]).toMatchObject({
@@ -881,7 +895,7 @@ describe("Environments API", () => {
     it("makes GET request to /projects/{projectId}/environments", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ environments: [] }));
 
-      await admin.environments.list("proj-123");
+      await admin.environments.list({ projectId: "proj-123" });
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/projects/proj-123/environments"),
@@ -930,7 +944,7 @@ describe("SDK Keys API", () => {
 
       mockFetch.mockResolvedValueOnce(jsonResponse({ sdkKeys }));
 
-      const result = await admin.sdkKeys.list("proj-1");
+      const result = await admin.sdkKeys.list({ projectId: "proj-1" });
 
       expect(result.sdkKeys).toHaveLength(2);
       expect(result.sdkKeys[0]).toMatchObject({
@@ -942,7 +956,7 @@ describe("SDK Keys API", () => {
     it("makes GET request to /projects/{projectId}/sdk-keys", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ sdkKeys: [] }));
 
-      await admin.sdkKeys.list("proj-123");
+      await admin.sdkKeys.list({ projectId: "proj-123" });
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/projects/proj-123/sdk-keys"),
@@ -964,7 +978,8 @@ describe("SDK Keys API", () => {
 
       mockFetch.mockResolvedValueOnce(jsonResponse(newKey, 201));
 
-      const result = await admin.sdkKeys.create("proj-1", {
+      const result = await admin.sdkKeys.create({
+        projectId: "proj-1",
         name: "New SDK Key",
         description: "A new key",
         environmentId: "env-1",
@@ -992,7 +1007,8 @@ describe("SDK Keys API", () => {
         )
       );
 
-      await admin.sdkKeys.create("proj-1", {
+      await admin.sdkKeys.create({
+        projectId: "proj-1",
         name: "Test Key",
         description: "Test description",
         environmentId: "env-1",
@@ -1016,7 +1032,7 @@ describe("SDK Keys API", () => {
     it("deletes an SDK key", async () => {
       mockFetch.mockResolvedValueOnce(noContentResponse());
 
-      await admin.sdkKeys.delete("proj-1", "key-1");
+      await admin.sdkKeys.delete({ projectId: "proj-1", sdkKeyId: "key-1" });
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/projects/proj-1/sdk-keys/key-1"),
@@ -1054,7 +1070,7 @@ describe("Members API", () => {
 
       mockFetch.mockResolvedValueOnce(jsonResponse({ members }));
 
-      const result = await admin.members.list("proj-1");
+      const result = await admin.members.list({ projectId: "proj-1" });
 
       expect(result.members).toHaveLength(3);
       expect(result.members[0]).toMatchObject({
@@ -1066,7 +1082,7 @@ describe("Members API", () => {
     it("makes GET request to /projects/{projectId}/members", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ members: [] }));
 
-      await admin.members.list("proj-123");
+      await admin.members.list({ projectId: "proj-123" });
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/projects/proj-123/members"),
