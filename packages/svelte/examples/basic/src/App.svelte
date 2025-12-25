@@ -63,8 +63,9 @@
     </ReplaneContext>
 
     {#snippet failed(error)}
+      {@const errorMessage = error instanceof Error ? error.message : String(error)}
       <div class="loading-screen">
-        <p>Error loading configuration: {error.message}</p>
+        <p>Error loading configuration: {errorMessage}</p>
       </div>
     {/snippet}
   </svelte:boundary>

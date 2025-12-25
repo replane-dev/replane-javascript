@@ -1,0 +1,81 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  REPLANE_SUPERADMIN_API_KEY: test-superuser-api-key-for-e2e
+  REPLANE_ADMIN_API_PORT: 8084
+  REPLANE_EDGE_API_PORT: 8085
+
+jobs:
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm run build
+
+      - name: Start services
+        working-directory: packages/test-suite
+        run: |
+          docker compose up -d
+          # Wait for services to be healthy
+          echo "Waiting for services to be ready..."
+          sleep 10
+          # Check if services are up
+          for i in {1..30}; do
+            if curl -sf http://localhost:$REPLANE_ADMIN_API_PORT/api/health > /dev/null 2>&1; then
+              echo "Admin API is ready"
+              break
+            fi
+            echo "Waiting for Admin API... ($i/30)"
+            sleep 2
+          done
+          for i in {1..30}; do
+            if curl -sf http://localhost:$REPLANE_EDGE_API_PORT/api/health > /dev/null 2>&1; then
+              echo "Edge API is ready"
+              break
+            fi
+            echo "Waiting for Edge API... ($i/30)"
+            sleep 2
+          done
+
+      - name: Run E2E tests
+        working-directory: packages/test-suite
+        env:
+          REPLANE_ADMIN_API_BASE_URL: http://localhost:${{ env.REPLANE_ADMIN_API_PORT }}
+          REPLANE_EDGE_API_BASE_URL: http://localhost:${{ env.REPLANE_EDGE_API_PORT }}
+        run: pnpm test:e2e
+
+      - name: Show logs on failure
+        if: failure()
+        working-directory: packages/test-suite
+        run: docker compose logs
+
+      - name: Cleanup
+        if: always()
+        working-directory: packages/test-suite
+        run: docker compose down -v
+

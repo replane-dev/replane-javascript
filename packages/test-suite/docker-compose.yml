@@ -1,5 +1,5 @@
 x-replane-common: &replane-common
-  image: replane/replane:latest
+  image: ghcr.io/replane-dev/replane:latest
   depends_on:
     postgres:
       condition: service_healthy
