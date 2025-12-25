@@ -1,6 +1,6 @@
 {
   "name": "@replanejs/react",
-  "version": "0.8.14",
+  "version": "0.8.15",
   "description": "React SDK for Replane - feature flags and remote configuration",
   "type": "module",
   "main": "./dist/index.cjs",

@@ -1,6 +1,6 @@
 {
   "name": "@replanejs/svelte",
-  "version": "0.8.14",
+  "version": "0.8.15",
   "description": "Svelte SDK for Replane - feature flags and remote configuration",
   "type": "module",
   "svelte": "./dist/index.js",
