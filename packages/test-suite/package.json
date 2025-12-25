@@ -1,6 +1,6 @@
 {
   "name": "@replanejs/test-suite",
-  "version": "0.8.16",
+  "version": "0.8.17",
   "description": "End-to-end test suite for Replane SDK and Admin API",
   "type": "module",
   "license": "MIT",
