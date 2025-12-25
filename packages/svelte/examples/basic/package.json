@@ -1,6 +1,6 @@
 {
   "name": "replanejs-svelte-example",
-  "version": "0.8.13",
+  "version": "0.8.14",
   "private": true,
   "description": "Example Svelte project using @replanejs/svelte",
   "type": "module",
