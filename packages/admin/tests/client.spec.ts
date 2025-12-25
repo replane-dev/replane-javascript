@@ -794,7 +794,7 @@ describe("Configs API", () => {
       await admin.configs.create(createData);
 
       // The body should not include projectId
-      const { ...bodyWithoutProjectId } = createData;
+      const { projectId: _projectId, ...bodyWithoutProjectId } = createData;
 
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/projects/proj-1/configs"),
