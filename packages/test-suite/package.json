@@ -1,0 +1,64 @@
+{
+  "name": "@replanejs/test-suite",
+  "version": "0.8.13",
+  "description": "End-to-end test suite for Replane SDK and Admin API",
+  "type": "module",
+  "license": "MIT",
+  "homepage": "https://github.com/replane-dev/replane-javascript#readme",
+  "bugs": {
+    "url": "https://github.com/replane-dev/replane-javascript/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/replane-dev/replane-javascript.git",
+    "directory": "packages/test-suite"
+  },
+  "author": "Dmitry Tilyupo <tilyupo@gmail.com>",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "replane",
+    "test",
+    "e2e",
+    "integration-testing"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "prebuild": "node ../../scripts/update-version.js .",
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "test": "dotenv -- vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@replanejs/admin": "workspace:^",
+    "@replanejs/sdk": "workspace:^"
+  },
+  "peerDependencies": {
+    "vitest": ">=2.0.0"
+  },
+  "devDependencies": {
+    "dotenv-cli": "^11.0.0",
+    "tsdown": "^0.11.9",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

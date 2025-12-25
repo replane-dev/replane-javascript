@@ -297,6 +297,155 @@ describe("ReplaneAdmin - Error Handling", () => {
 });
 
 // ============================================================================
+// Workspaces API
+// ============================================================================
+
+describe("Workspaces API", () => {
+  let mockFetch: ReturnType<typeof createFetchMock>;
+  let admin: ReplaneAdmin;
+
+  beforeEach(() => {
+    mockFetch = createFetchMock();
+    vi.stubGlobal("fetch", mockFetch);
+    admin = new ReplaneAdmin({ baseUrl: "https://test.replane.dev", apiKey: "rpa_test_key" });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  describe("list", () => {
+    it("returns list of workspaces", async () => {
+      const workspaces = [
+        {
+          id: "ws-1",
+          name: "Workspace 1",
+          createdAt: "2024-01-01T00:00:00Z",
+          updatedAt: "2024-01-02T00:00:00Z",
+        },
+        {
+          id: "ws-2",
+          name: "Workspace 2",
+          createdAt: "2024-02-01T00:00:00Z",
+          updatedAt: "2024-02-02T00:00:00Z",
+        },
+      ];
+
+      mockFetch.mockResolvedValueOnce(jsonResponse({ workspaces }));
+
+      const result = await admin.workspaces.list();
+
+      expect(result.workspaces).toHaveLength(2);
+      expect(result.workspaces[0]).toMatchObject({ id: "ws-1", name: "Workspace 1" });
+      expect(result.workspaces[1]).toMatchObject({ id: "ws-2", name: "Workspace 2" });
+    });
+
+    it("makes GET request to /workspaces", async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({ workspaces: [] }));
+
+      await admin.workspaces.list();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/workspaces"),
+        expect.objectContaining({ method: "GET" })
+      );
+    });
+  });
+
+  describe("get", () => {
+    it("returns workspace by ID", async () => {
+      const workspace = {
+        id: "ws-1",
+        name: "My Workspace",
+        createdAt: "2024-01-01T00:00:00Z",
+        updatedAt: "2024-01-02T00:00:00Z",
+      };
+
+      mockFetch.mockResolvedValueOnce(jsonResponse(workspace));
+
+      const result = await admin.workspaces.get("ws-1");
+
+      expect(result).toMatchObject({
+        id: "ws-1",
+        name: "My Workspace",
+      });
+    });
+
+    it("makes GET request to /workspaces/{workspaceId}", async () => {
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          id: "ws-123",
+          name: "Test",
+          createdAt: "2024-01-01T00:00:00Z",
+          updatedAt: "2024-01-01T00:00:00Z",
+        })
+      );
+
+      await admin.workspaces.get("ws-123");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/workspaces/ws-123"),
+        expect.objectContaining({ method: "GET" })
+      );
+    });
+  });
+
+  describe("create", () => {
+    it("creates a new workspace", async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({ id: "new-ws-id" }, 201));
+
+      const result = await admin.workspaces.create({
+        name: "New Workspace",
+      });
+
+      expect(result).toMatchObject({ id: "new-ws-id" });
+    });
+
+    it("makes POST request with JSON body", async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({ id: "new-ws-id" }, 201));
+
+      await admin.workspaces.create({
+        name: "New Workspace",
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/workspaces"),
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({
+            "Content-Type": "application/json",
+          }),
+          body: JSON.stringify({
+            name: "New Workspace",
+          }),
+        })
+      );
+    });
+  });
+
+  describe("delete", () => {
+    it("deletes a workspace", async () => {
+      mockFetch.mockResolvedValueOnce(noContentResponse());
+
+      await admin.workspaces.delete("ws-1");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/workspaces/ws-1"),
+        expect.objectContaining({ method: "DELETE" })
+      );
+    });
+
+    it("handles 204 No Content response", async () => {
+      mockFetch.mockResolvedValueOnce(noContentResponse());
+
+      const result = await admin.workspaces.delete("ws-1");
+
+      expect(result).toBeUndefined();
+    });
+  });
+});
+
+// ============================================================================
 // Projects API
 // ============================================================================
 
@@ -399,7 +548,7 @@ describe("Projects API", () => {
     it("creates a new project", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ id: "new-proj-id" }, 201));
 
-      const result = await admin.projects.create({
+      const result = await admin.projects.create("ws-123", {
         name: "New Project",
         description: "New project description",
       });
@@ -407,16 +556,16 @@ describe("Projects API", () => {
       expect(result).toMatchObject({ id: "new-proj-id" });
     });
 
-    it("makes POST request with JSON body", async () => {
+    it("makes POST request to /workspaces/{workspaceId}/projects with JSON body", async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ id: "new-proj-id" }, 201));
 
-      await admin.projects.create({
+      await admin.projects.create("ws-123", {
         name: "New Project",
         description: "Description",
       });
 
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining("/projects"),
+        expect.stringContaining("/workspaces/ws-123/projects"),
         expect.objectContaining({
           method: "POST",
           headers: expect.objectContaining({

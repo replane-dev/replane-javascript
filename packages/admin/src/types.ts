@@ -7,14 +7,141 @@
 export type ConfigValue = unknown;
 export type ConfigSchema = unknown;
 
-export interface Override {
-  condition: OverrideCondition;
+// ===== Value Types (for condition values) =====
+
+export interface LiteralValue {
+  type: "literal";
   value: ConfigValue;
 }
 
-export interface OverrideCondition {
-  type: string;
-  [key: string]: unknown;
+export interface ReferenceValue {
+  type: "reference";
+  projectId: string;
+  configName: string;
+  path: string;
+}
+
+export type ConditionValue = LiteralValue | ReferenceValue;
+
+// ===== Condition Types =====
+
+export interface EqualsCondition {
+  operator: "equals";
+  property: string;
+  value: ConditionValue;
+}
+
+export interface InCondition {
+  operator: "in";
+  property: string;
+  value: ConditionValue;
+}
+
+export interface NotInCondition {
+  operator: "not_in";
+  property: string;
+  value: ConditionValue;
+}
+
+export interface LessThanCondition {
+  operator: "less_than";
+  property: string;
+  value: ConditionValue;
+}
+
+export interface LessThanOrEqualCondition {
+  operator: "less_than_or_equal";
+  property: string;
+  value: ConditionValue;
+}
+
+export interface GreaterThanCondition {
+  operator: "greater_than";
+  property: string;
+  value: ConditionValue;
+}
+
+export interface GreaterThanOrEqualCondition {
+  operator: "greater_than_or_equal";
+  property: string;
+  value: ConditionValue;
+}
+
+export interface SegmentationCondition {
+  operator: "segmentation";
+  property: string;
+  fromPercentage: number;
+  toPercentage: number;
+  seed: string;
+}
+
+export interface AndCondition {
+  operator: "and";
+  conditions: OverrideCondition[];
+}
+
+export interface OrCondition {
+  operator: "or";
+  conditions: OverrideCondition[];
+}
+
+export interface NotCondition {
+  operator: "not";
+  condition: OverrideCondition;
+}
+
+export type OverrideCondition =
+  | EqualsCondition
+  | InCondition
+  | NotInCondition
+  | LessThanCondition
+  | LessThanOrEqualCondition
+  | GreaterThanCondition
+  | GreaterThanOrEqualCondition
+  | SegmentationCondition
+  | AndCondition
+  | OrCondition
+  | NotCondition;
+
+// ===== Override Type =====
+
+export interface Override {
+  name: string;
+  conditions: OverrideCondition[];
+  value: ConfigValue;
+}
+
+// ===== Workspace Types =====
+
+export interface Workspace {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ListWorkspacesRequest {
+  // No parameters currently, but included for consistency
+}
+
+export interface ListWorkspacesResponse {
+  workspaces: Workspace[];
+}
+
+export interface GetWorkspaceRequest {
+  workspaceId: string;
+}
+
+export interface CreateWorkspaceRequest {
+  name: string;
+}
+
+export interface CreateWorkspaceResponse {
+  id: string;
+}
+
+export interface DeleteWorkspaceRequest {
+  workspaceId: string;
 }
 
 // ===== Project Types =====
@@ -27,26 +154,40 @@ export interface Project {
   updatedAt: string;
 }
 
+export interface ListProjectsRequest {
+  // No parameters currently, but included for consistency
+}
+
+export interface ListProjectsResponse {
+  projects: Project[];
+}
+
+export interface GetProjectRequest {
+  projectId: string;
+}
+
 export interface CreateProjectRequest {
+  workspaceId: string;
   name: string;
   description: string;
-}
-
-export interface UpdateProjectRequest {
-  name?: string;
-  description?: string;
-}
-
-export interface ProjectListResponse {
-  projects: Project[];
 }
 
 export interface CreateProjectResponse {
   id: string;
 }
 
+export interface UpdateProjectRequest {
+  projectId: string;
+  name?: string;
+  description?: string;
+}
+
 export interface UpdateProjectResponse {
   id: string;
+}
+
+export interface DeleteProjectRequest {
+  projectId: string;
 }
 
 // ===== Config Types =====
@@ -86,11 +227,21 @@ export interface ConfigListItem {
   updatedAt: string;
 }
 
-export interface ConfigListResponse {
+export interface ListConfigsRequest {
+  projectId: string;
+}
+
+export interface ListConfigsResponse {
   configs: ConfigListItem[];
 }
 
+export interface GetConfigRequest {
+  projectId: string;
+  configName: string;
+}
+
 export interface CreateConfigRequest {
+  projectId: string;
   name: string;
   description: string;
   editors: string[];
@@ -99,20 +250,27 @@ export interface CreateConfigRequest {
   variants: ConfigVariant[];
 }
 
+export interface CreateConfigResponse {
+  id: string;
+}
+
 export interface UpdateConfigRequest {
+  projectId: string;
+  configName: string;
   description: string;
   editors: string[];
   base: ConfigBase;
   variants: ConfigVariant[];
 }
 
-export interface CreateConfigResponse {
-  id: string;
-}
-
 export interface UpdateConfigResponse {
   id: string;
   version: number;
+}
+
+export interface DeleteConfigRequest {
+  projectId: string;
+  configName: string;
 }
 
 // ===== Environment Types =====
@@ -123,7 +281,11 @@ export interface Environment {
   order: number;
 }
 
-export interface EnvironmentListResponse {
+export interface ListEnvironmentsRequest {
+  projectId: string;
+}
+
+export interface ListEnvironmentsResponse {
   environments: Environment[];
 }
 
@@ -141,14 +303,24 @@ export interface SdkKeyWithToken extends SdkKey {
   key: string;
 }
 
-export interface SdkKeyListResponse {
+export interface ListSdkKeysRequest {
+  projectId: string;
+}
+
+export interface ListSdkKeysResponse {
   sdkKeys: SdkKey[];
 }
 
 export interface CreateSdkKeyRequest {
+  projectId: string;
   name: string;
   description?: string;
   environmentId: string;
+}
+
+export interface DeleteSdkKeyRequest {
+  projectId: string;
+  sdkKeyId: string;
 }
 
 // ===== Member Types =====
@@ -158,7 +330,11 @@ export interface Member {
   role: string;
 }
 
-export interface MemberListResponse {
+export interface ListMembersRequest {
+  projectId: string;
+}
+
+export interface ListMembersResponse {
   members: Member[];
 }
 
@@ -195,3 +371,17 @@ export interface ReplaneAdminOptions {
    */
   fetchFn?: typeof fetch;
 }
+
+// ===== Legacy type aliases for backwards compatibility =====
+/** @deprecated Use ListWorkspacesResponse */
+export type WorkspaceListResponse = ListWorkspacesResponse;
+/** @deprecated Use ListProjectsResponse */
+export type ProjectListResponse = ListProjectsResponse;
+/** @deprecated Use ListConfigsResponse */
+export type ConfigListResponse = ListConfigsResponse;
+/** @deprecated Use ListEnvironmentsResponse */
+export type EnvironmentListResponse = ListEnvironmentsResponse;
+/** @deprecated Use ListSdkKeysResponse */
+export type SdkKeyListResponse = ListSdkKeysResponse;
+/** @deprecated Use ListMembersResponse */
+export type MemberListResponse = ListMembersResponse;

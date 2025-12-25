@@ -1,22 +1,37 @@
 import type {
   ReplaneAdminOptions,
+  Workspace,
+  ListWorkspacesResponse,
+  GetWorkspaceRequest,
+  CreateWorkspaceRequest,
+  CreateWorkspaceResponse,
+  DeleteWorkspaceRequest,
   Project,
-  ProjectListResponse,
+  ListProjectsResponse,
+  GetProjectRequest,
   CreateProjectRequest,
   CreateProjectResponse,
   UpdateProjectRequest,
   UpdateProjectResponse,
+  DeleteProjectRequest,
   Config,
-  ConfigListResponse,
+  ListConfigsRequest,
+  ListConfigsResponse,
+  GetConfigRequest,
   CreateConfigRequest,
   CreateConfigResponse,
   UpdateConfigRequest,
   UpdateConfigResponse,
-  EnvironmentListResponse,
-  SdkKeyListResponse,
+  DeleteConfigRequest,
+  ListEnvironmentsRequest,
+  ListEnvironmentsResponse,
+  ListSdkKeysRequest,
+  ListSdkKeysResponse,
   SdkKeyWithToken,
   CreateSdkKeyRequest,
-  MemberListResponse,
+  DeleteSdkKeyRequest,
+  ListMembersRequest,
+  ListMembersResponse,
   ApiError,
 } from "./types.js";
 import { DEFAULT_AGENT } from "./version.js";
@@ -54,7 +69,8 @@ export class ReplaneAdminError extends Error {
  * const { projects } = await admin.projects.list();
  *
  * // Create a new config
- * const { id } = await admin.configs.create("project-id", {
+ * const { id } = await admin.configs.create({
+ *   projectId: "project-id",
  *   name: "my-config",
  *   description: "My config",
  *   editors: [],
@@ -70,6 +86,7 @@ export class ReplaneAdmin {
   private readonly agent: string;
   private readonly fetchFn: typeof fetch;
 
+  public readonly workspaces: WorkspacesApi;
   public readonly projects: ProjectsApi;
   public readonly configs: ConfigsApi;
   public readonly environments: EnvironmentsApi;
@@ -82,6 +99,7 @@ export class ReplaneAdmin {
     this.agent = options.agent ?? DEFAULT_AGENT;
     this.fetchFn = options.fetchFn ?? globalThis.fetch;
 
+    this.workspaces = new WorkspacesApi(this);
     this.projects = new ProjectsApi(this);
     this.configs = new ConfigsApi(this);
     this.environments = new EnvironmentsApi(this);
@@ -122,11 +140,15 @@ export class ReplaneAdmin {
       } catch {
         // Ignore JSON parse errors
       }
-      throw new ReplaneAdminError(
-        errorResponse?.error ?? `Request failed with status ${response.status}`,
-        response.status,
-        errorResponse
-      );
+      // Handle both string and object error messages
+      let errorMessage = `Request failed with status ${response.status}`;
+      if (errorResponse?.error) {
+        errorMessage =
+          typeof errorResponse.error === "string"
+            ? errorResponse.error
+            : JSON.stringify(errorResponse.error);
+      }
+      throw new ReplaneAdminError(errorMessage, response.status, errorResponse);
     }
 
     // Handle 204 No Content
@@ -139,6 +161,42 @@ export class ReplaneAdmin {
 }
 
 /**
+ * Workspaces API
+ * Note: Most workspace operations require superuser access
+ */
+class WorkspacesApi {
+  constructor(private readonly client: ReplaneAdmin) {}
+
+  /**
+   * List all workspaces (requires superuser access)
+   */
+  async list(): Promise<ListWorkspacesResponse> {
+    return this.client.request<ListWorkspacesResponse>("GET", "/workspaces");
+  }
+
+  /**
+   * Get a workspace by ID (requires superuser access)
+   */
+  async get(request: GetWorkspaceRequest): Promise<Workspace> {
+    return this.client.request<Workspace>("GET", `/workspaces/${request.workspaceId}`);
+  }
+
+  /**
+   * Create a new workspace (requires superuser access)
+   */
+  async create(request: CreateWorkspaceRequest): Promise<CreateWorkspaceResponse> {
+    return this.client.request<CreateWorkspaceResponse>("POST", "/workspaces", request);
+  }
+
+  /**
+   * Delete a workspace (requires superuser access)
+   */
+  async delete(request: DeleteWorkspaceRequest): Promise<void> {
+    return this.client.request<void>("DELETE", `/workspaces/${request.workspaceId}`);
+  }
+}
+
+/**
  * Projects API
  */
 class ProjectsApi {
@@ -147,36 +205,42 @@ class ProjectsApi {
   /**
    * List all projects
    */
-  async list(): Promise<ProjectListResponse> {
-    return this.client.request<ProjectListResponse>("GET", "/projects");
+  async list(): Promise<ListProjectsResponse> {
+    return this.client.request<ListProjectsResponse>("GET", "/projects");
   }
 
   /**
    * Get a project by ID
    */
-  async get(projectId: string): Promise<Project> {
-    return this.client.request<Project>("GET", `/projects/${projectId}`);
+  async get(request: GetProjectRequest): Promise<Project> {
+    return this.client.request<Project>("GET", `/projects/${request.projectId}`);
   }
 
   /**
-   * Create a new project
+   * Create a new project in a workspace
    */
-  async create(data: CreateProjectRequest): Promise<CreateProjectResponse> {
-    return this.client.request<CreateProjectResponse>("POST", "/projects", data);
+  async create(request: CreateProjectRequest): Promise<CreateProjectResponse> {
+    const { workspaceId, ...body } = request;
+    return this.client.request<CreateProjectResponse>(
+      "POST",
+      `/workspaces/${workspaceId}/projects`,
+      body
+    );
   }
 
   /**
    * Update a project
    */
-  async update(projectId: string, data: UpdateProjectRequest): Promise<UpdateProjectResponse> {
-    return this.client.request<UpdateProjectResponse>("PATCH", `/projects/${projectId}`, data);
+  async update(request: UpdateProjectRequest): Promise<UpdateProjectResponse> {
+    const { projectId, ...body } = request;
+    return this.client.request<UpdateProjectResponse>("PATCH", `/projects/${projectId}`, body);
   }
 
   /**
    * Delete a project
    */
-  async delete(projectId: string): Promise<void> {
-    return this.client.request<void>("DELETE", `/projects/${projectId}`);
+  async delete(request: DeleteProjectRequest): Promise<void> {
+    return this.client.request<void>("DELETE", `/projects/${request.projectId}`);
   }
 }
 
@@ -189,53 +253,54 @@ class ConfigsApi {
   /**
    * List all configs in a project
    */
-  async list(projectId: string): Promise<ConfigListResponse> {
-    return this.client.request<ConfigListResponse>("GET", `/projects/${projectId}/configs`);
+  async list(request: ListConfigsRequest): Promise<ListConfigsResponse> {
+    return this.client.request<ListConfigsResponse>(
+      "GET",
+      `/projects/${request.projectId}/configs`
+    );
   }
 
   /**
    * Get a config by name
    */
-  async get(projectId: string, configName: string): Promise<Config> {
+  async get(request: GetConfigRequest): Promise<Config> {
     return this.client.request<Config>(
       "GET",
-      `/projects/${projectId}/configs/${encodeURIComponent(configName)}`
+      `/projects/${request.projectId}/configs/${encodeURIComponent(request.configName)}`
     );
   }
 
   /**
    * Create a new config
    */
-  async create(projectId: string, data: CreateConfigRequest): Promise<CreateConfigResponse> {
+  async create(request: CreateConfigRequest): Promise<CreateConfigResponse> {
+    const { projectId, ...body } = request;
     return this.client.request<CreateConfigResponse>(
       "POST",
       `/projects/${projectId}/configs`,
-      data
+      body
     );
   }
 
   /**
    * Update a config
    */
-  async update(
-    projectId: string,
-    configName: string,
-    data: UpdateConfigRequest
-  ): Promise<UpdateConfigResponse> {
+  async update(request: UpdateConfigRequest): Promise<UpdateConfigResponse> {
+    const { projectId, configName, ...body } = request;
     return this.client.request<UpdateConfigResponse>(
       "PUT",
       `/projects/${projectId}/configs/${encodeURIComponent(configName)}`,
-      data
+      body
     );
   }
 
   /**
    * Delete a config
    */
-  async delete(projectId: string, configName: string): Promise<void> {
+  async delete(request: DeleteConfigRequest): Promise<void> {
     return this.client.request<void>(
       "DELETE",
-      `/projects/${projectId}/configs/${encodeURIComponent(configName)}`
+      `/projects/${request.projectId}/configs/${encodeURIComponent(request.configName)}`
     );
   }
 }
@@ -249,10 +314,10 @@ class EnvironmentsApi {
   /**
    * List all environments in a project
    */
-  async list(projectId: string): Promise<EnvironmentListResponse> {
-    return this.client.request<EnvironmentListResponse>(
+  async list(request: ListEnvironmentsRequest): Promise<ListEnvironmentsResponse> {
+    return this.client.request<ListEnvironmentsResponse>(
       "GET",
-      `/projects/${projectId}/environments`
+      `/projects/${request.projectId}/environments`
     );
   }
 }
@@ -266,23 +331,30 @@ class SdkKeysApi {
   /**
    * List all SDK keys in a project
    */
-  async list(projectId: string): Promise<SdkKeyListResponse> {
-    return this.client.request<SdkKeyListResponse>("GET", `/projects/${projectId}/sdk-keys`);
+  async list(request: ListSdkKeysRequest): Promise<ListSdkKeysResponse> {
+    return this.client.request<ListSdkKeysResponse>(
+      "GET",
+      `/projects/${request.projectId}/sdk-keys`
+    );
   }
 
   /**
    * Create a new SDK key
    * Note: The returned key is only shown once and cannot be retrieved again
    */
-  async create(projectId: string, data: CreateSdkKeyRequest): Promise<SdkKeyWithToken> {
-    return this.client.request<SdkKeyWithToken>("POST", `/projects/${projectId}/sdk-keys`, data);
+  async create(request: CreateSdkKeyRequest): Promise<SdkKeyWithToken> {
+    const { projectId, ...body } = request;
+    return this.client.request<SdkKeyWithToken>("POST", `/projects/${projectId}/sdk-keys`, body);
   }
 
   /**
    * Delete an SDK key
    */
-  async delete(projectId: string, sdkKeyId: string): Promise<void> {
-    return this.client.request<void>("DELETE", `/projects/${projectId}/sdk-keys/${sdkKeyId}`);
+  async delete(request: DeleteSdkKeyRequest): Promise<void> {
+    return this.client.request<void>(
+      "DELETE",
+      `/projects/${request.projectId}/sdk-keys/${request.sdkKeyId}`
+    );
   }
 }
 
@@ -295,7 +367,10 @@ class MembersApi {
   /**
    * List all members in a project
    */
-  async list(projectId: string): Promise<MemberListResponse> {
-    return this.client.request<MemberListResponse>("GET", `/projects/${projectId}/members`);
+  async list(request: ListMembersRequest): Promise<ListMembersResponse> {
+    return this.client.request<ListMembersResponse>(
+      "GET",
+      `/projects/${request.projectId}/members`
+    );
   }
 }
