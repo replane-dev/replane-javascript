@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Replane } from "@replanejs/sdk";
-import { DEFAULT_AGENT } from "./version";
-import type { ReplaneProviderOptions } from "./types";
+import { Replane, type ConnectOptions, type ReplaneOptions } from "@replanejs/sdk";
 
 type ClientState<T extends object> =
   | { status: "loading"; client: null; error: null }
@@ -22,7 +20,7 @@ const suspenseCache = new Map<
   }
 >();
 
-function getCacheKey<T extends object>(options: ReplaneProviderOptions<T>): string {
+function getCacheKey(options: ConnectOptions): string {
   return `${options.baseUrl}:${options.sdkKey}`;
 }
 
@@ -30,7 +28,8 @@ function getCacheKey<T extends object>(options: ReplaneProviderOptions<T>): stri
  * Creates a Replane client and connects it.
  */
 async function createAndConnectClient<T extends object>(
-  options: ReplaneProviderOptions<T>
+  options: ReplaneOptions<T>,
+  connection: ConnectOptions
 ): Promise<Replane<T>> {
   const client = new Replane<T>({
     logger: options.logger,
@@ -38,16 +37,11 @@ async function createAndConnectClient<T extends object>(
     defaults: options.defaults,
   });
 
-  await client.connect({
-    baseUrl: options.baseUrl,
-    sdkKey: options.sdkKey,
-    connectTimeoutMs: options.connectTimeoutMs,
-    retryDelayMs: options.retryDelayMs,
-    requestTimeoutMs: options.requestTimeoutMs,
-    inactivityTimeoutMs: options.inactivityTimeoutMs,
-    fetchFn: options.fetchFn,
-    agent: options.agent ?? DEFAULT_AGENT,
-  });
+  if (!connection) {
+    return client;
+  }
+
+  await client.connect(connection);
 
   return client;
 }
@@ -60,7 +54,8 @@ type ErrorConstructor = new (message: string, options?: { cause?: unknown }) => 
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function useReplaneClientInternal<T extends object = any>(
-  options: ReplaneProviderOptions<T>
+  options: ReplaneOptions<T>,
+  originalConnection: ConnectOptions
 ): ClientState<T> {
   const [state, setState] = useState<ClientState<T>>({
     status: "loading",
@@ -70,12 +65,14 @@ export function useReplaneClientInternal<T extends object = any>(
   const clientRef = useRef<Replane<T> | null>(null);
   const optionsRef = useRef(options);
 
+  const connectionJson = JSON.stringify(originalConnection);
   useEffect(() => {
+    const connection = JSON.parse(connectionJson);
     let cancelled = false;
 
     async function initClient() {
       try {
-        const client = await createAndConnectClient<T>(optionsRef.current);
+        const client = await createAndConnectClient<T>(optionsRef.current, connection);
         if (cancelled) {
           client.disconnect();
           return;
@@ -99,7 +96,7 @@ export function useReplaneClientInternal<T extends object = any>(
         clientRef.current = null;
       }
     };
-  }, []);
+  }, [connectionJson]);
 
   return state;
 }
@@ -110,9 +107,10 @@ export function useReplaneClientInternal<T extends object = any>(
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function useReplaneClientSuspense<T extends object = any>(
-  options: ReplaneProviderOptions<T>
+  options: ReplaneOptions<T>,
+  connection: ConnectOptions
 ): Replane<T> {
-  const cacheKey = getCacheKey(options);
+  const cacheKey = getCacheKey(connection);
   const cached = suspenseCache.get(cacheKey);
 
   if (cached) {
@@ -127,7 +125,7 @@ export function useReplaneClientSuspense<T extends object = any>(
   }
 
   // First time - create the promise
-  const promise = createAndConnectClient<T>(options)
+  const promise = createAndConnectClient<T>(options, connection)
     .then((client) => {
       const entry = suspenseCache.get(cacheKey);
       if (entry) {
@@ -148,12 +146,12 @@ export function useReplaneClientSuspense<T extends object = any>(
 }
 
 /**
- * Clear the suspense cache for a specific options configuration.
+ * Clear the suspense cache for a specific connection configuration.
  * Useful for testing or when you need to force re-initialization.
  */
-export function clearSuspenseCache<T extends object>(options?: ReplaneProviderOptions<T>): void {
-  if (options) {
-    suspenseCache.delete(getCacheKey(options));
+export function clearSuspenseCache(connection?: ConnectOptions): void {
+  if (connection) {
+    suspenseCache.delete(getCacheKey(connection));
   } else {
     suspenseCache.clear();
   }

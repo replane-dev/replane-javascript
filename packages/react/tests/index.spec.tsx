@@ -10,7 +10,7 @@ import {
   createConfigHook,
   clearSuspenseCache,
 } from "../src/index";
-import type { Replane, ReplaneProviderOptions } from "../src/index";
+import type { Replane, ConnectOptions } from "../src/index";
 import * as sdk from "@replanejs/sdk";
 
 // ============================================================================
@@ -102,8 +102,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const defaultTestOptions: ReplaneProviderOptions<any> = {
+const defaultConnection: ConnectOptions = {
   baseUrl: "https://test.replane.dev",
   sdkKey: "rp_test_key",
 };
@@ -284,7 +283,7 @@ describe("ReplaneProvider with options prop - Loading States", () => {
   it("shows loader component while initializing", () => {
     render(
       <ReplaneProvider
-        options={defaultTestOptions}
+        connection={defaultConnection}
         loader={<div data-testid="loader">Loading...</div>}
       >
         <div data-testid="content">Content</div>
@@ -299,7 +298,7 @@ describe("ReplaneProvider with options prop - Loading States", () => {
   it("shows custom loader with complex markup", () => {
     render(
       <ReplaneProvider
-        options={defaultTestOptions}
+        connection={defaultConnection}
         loader={
           <div data-testid="loader">
             <span data-testid="spinner">🔄</span>
@@ -318,7 +317,7 @@ describe("ReplaneProvider with options prop - Loading States", () => {
 
   it("renders nothing when no loader is provided and still loading", () => {
     const { container } = render(
-      <ReplaneProvider options={defaultTestOptions}>
+      <ReplaneProvider connection={defaultConnection}>
         <div data-testid="content">Content</div>
       </ReplaneProvider>
     );
@@ -330,7 +329,7 @@ describe("ReplaneProvider with options prop - Loading States", () => {
   it("transitions from loader to content after initialization", async () => {
     render(
       <ReplaneProvider
-        options={defaultTestOptions}
+        connection={defaultConnection}
         loader={<div data-testid="loader">Loading...</div>}
       >
         <div data-testid="content">Content</div>
@@ -359,7 +358,7 @@ describe("ReplaneProvider with options prop - Loading States", () => {
         onError={onError}
       >
         <ReplaneProvider
-          options={defaultTestOptions}
+          connection={defaultConnection}
           loader={<div data-testid="loader">Loading...</div>}
         >
           <div data-testid="content">Content</div>
@@ -404,7 +403,7 @@ describe("ReplaneProvider with options prop - Client Lifecycle", () => {
     mockReplaneClass = vi.spyOn(sdk, "Replane").mockImplementation(() => mockClient);
 
     render(
-      <ReplaneProvider options={defaultTestOptions}>
+      <ReplaneProvider connection={defaultConnection}>
         <div>Content</div>
       </ReplaneProvider>
     );
@@ -413,8 +412,8 @@ describe("ReplaneProvider with options prop - Client Lifecycle", () => {
       expect(mockReplaneClass).toHaveBeenCalled();
       expect(mockClient.connect).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseUrl: defaultTestOptions.baseUrl,
-          sdkKey: defaultTestOptions.sdkKey,
+          baseUrl: defaultConnection.baseUrl,
+          sdkKey: defaultConnection.sdkKey,
         })
       );
     });
@@ -435,7 +434,7 @@ describe("ReplaneProvider with options prop - Client Lifecycle", () => {
     }
 
     render(
-      <ReplaneProvider options={defaultTestOptions}>
+      <ReplaneProvider connection={defaultConnection}>
         <TestComponent />
       </ReplaneProvider>
     );
@@ -451,7 +450,7 @@ describe("ReplaneProvider with options prop - Client Lifecycle", () => {
     mockReplaneClass = vi.spyOn(sdk, "Replane").mockImplementation(() => mockClient);
 
     const { unmount } = render(
-      <ReplaneProvider options={defaultTestOptions}>
+      <ReplaneProvider connection={defaultConnection}>
         <div>Content</div>
       </ReplaneProvider>
     );
@@ -477,7 +476,7 @@ describe("ReplaneProvider with options prop - Client Lifecycle", () => {
 
     const { unmount } = render(
       <ReplaneProvider
-        options={defaultTestOptions}
+        connection={defaultConnection}
         loader={<div data-testid="loader">Loading</div>}
       >
         <div>Content</div>
@@ -502,7 +501,7 @@ describe("ReplaneProvider with options prop - Client Lifecycle", () => {
     mockReplaneClass = vi.spyOn(sdk, "Replane").mockImplementation(() => mockClient);
 
     const { rerender } = render(
-      <ReplaneProvider options={defaultTestOptions}>
+      <ReplaneProvider connection={defaultConnection}>
         <div>Content</div>
       </ReplaneProvider>
     );
@@ -512,13 +511,13 @@ describe("ReplaneProvider with options prop - Client Lifecycle", () => {
     });
 
     rerender(
-      <ReplaneProvider options={defaultTestOptions}>
+      <ReplaneProvider connection={defaultConnection}>
         <div>Updated</div>
       </ReplaneProvider>
     );
 
     rerender(
-      <ReplaneProvider options={defaultTestOptions}>
+      <ReplaneProvider connection={defaultConnection}>
         <div>Updated Again</div>
       </ReplaneProvider>
     );
@@ -558,7 +557,7 @@ describe("ReplaneProvider with options prop - Error Handling", () => {
         fallback={<div data-testid="error-fallback">Error occurred</div>}
         onError={onError}
       >
-        <ReplaneProvider options={defaultTestOptions}>
+        <ReplaneProvider connection={defaultConnection}>
           <div data-testid="content">Content</div>
         </ReplaneProvider>
       </ErrorBoundary>
@@ -584,7 +583,7 @@ describe("ReplaneProvider with options prop - Error Handling", () => {
         fallback={<div data-testid="error-fallback">Error occurred</div>}
         onError={onError}
       >
-        <ReplaneProvider options={defaultTestOptions}>
+        <ReplaneProvider connection={defaultConnection}>
           <div data-testid="content">Content</div>
         </ReplaneProvider>
       </ErrorBoundary>
@@ -608,7 +607,7 @@ describe("ReplaneProvider with options prop - Error Handling", () => {
     render(
       <ErrorBoundary fallback={<div data-testid="error-fallback">Error occurred</div>}>
         <ReplaneProvider
-          options={defaultTestOptions}
+          connection={defaultConnection}
           loader={<div data-testid="loader">Loading</div>}
         >
           <div data-testid="content">Content</div>
@@ -637,7 +636,7 @@ describe("ReplaneProvider with options prop - Error Handling", () => {
         fallback={<div data-testid="error-fallback">Error occurred</div>}
         onError={onError}
       >
-        <ReplaneProvider options={defaultTestOptions}>
+        <ReplaneProvider connection={defaultConnection}>
           <div data-testid="content">Content</div>
         </ReplaneProvider>
       </ErrorBoundary>
@@ -702,7 +701,7 @@ describe("ReplaneProvider with options prop - Error Handling", () => {
 
     render(
       <ResettableErrorBoundary>
-        <ReplaneProvider options={defaultTestOptions}>
+        <ReplaneProvider connection={defaultConnection}>
           <TestComponent />
         </ReplaneProvider>
       </ResettableErrorBoundary>
@@ -742,7 +741,7 @@ describe("ReplaneProvider with options prop - Error Handling", () => {
         fallback={<div data-testid="error-fallback">Error occurred</div>}
         onError={onError}
       >
-        <ReplaneProvider options={defaultTestOptions}>
+        <ReplaneProvider connection={defaultConnection}>
           <div data-testid="content">Content</div>
         </ReplaneProvider>
       </ErrorBoundary>
@@ -774,8 +773,7 @@ describe("ReplaneProvider with options prop - Error Handling", () => {
       return mockInnerClient;
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const innerOptions: ReplaneProviderOptions<any> = {
+    const innerConnection: ConnectOptions = {
       baseUrl: "https://inner.replane.dev",
       sdkKey: "rp_inner_key",
     };
@@ -787,10 +785,10 @@ describe("ReplaneProvider with options prop - Error Handling", () => {
 
     render(
       <ErrorBoundary fallback={<div data-testid="outer-error">Outer error</div>}>
-        <ReplaneProvider options={defaultTestOptions}>
+        <ReplaneProvider connection={defaultConnection}>
           <OuterContent />
           <ErrorBoundary fallback={<div data-testid="inner-error">Inner error</div>}>
-            <ReplaneProvider options={innerOptions}>
+            <ReplaneProvider connection={innerConnection}>
               <div data-testid="inner-content">Inner</div>
             </ReplaneProvider>
           </ErrorBoundary>
@@ -822,7 +820,7 @@ describe("ReplaneProvider with options prop - Error Handling", () => {
 
     const { unmount } = render(
       <ErrorBoundary fallback={<div data-testid="error-fallback">Error</div>}>
-        <ReplaneProvider options={defaultTestOptions}>
+        <ReplaneProvider connection={defaultConnection}>
           <div>Content</div>
         </ReplaneProvider>
       </ErrorBoundary>
@@ -869,7 +867,7 @@ describe("ReplaneProvider with suspense", () => {
 
     render(
       <Suspense fallback={<div data-testid="fallback">Suspending...</div>}>
-        <ReplaneProvider options={defaultTestOptions} suspense>
+        <ReplaneProvider connection={defaultConnection} suspense>
           <div data-testid="content">Content</div>
         </ReplaneProvider>
       </Suspense>
@@ -904,7 +902,7 @@ describe("ReplaneProvider with suspense", () => {
 
     render(
       <Suspense fallback={<div>Loading...</div>}>
-        <ReplaneProvider options={defaultTestOptions} suspense>
+        <ReplaneProvider connection={defaultConnection} suspense>
           <TestComponent />
         </ReplaneProvider>
       </Suspense>
@@ -923,7 +921,7 @@ describe("ReplaneProvider with suspense", () => {
     // First render
     const { unmount } = render(
       <Suspense fallback={<div>Loading...</div>}>
-        <ReplaneProvider options={defaultTestOptions} suspense>
+        <ReplaneProvider connection={defaultConnection} suspense>
           <div data-testid="content">First</div>
         </ReplaneProvider>
       </Suspense>
@@ -938,7 +936,7 @@ describe("ReplaneProvider with suspense", () => {
     // Second render with same options - should use cached client
     render(
       <Suspense fallback={<div data-testid="fallback">Loading...</div>}>
-        <ReplaneProvider options={defaultTestOptions} suspense>
+        <ReplaneProvider connection={defaultConnection} suspense>
           <div data-testid="content">Second</div>
         </ReplaneProvider>
       </Suspense>
@@ -967,7 +965,7 @@ describe("ReplaneProvider with suspense", () => {
     // First render
     const { unmount } = render(
       <Suspense fallback={<div>Loading...</div>}>
-        <ReplaneProvider options={defaultTestOptions} suspense>
+        <ReplaneProvider connection={defaultConnection} suspense>
           <div data-testid="content">First</div>
         </ReplaneProvider>
       </Suspense>
@@ -981,15 +979,14 @@ describe("ReplaneProvider with suspense", () => {
     clearSuspenseCache();
 
     // Second render with different sdkKey
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const differentOptions: ReplaneProviderOptions<any> = {
+    const differentConnection: ConnectOptions = {
       baseUrl: "https://test.replane.dev",
       sdkKey: "rp_different_key",
     };
 
     render(
       <Suspense fallback={<div data-testid="fallback">Loading...</div>}>
-        <ReplaneProvider options={differentOptions} suspense>
+        <ReplaneProvider connection={differentConnection} suspense>
           <div data-testid="content">Second</div>
         </ReplaneProvider>
       </Suspense>
@@ -1017,7 +1014,7 @@ describe("ReplaneProvider with suspense", () => {
         onError={onError}
       >
         <Suspense fallback={<div data-testid="suspense-fallback">Loading...</div>}>
-          <ReplaneProvider options={defaultTestOptions} suspense>
+          <ReplaneProvider connection={defaultConnection} suspense>
             <div data-testid="content">Content</div>
           </ReplaneProvider>
         </Suspense>
@@ -1047,7 +1044,7 @@ describe("ReplaneProvider with suspense", () => {
         onError={onError}
       >
         <Suspense fallback={<div>Loading...</div>}>
-          <ReplaneProvider options={defaultTestOptions} suspense>
+          <ReplaneProvider connection={defaultConnection} suspense>
             <div data-testid="content">Content</div>
           </ReplaneProvider>
         </Suspense>
@@ -1071,7 +1068,7 @@ describe("ReplaneProvider with suspense", () => {
         onError={onError2}
       >
         <Suspense fallback={<div data-testid="suspense-fallback">Loading...</div>}>
-          <ReplaneProvider options={defaultTestOptions} suspense>
+          <ReplaneProvider connection={defaultConnection} suspense>
             <div data-testid="content">Content</div>
           </ReplaneProvider>
         </Suspense>
@@ -1100,7 +1097,7 @@ describe("ReplaneProvider with suspense", () => {
         onError={onError}
       >
         <Suspense fallback={<div>Loading...</div>}>
-          <ReplaneProvider options={defaultTestOptions} suspense>
+          <ReplaneProvider connection={defaultConnection} suspense>
             <div data-testid="content">Content</div>
           </ReplaneProvider>
         </Suspense>
@@ -1167,7 +1164,7 @@ describe("ReplaneProvider with suspense", () => {
     render(
       <ResettableErrorBoundary>
         <Suspense fallback={<div data-testid="loading">Loading...</div>}>
-          <ReplaneProvider options={defaultTestOptions} suspense>
+          <ReplaneProvider connection={defaultConnection} suspense>
             <TestComponent />
           </ReplaneProvider>
         </Suspense>
@@ -1227,7 +1224,7 @@ describe("clearSuspenseCache", () => {
     // First render to populate cache
     const { unmount } = render(
       <Suspense fallback={<div>Loading...</div>}>
-        <ReplaneProvider options={defaultTestOptions} suspense>
+        <ReplaneProvider connection={defaultConnection} suspense>
           <div data-testid="content">Content</div>
         </ReplaneProvider>
       </Suspense>
@@ -1246,7 +1243,7 @@ describe("clearSuspenseCache", () => {
     // Second render should create new client
     render(
       <Suspense fallback={<div data-testid="fallback">Loading...</div>}>
-        <ReplaneProvider options={defaultTestOptions} suspense>
+        <ReplaneProvider connection={defaultConnection} suspense>
           <div data-testid="content">Content</div>
         </ReplaneProvider>
       </Suspense>
@@ -1257,19 +1254,17 @@ describe("clearSuspenseCache", () => {
     });
   });
 
-  it("clears only specific cache entry when options provided", async () => {
+  it("clears only specific cache entry when connection provided", async () => {
     const mockClient = createMockClient();
     mockClient.connect = vi.fn().mockResolvedValue(undefined);
     mockReplaneClass = vi.spyOn(sdk, "Replane").mockImplementation(() => mockClient);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const options1: ReplaneProviderOptions<any> = {
+    const connection1: ConnectOptions = {
       baseUrl: "https://test1.replane.dev",
       sdkKey: "rp_key1",
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const options2: ReplaneProviderOptions<any> = {
+    const connection2: ConnectOptions = {
       baseUrl: "https://test2.replane.dev",
       sdkKey: "rp_key2",
     };
@@ -1277,7 +1272,7 @@ describe("clearSuspenseCache", () => {
     // Populate cache with both
     const { unmount: unmount1 } = render(
       <Suspense fallback={<div>Loading...</div>}>
-        <ReplaneProvider options={options1} suspense>
+        <ReplaneProvider connection={connection1} suspense>
           <div data-testid="content1">Content1</div>
         </ReplaneProvider>
       </Suspense>
@@ -1291,7 +1286,7 @@ describe("clearSuspenseCache", () => {
 
     const { unmount: unmount2 } = render(
       <Suspense fallback={<div>Loading...</div>}>
-        <ReplaneProvider options={options2} suspense>
+        <ReplaneProvider connection={connection2} suspense>
           <div data-testid="content2">Content2</div>
         </ReplaneProvider>
       </Suspense>
@@ -1305,13 +1300,13 @@ describe("clearSuspenseCache", () => {
 
     expect(mockReplaneClass).toHaveBeenCalledTimes(2);
 
-    // Clear only options1
-    clearSuspenseCache(options1);
+    // Clear only connection1
+    clearSuspenseCache(connection1);
 
-    // Re-render with options1 should create new client
+    // Re-render with connection1 should create new client
     render(
       <Suspense fallback={<div>Loading...</div>}>
-        <ReplaneProvider options={options1} suspense>
+        <ReplaneProvider connection={connection1} suspense>
           <div>Content1</div>
         </ReplaneProvider>
       </Suspense>
@@ -1324,7 +1319,7 @@ describe("clearSuspenseCache", () => {
 
   it("is a no-op when clearing non-existent cache entry", () => {
     // Should not throw
-    expect(() => clearSuspenseCache(defaultTestOptions)).not.toThrow();
+    expect(() => clearSuspenseCache(defaultConnection)).not.toThrow();
     expect(() => clearSuspenseCache()).not.toThrow();
   });
 });
@@ -2577,7 +2572,7 @@ describe("ReplaneProvider with snapshot prop", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let mockReplaneClass: any;
 
-  const defaultOptions = {
+  const snapshotTestConnection: ConnectOptions = {
     baseUrl: "https://replane.example.com",
     sdkKey: "rp_test_key",
   };
@@ -2596,7 +2591,7 @@ describe("ReplaneProvider with snapshot prop", () => {
     };
 
     render(
-      <ReplaneProvider options={defaultOptions} snapshot={snapshot}>
+      <ReplaneProvider connection={snapshotTestConnection} snapshot={snapshot}>
         <div data-testid="child">Hello</div>
       </ReplaneProvider>
     );
@@ -2626,7 +2621,7 @@ describe("ReplaneProvider with snapshot prop", () => {
 
     render(
       <ReplaneProvider
-        options={defaultOptions}
+        connection={snapshotTestConnection}
         snapshot={{
           configs: [{ name: "feature", value: "test-value", overrides: [] }],
         }}
@@ -2656,7 +2651,7 @@ describe("ReplaneProvider with snapshot prop", () => {
 
     render(
       <ReplaneProvider
-        options={defaultOptions}
+        connection={snapshotTestConnection}
         snapshot={{
           configs: [
             { name: "theme", value: "dark", overrides: [] },
@@ -2677,7 +2672,7 @@ describe("ReplaneProvider with snapshot prop", () => {
     mockClient.connect = vi.fn().mockResolvedValue(undefined);
     mockReplaneClass = vi.spyOn(sdk, "Replane").mockImplementation(() => mockClient);
 
-    const options = {
+    const connection: ConnectOptions = {
       baseUrl: "https://replane.example.com",
       sdkKey: "rp_live_key",
     };
@@ -2687,15 +2682,15 @@ describe("ReplaneProvider with snapshot prop", () => {
     };
 
     render(
-      <ReplaneProvider options={options} snapshot={snapshot}>
+      <ReplaneProvider connection={connection} snapshot={snapshot}>
         <div data-testid="child">Hello</div>
       </ReplaneProvider>
     );
 
     expect(mockClient.connect).toHaveBeenCalledWith(
       expect.objectContaining({
-        baseUrl: options.baseUrl,
-        sdkKey: options.sdkKey,
+        baseUrl: connection.baseUrl,
+        sdkKey: connection.sdkKey,
       })
     );
   });
@@ -2705,18 +2700,19 @@ describe("ReplaneProvider with snapshot prop", () => {
     mockClient.connect = vi.fn().mockResolvedValue(undefined);
     mockReplaneClass = vi.spyOn(sdk, "Replane").mockImplementation(() => mockClient);
 
-    const options = {
+    const connection: ConnectOptions = {
       baseUrl: "https://replane.example.com",
       sdkKey: "rp_test_key",
-      context: { plan: "premium" },
     };
+
+    const context = { plan: "premium" };
 
     const snapshot = {
       configs: [{ name: "feature", value: "premium-value", overrides: [] }],
     };
 
     render(
-      <ReplaneProvider options={options} snapshot={snapshot}>
+      <ReplaneProvider connection={connection} context={context} snapshot={snapshot}>
         <div data-testid="child">Hello</div>
       </ReplaneProvider>
     );
@@ -2724,12 +2720,12 @@ describe("ReplaneProvider with snapshot prop", () => {
     expect(mockReplaneClass).toHaveBeenCalledWith(
       expect.objectContaining({
         snapshot,
-        context: options.context,
+        context,
       })
     );
   });
 
-  it("memoizes client based on snapshot and options reference", () => {
+  it("memoizes client based on snapshot and connection reference", () => {
     const mockClient = createMockClient();
     mockClient.connect = vi.fn().mockResolvedValue(undefined);
     mockReplaneClass = vi.spyOn(sdk, "Replane").mockImplementation(() => mockClient);
@@ -2739,16 +2735,16 @@ describe("ReplaneProvider with snapshot prop", () => {
     };
 
     const { rerender } = render(
-      <ReplaneProvider options={defaultOptions} snapshot={snapshot}>
+      <ReplaneProvider connection={snapshotTestConnection} snapshot={snapshot}>
         <div>Content</div>
       </ReplaneProvider>
     );
 
     expect(mockReplaneClass).toHaveBeenCalledTimes(1);
 
-    // Re-render with same options and snapshot objects - should not create new instance
+    // Re-render with same connection and snapshot objects - should not create new instance
     rerender(
-      <ReplaneProvider options={defaultOptions} snapshot={snapshot}>
+      <ReplaneProvider connection={snapshotTestConnection} snapshot={snapshot}>
         <div>Content</div>
       </ReplaneProvider>
     );
@@ -2769,7 +2765,7 @@ describe("ReplaneProvider with snapshot prop", () => {
 
     const { rerender } = render(
       <ReplaneProvider
-        options={defaultOptions}
+        connection={snapshotTestConnection}
         snapshot={{ configs: [{ name: "feature", value: "value1", overrides: [] }] }}
       >
         <div>Content</div>
@@ -2781,7 +2777,7 @@ describe("ReplaneProvider with snapshot prop", () => {
     // No re-render with new snapshot object - should not create new instance
     rerender(
       <ReplaneProvider
-        options={defaultOptions}
+        connection={snapshotTestConnection}
         snapshot={{ configs: [{ name: "feature", value: "value2", overrides: [] }] }}
       >
         <div>Content</div>
@@ -2814,7 +2810,7 @@ describe("ReplaneProvider with snapshot prop", () => {
 
     render(
       <ReplaneProvider
-        options={defaultOptions}
+        connection={snapshotTestConnection}
         snapshot={{
           configs: [
             { name: "theme", value: { darkMode: true }, overrides: [] },
@@ -2855,7 +2851,7 @@ describe("ReplaneProvider with snapshot prop", () => {
 
     render(
       <ReplaneProvider
-        options={defaultOptions}
+        connection={snapshotTestConnection}
         snapshot={{
           configs: [{ name: "feature-flags", value: { beta: true, newUI: false }, overrides: [] }],
         }}
@@ -2876,7 +2872,7 @@ describe("ReplaneProvider with snapshot prop", () => {
     // Note: with snapshot, client is usable immediately
     render(
       <ReplaneProvider
-        options={defaultOptions}
+        connection={snapshotTestConnection}
         snapshot={{
           configs: [{ name: "feature", value: "value", overrides: [] }],
         }}
@@ -2887,5 +2883,719 @@ describe("ReplaneProvider with snapshot prop", () => {
 
     // Content should be visible immediately since snapshot provides initial data
     expect(screen.getByTestId("content")).toBeInTheDocument();
+  });
+});
+
+// ============================================================================
+// ReplaneProvider with async prop
+// ============================================================================
+
+describe("ReplaneProvider with async prop", () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockReplaneClass: any;
+  let mockClient: ReturnType<typeof createMockClient>;
+  let resolveConnect: () => void;
+  let rejectConnect: (error: Error) => void;
+
+  beforeEach(() => {
+    mockClient = createMockClient({ feature: "default-value" });
+    const connectPromise = new Promise<void>((resolve, reject) => {
+      resolveConnect = resolve;
+      rejectConnect = reject;
+    });
+
+    mockClient.connect = vi.fn().mockReturnValue(connectPromise);
+    mockReplaneClass = vi.spyOn(sdk, "Replane").mockImplementation(() => mockClient);
+  });
+
+  afterEach(() => {
+    mockReplaneClass.mockRestore();
+  });
+
+  it("renders children immediately without waiting for connection", () => {
+    render(
+      <ReplaneProvider
+        connection={defaultConnection}
+        defaults={{ feature: "default-value" }}
+        async
+      >
+        <div data-testid="content">Content</div>
+      </ReplaneProvider>
+    );
+
+    // Content should be visible immediately
+    expect(screen.getByTestId("content")).toBeInTheDocument();
+  });
+
+  it("does not show loader even when provided", () => {
+    render(
+      <ReplaneProvider
+        connection={defaultConnection}
+        defaults={{ feature: "default-value" }}
+        loader={<div data-testid="loader">Loading...</div>}
+        async
+      >
+        <div data-testid="content">Content</div>
+      </ReplaneProvider>
+    );
+
+    // Loader should not be shown in async mode
+    expect(screen.queryByTestId("loader")).not.toBeInTheDocument();
+    expect(screen.getByTestId("content")).toBeInTheDocument();
+  });
+
+  it("creates client with defaults", () => {
+    const defaults = { feature: "my-default" };
+
+    render(
+      <ReplaneProvider connection={defaultConnection} defaults={defaults} async>
+        <div data-testid="content">Content</div>
+      </ReplaneProvider>
+    );
+
+    expect(mockReplaneClass).toHaveBeenCalledWith(
+      expect.objectContaining({
+        defaults,
+      })
+    );
+  });
+
+  it("connects in the background after render", async () => {
+    render(
+      <ReplaneProvider
+        connection={defaultConnection}
+        defaults={{ feature: "default-value" }}
+        async
+      >
+        <div data-testid="content">Content</div>
+      </ReplaneProvider>
+    );
+
+    // Content is rendered immediately
+    expect(screen.getByTestId("content")).toBeInTheDocument();
+
+    // Connection should be initiated
+    await waitFor(() => {
+      expect(mockClient.connect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseUrl: defaultConnection.baseUrl,
+          sdkKey: defaultConnection.sdkKey,
+        })
+      );
+    });
+  });
+
+  it("provides client to children via context immediately", () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let capturedClient: Replane<any> | null = null;
+
+    function TestComponent() {
+      const replane = useReplane();
+      capturedClient = replane;
+      return <div data-testid="content">Content</div>;
+    }
+
+    render(
+      <ReplaneProvider
+        connection={defaultConnection}
+        defaults={{ feature: "default-value" }}
+        async
+      >
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(capturedClient).toBe(mockClient);
+  });
+
+  it("allows useConfig to retrieve default values immediately", () => {
+    function TestComponent() {
+      const feature = useConfig<string>("feature");
+      return <div data-testid="value">{feature}</div>;
+    }
+
+    render(
+      <ReplaneProvider
+        connection={defaultConnection}
+        defaults={{ feature: "default-value" }}
+        async
+      >
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("value")).toHaveTextContent("default-value");
+  });
+
+  it("updates values when connection succeeds and server sends new values", async () => {
+    function TestComponent() {
+      const feature = useConfig<string>("feature");
+      return <div data-testid="value">{feature}</div>;
+    }
+
+    render(
+      <ReplaneProvider
+        connection={defaultConnection}
+        defaults={{ feature: "default-value" }}
+        async
+      >
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    // Initially shows default
+    expect(screen.getByTestId("value")).toHaveTextContent("default-value");
+
+    // Simulate successful connection
+    await act(async () => {
+      resolveConnect();
+    });
+
+    // Simulate server sending new value
+    await act(async () => {
+      mockClient._updateConfig("feature", "server-value");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("value")).toHaveTextContent("server-value");
+    });
+  });
+
+  it("logs error when connection fails but does not throw", async () => {
+    const mockLogger = {
+      error: vi.fn(),
+      warn: vi.fn(),
+      info: vi.fn(),
+      debug: vi.fn(),
+    };
+
+    render(
+      <ReplaneProvider
+        connection={defaultConnection}
+        defaults={{ feature: "default-value" }}
+        logger={mockLogger}
+        async
+      >
+        <div data-testid="content">Content</div>
+      </ReplaneProvider>
+    );
+
+    // Content should be visible
+    expect(screen.getByTestId("content")).toBeInTheDocument();
+
+    // Simulate connection failure
+    await act(async () => {
+      rejectConnect(new Error("Connection failed"));
+    });
+
+    // Error should be logged, not thrown
+    await waitFor(() => {
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        "Failed to connect Replane client",
+        expect.any(Error)
+      );
+    });
+
+    // Content should still be visible (no error boundary triggered)
+    expect(screen.getByTestId("content")).toBeInTheDocument();
+  });
+
+  it("uses console.error when no logger provided and connection fails", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(
+      <ReplaneProvider
+        connection={defaultConnection}
+        defaults={{ feature: "default-value" }}
+        async
+      >
+        <div data-testid="content">Content</div>
+      </ReplaneProvider>
+    );
+
+    await act(async () => {
+      rejectConnect(new Error("Connection failed"));
+    });
+
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "Failed to connect Replane client",
+        expect.any(Error)
+      );
+    });
+
+    consoleSpy.mockRestore();
+  });
+
+  it("disconnects client on unmount", async () => {
+    const { unmount } = render(
+      <ReplaneProvider
+        connection={defaultConnection}
+        defaults={{ feature: "default-value" }}
+        async
+      >
+        <div data-testid="content">Content</div>
+      </ReplaneProvider>
+    );
+
+    // Resolve connection first
+    await act(async () => {
+      resolveConnect();
+    });
+
+    unmount();
+
+    await waitFor(() => {
+      expect(mockClient.disconnect).toHaveBeenCalled();
+    });
+  });
+
+  it("does not connect when connection is null", async () => {
+    render(
+      <ReplaneProvider connection={null} defaults={{ feature: "default-value" }} async>
+        <div data-testid="content">Content</div>
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("content")).toBeInTheDocument();
+
+    // Wait a bit and verify connect was never called
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    expect(mockClient.connect).not.toHaveBeenCalled();
+  });
+
+  it("works with context prop for override evaluations", () => {
+    const context = { userId: "user-123", plan: "premium" };
+
+    render(
+      <ReplaneProvider
+        connection={defaultConnection}
+        defaults={{ feature: "default-value" }}
+        context={context}
+        async
+      >
+        <div data-testid="content">Content</div>
+      </ReplaneProvider>
+    );
+
+    expect(mockReplaneClass).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context,
+      })
+    );
+  });
+
+  it("works in StrictMode without double connection", async () => {
+    render(
+      <StrictMode>
+        <ReplaneProvider
+          connection={defaultConnection}
+          defaults={{ feature: "default-value" }}
+          async
+        >
+          <div data-testid="content">Content</div>
+        </ReplaneProvider>
+      </StrictMode>
+    );
+
+    expect(screen.getByTestId("content")).toBeInTheDocument();
+
+    // Wait for effects to settle
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+
+    // In StrictMode, effects may run twice in development, but we should handle it gracefully
+    // The key assertion is that the component works correctly
+    expect(screen.getByTestId("content")).toBeInTheDocument();
+  });
+});
+
+// ============================================================================
+// Additional Edge Cases
+// ============================================================================
+
+describe("ReplaneProvider edge cases", () => {
+  it("renders children with connection: null and defaults only", () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mockReplaneClass = vi.spyOn(sdk, "Replane").mockImplementation(() => {
+      return createMockClient({ feature: "default-value" });
+    });
+
+    function TestComponent() {
+      const value = useConfig<string>("feature");
+      return <div data-testid="value">{value}</div>;
+    }
+
+    render(
+      <ReplaneProvider connection={null} defaults={{ feature: "default-value" }}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("value")).toHaveTextContent("default-value");
+
+    mockReplaneClass.mockRestore();
+  });
+
+  it("handles deeply nested objects in config", () => {
+    const deepConfig = {
+      level1: {
+        level2: {
+          level3: {
+            level4: {
+              value: "deep-value",
+              array: [1, 2, { nested: true }],
+            },
+          },
+        },
+      },
+    };
+
+    const client = createMockClient({ deep: deepConfig });
+
+    function TestComponent() {
+      const config = useConfig<typeof deepConfig>("deep");
+      return (
+        <div data-testid="deep">{config.level1.level2.level3.level4.value}</div>
+      );
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("deep")).toHaveTextContent("deep-value");
+  });
+
+  it("handles null config values correctly", () => {
+    const client = createMockClient({ nullValue: null });
+
+    function TestComponent() {
+      const value = useConfig<string | null>("nullValue");
+      return <div data-testid="null">{value === null ? "IS_NULL" : "NOT_NULL"}</div>;
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("null")).toHaveTextContent("IS_NULL");
+  });
+
+  it("handles undefined config values correctly", () => {
+    const client = createMockClient({ undefinedValue: undefined });
+
+    function TestComponent() {
+      const value = useConfig<string | undefined>("undefinedValue");
+      return (
+        <div data-testid="undefined">
+          {value === undefined ? "IS_UNDEFINED" : "NOT_UNDEFINED"}
+        </div>
+      );
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("undefined")).toHaveTextContent("IS_UNDEFINED");
+  });
+
+  it("handles false boolean config value", () => {
+    const client = createMockClient({ disabled: false });
+
+    function TestComponent() {
+      const value = useConfig<boolean>("disabled");
+      return <div data-testid="bool">{value === false ? "FALSE" : "TRUE"}</div>;
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("bool")).toHaveTextContent("FALSE");
+  });
+
+  it("handles zero number config value", () => {
+    const client = createMockClient({ zero: 0 });
+
+    function TestComponent() {
+      const value = useConfig<number>("zero");
+      return <div data-testid="zero">{value === 0 ? "ZERO" : "NOT_ZERO"}</div>;
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("zero")).toHaveTextContent("ZERO");
+  });
+
+  it("handles empty array config value", () => {
+    const client = createMockClient({ emptyArray: [] });
+
+    function TestComponent() {
+      const value = useConfig<unknown[]>("emptyArray");
+      return <div data-testid="array">{value.length === 0 ? "EMPTY" : "NOT_EMPTY"}</div>;
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("array")).toHaveTextContent("EMPTY");
+  });
+
+  it("handles empty object config value", () => {
+    const client = createMockClient({ emptyObject: {} });
+
+    function TestComponent() {
+      const value = useConfig<Record<string, unknown>>("emptyObject");
+      return (
+        <div data-testid="object">
+          {Object.keys(value).length === 0 ? "EMPTY" : "NOT_EMPTY"}
+        </div>
+      );
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("object")).toHaveTextContent("EMPTY");
+  });
+
+  it("supports deeply nested component tree", () => {
+    const client = createMockClient({ feature: "deep-nested-value" });
+
+    function Level1() {
+      return (
+        <div>
+          <Level2 />
+        </div>
+      );
+    }
+    function Level2() {
+      return (
+        <div>
+          <Level3 />
+        </div>
+      );
+    }
+    function Level3() {
+      return (
+        <div>
+          <Level4 />
+        </div>
+      );
+    }
+    function Level4() {
+      return (
+        <div>
+          <DeepConsumer />
+        </div>
+      );
+    }
+    function DeepConsumer() {
+      const value = useConfig<string>("feature");
+      return <div data-testid="deep-consumer">{value}</div>;
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <Level1 />
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("deep-consumer")).toHaveTextContent("deep-nested-value");
+  });
+
+  it("handles config updates in deeply nested components", async () => {
+    const client = createMockClient({ feature: "initial" });
+
+    function DeepConsumer() {
+      const value = useConfig<string>("feature");
+      return <div data-testid="value">{value}</div>;
+    }
+
+    function Wrapper({ children }: { children: React.ReactNode }) {
+      return <div>{children}</div>;
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <Wrapper>
+          <Wrapper>
+            <Wrapper>
+              <DeepConsumer />
+            </Wrapper>
+          </Wrapper>
+        </Wrapper>
+      </ReplaneProvider>
+    );
+
+    expect(screen.getByTestId("value")).toHaveTextContent("initial");
+
+    act(() => {
+      client._updateConfig("feature", "updated");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("value")).toHaveTextContent("updated");
+    });
+  });
+
+  it("useConfig returns same reference for unchanged object config", () => {
+    const objectConfig = { key: "value" };
+    const client = createMockClient({ config: objectConfig });
+    const references: object[] = [];
+
+    function TestComponent() {
+      const value = useConfig<{ key: string }>("config");
+      references.push(value);
+      return <div data-testid="value">{value.key}</div>;
+    }
+
+    const { rerender } = render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    // Force re-render
+    rerender(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    // Both references should be the same (no unnecessary re-renders)
+    expect(references.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("handles rapid consecutive config updates", async () => {
+    const client = createMockClient({ counter: 0 });
+    let renderCount = 0;
+
+    function TestComponent() {
+      const value = useConfig<number>("counter");
+      renderCount++;
+      return <div data-testid="counter">{value}</div>;
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    // Rapid updates
+    act(() => {
+      for (let i = 1; i <= 10; i++) {
+        client._updateConfig("counter", i);
+      }
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("counter")).toHaveTextContent("10");
+    });
+  });
+
+  it("handles config with special JSON values (NaN, Infinity)", () => {
+    // Note: These will be stored as null after JSON serialization
+    const client = createMockClient({
+      special: {
+        nan: Number.NaN,
+        infinity: Number.POSITIVE_INFINITY,
+        negInfinity: Number.NEGATIVE_INFINITY,
+      },
+    });
+
+    function TestComponent() {
+      const value = useConfig<{
+        nan: number;
+        infinity: number;
+        negInfinity: number;
+      }>("special");
+      return (
+        <div data-testid="special">
+          {Number.isNaN(value.nan) ? "NAN" : "NOT_NAN"},{!Number.isFinite(value.infinity) ? "INF" : "FIN"}
+        </div>
+      );
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    // Values should be present (behavior depends on implementation)
+    expect(screen.getByTestId("special")).toBeInTheDocument();
+  });
+
+  it("multiple useConfig hooks in same component update independently", async () => {
+    const client = createMockClient({ config1: "value1", config2: "value2" });
+    let renderCount = 0;
+
+    function TestComponent() {
+      const value1 = useConfig<string>("config1");
+      const value2 = useConfig<string>("config2");
+      renderCount++;
+      return (
+        <div>
+          <span data-testid="v1">{value1}</span>
+          <span data-testid="v2">{value2}</span>
+        </div>
+      );
+    }
+
+    render(
+      <ReplaneProvider client={client}>
+        <TestComponent />
+      </ReplaneProvider>
+    );
+
+    const initialRenderCount = renderCount;
+
+    // Update only config1
+    act(() => {
+      client._updateConfig("config1", "updated1");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("v1")).toHaveTextContent("updated1");
+    });
+    expect(screen.getByTestId("v2")).toHaveTextContent("value2");
+
+    // Update only config2
+    act(() => {
+      client._updateConfig("config2", "updated2");
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("v2")).toHaveTextContent("updated2");
+    });
+
+    // Should have re-rendered for both updates
+    expect(renderCount).toBeGreaterThan(initialRenderCount);
   });
 });

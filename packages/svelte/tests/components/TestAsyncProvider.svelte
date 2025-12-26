@@ -1,12 +1,15 @@
 <script lang="ts">
-  import type { ConnectOptions } from "@replanejs/sdk";
+  import type { ConnectOptions, ReplaneLogger, ReplaneContext as ReplaneContextType } from "@replanejs/sdk";
   import ReplaneContext from "../../src/ReplaneContext.svelte";
 
   interface Props {
-    connection: ConnectOptions;
+    connection: ConnectOptions | null;
+    defaults?: Record<string, unknown>;
+    context?: ReplaneContextType;
+    logger?: ReplaneLogger;
   }
 
-  let { connection }: Props = $props();
+  let { connection, defaults, context, logger }: Props = $props();
 
   let error = $state<unknown>(null);
   let errorMessage = $derived(error instanceof Error ? error.message : String(error));
@@ -17,13 +20,9 @@
     error = e;
   }}
 >
-  <ReplaneContext {connection}>
+  <ReplaneContext {connection} {defaults} {context} {logger} async>
     {#snippet children()}
       <div data-testid="content">Client ready</div>
-    {/snippet}
-
-    {#snippet loader()}
-      <div data-testid="loader">Loading...</div>
     {/snippet}
   </ReplaneContext>
 </svelte:boundary>

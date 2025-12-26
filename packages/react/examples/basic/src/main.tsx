@@ -13,18 +13,18 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <Suspense fallback={<LoadingScreen />}>
       <ReplaneProvider<AppConfigs>
-        options={{
+        connection={{
           sdkKey,
           baseUrl,
-          defaults: {
-            "theme-config": { primaryColor: "#3b82f6", darkMode: false },
-            "feature-flags": {
-              newHeader: true,
-              showBanner: true,
-              experimentalFeatures: false,
-            },
-            "banner-message": "Welcome to the Replane React Example!",
+        }}
+        defaults={{
+          "theme-config": { primaryColor: "#3b82f6", darkMode: false },
+          "feature-flags": {
+            newHeader: true,
+            showBanner: true,
+            experimentalFeatures: false,
           },
+          "banner-message": "Welcome to the Replane React Example!",
         }}
         suspense
       >

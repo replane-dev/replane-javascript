@@ -26,8 +26,7 @@ export type {
   ReplaneContextProps,
   ReplaneContextWithClientProps,
   ReplaneContextWithOptionsProps,
-  ReplaneContextOptions,
 } from "./types";
 
 // Type guards
-export { hasClient, hasOptions } from "./types";
+export { hasClient } from "./types";

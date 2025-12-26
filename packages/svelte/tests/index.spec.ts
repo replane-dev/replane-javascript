@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/svelte";
 import { tick } from "svelte";
-import type { Replane } from "@replanejs/sdk";
-import type { ReplaneContextOptions } from "../src/types";
+import type { Replane, ConnectOptions } from "@replanejs/sdk";
 import * as sdk from "@replanejs/sdk";
 
 // Import test components and utilities
@@ -71,8 +70,7 @@ function createMockClient(configs: Record<string, unknown> = {}): Replane<any> &
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const defaultTestOptions: ReplaneContextOptions<any> = {
+const defaultConnection: ConnectOptions = {
   baseUrl: "https://test.replane.dev",
   sdkKey: "rp_test_key",
 };
@@ -157,7 +155,7 @@ describe("ReplaneContext with options prop - Loading States", () => {
   it("shows loader while initializing", async () => {
     render(TestProviderWithOptions, {
       props: {
-        options: defaultTestOptions,
+        connection: defaultConnection,
       },
     });
 
@@ -169,7 +167,7 @@ describe("ReplaneContext with options prop - Loading States", () => {
   it("transitions from loading to ready after initialization", async () => {
     render(TestProviderWithOptions, {
       props: {
-        options: defaultTestOptions,
+        connection: defaultConnection,
       },
     });
 
@@ -190,7 +188,7 @@ describe("ReplaneContext with options prop - Loading States", () => {
 
     render(TestProviderWithOptions, {
       props: {
-        options: defaultTestOptions,
+        connection: defaultConnection,
       },
     });
 
@@ -205,7 +203,7 @@ describe("ReplaneContext with options prop - Loading States", () => {
 
     render(TestProviderWithOptions, {
       props: {
-        options: defaultTestOptions,
+        connection: defaultConnection,
       },
     });
 
@@ -234,7 +232,7 @@ describe("ReplaneContext with options prop - Client Lifecycle", () => {
 
     render(TestProviderWithOptions, {
       props: {
-        options: defaultTestOptions,
+        connection: defaultConnection,
       },
     });
 
@@ -242,8 +240,8 @@ describe("ReplaneContext with options prop - Client Lifecycle", () => {
       expect(mockReplaneClass).toHaveBeenCalled();
       expect(mockClient.connect).toHaveBeenCalledWith(
         expect.objectContaining({
-          baseUrl: defaultTestOptions.baseUrl,
-          sdkKey: defaultTestOptions.sdkKey,
+          baseUrl: defaultConnection.baseUrl,
+          sdkKey: defaultConnection.sdkKey,
         })
       );
     });
@@ -256,7 +254,7 @@ describe("ReplaneContext with options prop - Client Lifecycle", () => {
 
     const { unmount } = render(TestProviderWithOptions, {
       props: {
-        options: defaultTestOptions,
+        connection: defaultConnection,
       },
     });
 
@@ -283,7 +281,7 @@ describe("ReplaneContext with options prop - Client Lifecycle", () => {
 
     const { unmount } = render(TestProviderWithOptions, {
       props: {
-        options: defaultTestOptions,
+        connection: defaultConnection,
       },
     });
 
@@ -716,5 +714,421 @@ describe("Integration Scenarios", () => {
     await waitFor(() => {
       expect(screen.getByTestId("conditional")).toHaveTextContent("visible");
     });
+  });
+});
+
+// ============================================================================
+// ReplaneContext with async prop
+// ============================================================================
+
+describe("ReplaneContext with async prop", () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let mockReplaneClass: any;
+  let mockClient: ReturnType<typeof createMockClient>;
+  let resolveConnect: () => void;
+  let rejectConnect: (error: Error) => void;
+
+  beforeEach(async () => {
+    // Dynamically import the test components
+    const TestAsyncProvider = (await import("./components/TestAsyncProvider.svelte")).default;
+    const TestAsyncProviderWithConfig = (
+      await import("./components/TestAsyncProviderWithConfig.svelte")
+    ).default;
+
+    // Store for use in tests
+    (globalThis as Record<string, unknown>).__TestAsyncProvider = TestAsyncProvider;
+    (globalThis as Record<string, unknown>).__TestAsyncProviderWithConfig = TestAsyncProviderWithConfig;
+
+    mockClient = createMockClient({ feature: "default-value" });
+    const connectPromise = new Promise<void>((resolve, reject) => {
+      resolveConnect = resolve;
+      rejectConnect = reject;
+    });
+
+    mockClient.connect = vi.fn().mockReturnValue(connectPromise);
+    mockReplaneClass = vi.spyOn(sdk, "Replane").mockImplementation(() => mockClient);
+  });
+
+  afterEach(() => {
+    mockReplaneClass.mockRestore();
+  });
+
+  it("renders children immediately without waiting for connection", async () => {
+    const TestAsyncProvider = (globalThis as Record<string, unknown>).__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
+
+    render(TestAsyncProvider, {
+      props: {
+        connection: defaultConnection,
+        defaults: { feature: "default-value" },
+      },
+    });
+
+    // Content should be visible immediately
+    expect(screen.getByTestId("content")).toBeInTheDocument();
+  });
+
+  it("creates client with defaults", async () => {
+    const TestAsyncProvider = (globalThis as Record<string, unknown>).__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
+
+    const defaults = { feature: "my-default" };
+
+    render(TestAsyncProvider, {
+      props: {
+        connection: defaultConnection,
+        defaults,
+      },
+    });
+
+    expect(mockReplaneClass).toHaveBeenCalledWith(
+      expect.objectContaining({
+        defaults,
+      })
+    );
+  });
+
+  it("connects in the background after render", async () => {
+    const TestAsyncProvider = (globalThis as Record<string, unknown>).__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
+
+    render(TestAsyncProvider, {
+      props: {
+        connection: defaultConnection,
+        defaults: { feature: "default-value" },
+      },
+    });
+
+    // Content is rendered immediately
+    expect(screen.getByTestId("content")).toBeInTheDocument();
+
+    await tick();
+
+    // Connection should be initiated
+    await waitFor(() => {
+      expect(mockClient.connect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseUrl: defaultConnection.baseUrl,
+          sdkKey: defaultConnection.sdkKey,
+        })
+      );
+    });
+  });
+
+  it("allows config to retrieve default values immediately", async () => {
+    const TestAsyncProviderWithConfig = (globalThis as Record<string, unknown>).__TestAsyncProviderWithConfig as typeof import("./components/TestAsyncProviderWithConfig.svelte").default;
+
+    render(TestAsyncProviderWithConfig, {
+      props: {
+        connection: defaultConnection,
+        defaults: { feature: "default-value" },
+        configName: "feature",
+      },
+    });
+
+    expect(screen.getByTestId("value")).toHaveTextContent("default-value");
+  });
+
+  it("updates values when connection succeeds and server sends new values", async () => {
+    const TestAsyncProviderWithConfig = (globalThis as Record<string, unknown>).__TestAsyncProviderWithConfig as typeof import("./components/TestAsyncProviderWithConfig.svelte").default;
+
+    render(TestAsyncProviderWithConfig, {
+      props: {
+        connection: defaultConnection,
+        defaults: { feature: "default-value" },
+        configName: "feature",
+      },
+    });
+
+    // Initially shows default
+    expect(screen.getByTestId("value")).toHaveTextContent("default-value");
+
+    // Simulate successful connection
+    resolveConnect();
+    await tick();
+
+    // Simulate server sending new value
+    mockClient._updateConfig("feature", "server-value");
+    await tick();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("value")).toHaveTextContent("server-value");
+    });
+  });
+
+  it("logs error when connection fails but does not throw", async () => {
+    const TestAsyncProvider = (globalThis as Record<string, unknown>).__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
+
+    const mockLogger = {
+      error: vi.fn(),
+      warn: vi.fn(),
+      info: vi.fn(),
+      debug: vi.fn(),
+    };
+
+    render(TestAsyncProvider, {
+      props: {
+        connection: defaultConnection,
+        defaults: { feature: "default-value" },
+        logger: mockLogger,
+      },
+    });
+
+    // Content should be visible
+    expect(screen.getByTestId("content")).toBeInTheDocument();
+
+    // Simulate connection failure
+    rejectConnect(new Error("Connection failed"));
+    await tick();
+
+    // Error should be logged, not thrown
+    await waitFor(() => {
+      expect(mockLogger.error).toHaveBeenCalledWith(
+        "Failed to connect Replane client",
+        expect.any(Error)
+      );
+    });
+
+    // Content should still be visible (no error boundary triggered)
+    expect(screen.getByTestId("content")).toBeInTheDocument();
+    expect(screen.queryByTestId("error")).not.toBeInTheDocument();
+  });
+
+  it("uses console.error when no logger provided and connection fails", async () => {
+    const TestAsyncProvider = (globalThis as Record<string, unknown>).__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
+
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(TestAsyncProvider, {
+      props: {
+        connection: defaultConnection,
+        defaults: { feature: "default-value" },
+      },
+    });
+
+    rejectConnect(new Error("Connection failed"));
+    await tick();
+
+    await waitFor(() => {
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "Failed to connect Replane client",
+        expect.any(Error)
+      );
+    });
+
+    consoleSpy.mockRestore();
+  });
+
+  it("does not connect when connection is null", async () => {
+    const TestAsyncProvider = (globalThis as Record<string, unknown>).__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
+
+    render(TestAsyncProvider, {
+      props: {
+        connection: null,
+        defaults: { feature: "default-value" },
+      },
+    });
+
+    expect(screen.getByTestId("content")).toBeInTheDocument();
+
+    // Wait a bit and verify connect was never called
+    await tick();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(mockClient.connect).not.toHaveBeenCalled();
+  });
+
+  it("works with context prop for override evaluations", async () => {
+    const TestAsyncProvider = (globalThis as Record<string, unknown>).__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
+
+    const context = { userId: "user-123", plan: "premium" };
+
+    render(TestAsyncProvider, {
+      props: {
+        connection: defaultConnection,
+        defaults: { feature: "default-value" },
+        context,
+      },
+    });
+
+    expect(mockReplaneClass).toHaveBeenCalledWith(
+      expect.objectContaining({
+        context,
+      })
+    );
+  });
+});
+
+// ============================================================================
+// Additional Edge Cases
+// ============================================================================
+
+describe("Additional Edge Cases", () => {
+  it("handles empty array config value", () => {
+    const client = createMockClient({ emptyArray: [] });
+
+    render(TestUseConfig, {
+      props: { client, configName: "emptyArray", isArray: true, showLength: true },
+    });
+
+    expect(screen.getByTestId("value")).toHaveTextContent("0");
+  });
+
+  it("handles empty object config value", () => {
+    const client = createMockClient({ emptyObject: {} });
+
+    render(TestUseConfig, {
+      props: { client, configName: "emptyObject", isObject: true },
+    });
+
+    expect(screen.getByTestId("value")).toHaveTextContent("{}");
+  });
+
+  it("handles deeply nested objects in config", () => {
+    const deepConfig = {
+      level1: {
+        level2: {
+          level3: {
+            value: "deep-value",
+          },
+        },
+      },
+    };
+
+    const client = createMockClient({ deep: deepConfig });
+
+    render(TestUseConfig, {
+      props: { client, configName: "deep", isObject: true },
+    });
+
+    expect(screen.getByTestId("value")).toHaveTextContent(JSON.stringify(deepConfig));
+  });
+
+  it("handles config value changing from null to non-null", async () => {
+    const client = createMockClient({ nullable: null });
+
+    render(TestUseConfig, {
+      props: { client, configName: "nullable" },
+    });
+
+    expect(screen.getByTestId("value")).toHaveTextContent("NULL");
+
+    client._updateConfig("nullable", "now-has-value");
+    await tick();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("value")).toHaveTextContent("now-has-value");
+    });
+  });
+
+  it("handles config value changing from non-null to null", async () => {
+    const client = createMockClient({ nullable: "has-value" });
+
+    render(TestUseConfig, {
+      props: { client, configName: "nullable" },
+    });
+
+    expect(screen.getByTestId("value")).toHaveTextContent("has-value");
+
+    client._updateConfig("nullable", null);
+    await tick();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("value")).toHaveTextContent("NULL");
+    });
+  });
+
+  it("handles config value type change (string to number)", async () => {
+    const client = createMockClient({ value: "string-value" });
+
+    render(TestUseConfig, {
+      props: { client, configName: "value" },
+    });
+
+    expect(screen.getByTestId("value")).toHaveTextContent("string-value");
+
+    client._updateConfig("value", 42);
+    await tick();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("value")).toHaveTextContent("42");
+    });
+  });
+
+  it("handles config value type change (primitive to object)", async () => {
+    const client = createMockClient({ value: "string" });
+
+    render(TestUseConfig, {
+      props: { client, configName: "value", isObject: true },
+    });
+
+    expect(screen.getByTestId("value")).toHaveTextContent('"string"');
+
+    const newValue = { nested: { key: "value" } };
+    client._updateConfig("value", newValue);
+    await tick();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("value")).toHaveTextContent(JSON.stringify(newValue));
+    });
+  });
+
+  it("handles config with connection: null", async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let mockReplaneClass: any;
+    const mockClient = createMockClient({ feature: "default-value" });
+    mockReplaneClass = vi.spyOn(sdk, "Replane").mockImplementation(() => mockClient);
+
+    const TestAsyncProvider = (await import("./components/TestAsyncProvider.svelte")).default;
+
+    render(TestAsyncProvider, {
+      props: {
+        connection: null,
+        defaults: { feature: "default-value" },
+      },
+    });
+
+    expect(screen.getByTestId("content")).toBeInTheDocument();
+
+    // Should not call connect when connection is null
+    await tick();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(mockClient.connect).not.toHaveBeenCalled();
+
+    mockReplaneClass.mockRestore();
+  });
+
+  it("handles provider with isolated client state", () => {
+    const client = createMockClient({ feature: "client-value" });
+
+    render(TestUseConfig, {
+      props: { client, configName: "feature" },
+    });
+
+    expect(screen.getByTestId("value")).toHaveTextContent("client-value");
+  });
+
+  it("handles config with very long string value", () => {
+    const longString = "a".repeat(10000);
+    const client = createMockClient({ longValue: longString });
+
+    render(TestUseConfig, {
+      props: { client, configName: "longValue" },
+    });
+
+    expect(screen.getByTestId("value")).toHaveTextContent(longString);
+  });
+
+  it("handles config with special JSON characters", () => {
+    const specialValue = {
+      quote: '"quoted"',
+      backslash: "\\path\\to\\file",
+      newline: "line1\nline2",
+      tab: "col1\tcol2",
+    };
+    const client = createMockClient({ special: specialValue });
+
+    render(TestUseConfig, {
+      props: { client, configName: "special", isObject: true },
+    });
+
+    expect(screen.getByTestId("value")).toHaveTextContent(JSON.stringify(specialValue));
   });
 });

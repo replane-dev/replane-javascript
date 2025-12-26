@@ -21,7 +21,9 @@ export type { ReplaneSnapshot };
  */
 export async function fetchReplaneSnapshot(): Promise<ReplaneSnapshot<AppConfigs>> {
   return getReplaneSnapshot<AppConfigs>({
-    baseUrl: process.env.REPLANE_BASE_URL!,
-    sdkKey: process.env.REPLANE_SDK_KEY!,
+    connection: {
+      baseUrl: process.env.REPLANE_BASE_URL!,
+      sdkKey: process.env.REPLANE_SDK_KEY!,
+    },
   });
 }

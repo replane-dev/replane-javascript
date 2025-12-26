@@ -4,19 +4,14 @@
  */
 
 import type { ReactNode } from "react";
-import { getReplaneSnapshot } from "@replanejs/sdk";
-import { ReplaneProvider, type ReplaneProviderOptions } from "@replanejs/react";
+import { getReplaneSnapshot, type GetReplaneSnapshotOptions } from "@replanejs/sdk";
+import { ReplaneProvider } from "@replanejs/react";
 import { DEFAULT_AGENT } from "./version";
 
 /**
  * Props for ReplaneRoot server component
  */
-export interface ReplaneRootProps<T extends object> {
-  /**
-   * Options for Replane client.
-   * Used for both server-side fetching and client-side live updates.
-   */
-  options: ReplaneProviderOptions<T>;
+export interface ReplaneRootProps<T extends object> extends GetReplaneSnapshotOptions<T> {
   /**
    * React children to render inside the provider
    */
@@ -37,7 +32,7 @@ export interface ReplaneRootProps<T extends object> {
  *     <html>
  *       <body>
  *         <ReplaneRoot
- *           options={{
+ *           connection={{
  *             baseUrl: process.env.NEXT_PUBLIC_REPLANE_BASE_URL!,
  *             sdkKey: process.env.NEXT_PUBLIC_REPLANE_SDK_KEY!,
  *           }}
@@ -50,15 +45,21 @@ export interface ReplaneRootProps<T extends object> {
  * }
  * ```
  */
-export async function ReplaneRoot<T extends object>({ options, children }: ReplaneRootProps<T>) {
-  const optionsWithAgent = {
-    ...options,
-    agent: options.agent ?? DEFAULT_AGENT,
-  };
-  const snapshot = await getReplaneSnapshot(optionsWithAgent);
+export async function ReplaneRoot<T extends object>({ children, ...options }: ReplaneRootProps<T>) {
+  const { connection: originalConnection, ...replaneOptions } = options;
+  const connectionWithAgent = originalConnection
+    ? {
+        ...originalConnection,
+        agent: originalConnection.agent ?? DEFAULT_AGENT,
+      }
+    : null;
+  const snapshot = await getReplaneSnapshot({
+    ...replaneOptions,
+    connection: connectionWithAgent,
+  });
 
   return (
-    <ReplaneProvider options={optionsWithAgent} snapshot={snapshot}>
+    <ReplaneProvider connection={connectionWithAgent} snapshot={snapshot} {...replaneOptions}>
       {children}
     </ReplaneProvider>
   );

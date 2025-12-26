@@ -12,7 +12,7 @@ export default function MyApp({ Component, pageProps, replaneSnapshot }: AppProp
   return (
     <ReplaneProvider
       snapshot={replaneSnapshot}
-      options={{
+      connection={{
         baseUrl: process.env.NEXT_PUBLIC_REPLANE_BASE_URL!,
         sdkKey: process.env.NEXT_PUBLIC_REPLANE_SDK_KEY!,
       }}

@@ -14,7 +14,7 @@
  *     <html>
  *       <body>
  *         <ReplaneRoot
- *           options={{
+ *           connection={{
  *             baseUrl: process.env.NEXT_PUBLIC_REPLANE_BASE_URL!,
  *             sdkKey: process.env.NEXT_PUBLIC_REPLANE_SDK_KEY!,
  *           }}
@@ -45,7 +45,7 @@
  *   return (
  *     <ReplaneProvider
  *       snapshot={pageProps.replaneSnapshot}
- *       options={{
+ *       connection={{
  *         baseUrl: process.env.NEXT_PUBLIC_REPLANE_BASE_URL!,
  *         sdkKey: process.env.NEXT_PUBLIC_REPLANE_SDK_KEY!,
  *       }}
@@ -60,8 +60,10 @@
  *
  * export async function getServerSideProps() {
  *   const snapshot = await getReplaneSnapshot({
- *     baseUrl: process.env.REPLANE_BASE_URL!,
- *     sdkKey: process.env.REPLANE_SDK_KEY!,
+ *     connection: {
+ *       baseUrl: process.env.REPLANE_BASE_URL!,
+ *       sdkKey: process.env.REPLANE_SDK_KEY!,
+ *     },
  *   });
  *   return { props: { replaneSnapshot: snapshot } };
  * }
@@ -95,7 +97,6 @@ export type {
   ReplaneProviderProps,
   ReplaneProviderWithClientProps,
   ReplaneProviderWithOptionsProps,
-  ReplaneProviderOptions,
   GetReplaneSnapshotOptions,
   ReplaneSnapshot,
   ReplaneContext,

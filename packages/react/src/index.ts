@@ -7,7 +7,6 @@ export type {
   ReplaneProviderProps,
   ReplaneProviderWithClientProps,
   ReplaneProviderWithOptionsProps,
-  ReplaneProviderOptions,
 } from "./types";
 
 // Re-export from SDK

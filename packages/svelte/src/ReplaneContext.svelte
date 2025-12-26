@@ -26,72 +26,109 @@
     | { status: "ready"; client: Replane<T>; error: null }
     | { status: "error"; client: null; error: Error };
 
-  let state = $state<ClientState>({ status: "loading", client: null, error: null });
-  let clientRef: Replane<T> | null = null;
+  // Determine if we're in sync mode (client available immediately)
+  // This must be computed during initialization, not reactively
+  function computeInitialState(): {
+    state: ClientState;
+    client: Replane<T> | null;
+    isSyncMode: boolean;
+  } {
+    // Pre-created client - use directly
+    if (hasClient(props)) {
+      return {
+        state: { status: "ready", client: props.client, error: null },
+        client: props.client,
+        isSyncMode: true,
+      };
+    }
+
+    const { connection, snapshot, context, logger, defaults } = props;
+    const isAsync = props.async;
+
+    // Sync mode: snapshot, no connection, or async flag
+    if (snapshot || !connection || isAsync) {
+      try {
+        const client = new ReplaneClass<T>({
+          snapshot,
+          logger,
+          context,
+          defaults,
+        });
+        return {
+          state: { status: "ready", client, error: null },
+          client,
+          isSyncMode: true,
+        };
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error(String(err));
+        return {
+          state: { status: "error", client: null, error },
+          client: null,
+          isSyncMode: true,
+        };
+      }
+    }
+
+    // Loading mode: need to wait for connection
+    return {
+      state: { status: "loading", client: null, error: null },
+      client: null,
+      isSyncMode: false,
+    };
+  }
+
+  // Compute initial state synchronously during component initialization
+  const initialState = computeInitialState();
+  let state = $state<ClientState>(initialState.state);
+  let clientRef: Replane<T> | null = initialState.client;
+
+  // Set context immediately for sync mode (during initialization)
+  if (initialState.isSyncMode && initialState.client) {
+    setReplaneContext<T>(initialState.client);
+  }
+
   let cancelled = false;
 
-  // Handle client initialization based on props
+  // Handle async connection for sync mode, or full async flow for loading mode
   $effect(() => {
     cancelled = false;
 
     if (hasClient(props)) {
-      // Pre-created client - use directly
-      state = { status: "ready", client: props.client, error: null };
+      // Pre-created client - already set up synchronously
       return;
     }
 
-    // Options-based initialization
-    const { options, snapshot } = props;
+    const { connection, logger } = props;
 
-    if (snapshot) {
-      // Restore from snapshot synchronously, connect in background
-      try {
-        const client = new ReplaneClass<T>({
-          snapshot,
-          logger: options.logger,
-          context: options.context,
-          defaults: options.defaults,
+    // Get connection options with default agent
+    const connectionWithAgent = connection
+      ? {
+          ...connection,
+          agent: connection.agent ?? DEFAULT_AGENT,
+        }
+      : undefined;
+
+    if (initialState.isSyncMode) {
+      // Sync mode - client already created, just need to connect in background
+      if (connectionWithAgent && clientRef) {
+        clientRef.connect(connectionWithAgent).catch((err) => {
+          (logger ?? console)?.error("Failed to connect Replane client", err);
         });
-        // Start connection in background (don't await)
-        client.connect({
-          baseUrl: options.baseUrl,
-          sdkKey: options.sdkKey,
-          fetchFn: options.fetchFn,
-          requestTimeoutMs: options.requestTimeoutMs,
-          retryDelayMs: options.retryDelayMs,
-          inactivityTimeoutMs: options.inactivityTimeoutMs,
-          connectTimeoutMs: options.connectTimeoutMs,
-          agent: options.agent ?? DEFAULT_AGENT,
-        });
-        clientRef = client;
-        state = { status: "ready", client, error: null };
-      } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err));
-        state = { status: "error", client: null, error };
       }
       return;
     }
 
-    // Async client creation
-    state = { status: "loading", client: null, error: null };
+    // Loading mode - create client and connect
+    const { context, defaults } = props;
 
     const client = new ReplaneClass<T>({
-      logger: options.logger,
-      context: options.context,
-      defaults: options.defaults,
+      logger,
+      context,
+      defaults,
     });
 
     client
-      .connect({
-        baseUrl: options.baseUrl,
-        sdkKey: options.sdkKey,
-        fetchFn: options.fetchFn,
-        requestTimeoutMs: options.requestTimeoutMs,
-        retryDelayMs: options.retryDelayMs,
-        inactivityTimeoutMs: options.inactivityTimeoutMs,
-        connectTimeoutMs: options.connectTimeoutMs,
-        agent: options.agent ?? DEFAULT_AGENT,
-      })
+      .connect(connectionWithAgent!)
       .then(() => {
         if (cancelled) {
           client.disconnect();
@@ -116,9 +153,10 @@
     };
   });
 
-  // Set context when client is ready
+  // Set context when client becomes ready in loading mode
+  // This uses $effect.pre to run before children render
   $effect(() => {
-    if (state.status === "ready" && state.client) {
+    if (!initialState.isSyncMode && state.status === "ready" && state.client) {
       setReplaneContext<T>(state.client);
     }
   });

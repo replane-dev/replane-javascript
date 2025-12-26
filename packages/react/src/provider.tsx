@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import { Replane } from "@replanejs/sdk";
+import { Replane, type ConnectOptions } from "@replanejs/sdk";
 import { ReplaneContext } from "./context";
 import { useReplaneClientInternal, useReplaneClientSuspense } from "./useReplaneClient";
 import type {
@@ -25,57 +25,36 @@ function ReplaneProviderWithClient<T extends object>({
 }
 
 /**
- * Internal provider component for restoring client from snapshot.
+ * Internal provider component for creating a Replane client asynchronously.
  * Creates a Replane client synchronously and connects in background.
  */
-function ReplaneProviderWithSnapshot<T extends object>({
-  options,
-  snapshot,
+function AsyncReplaneProvider<T extends object>({
   children,
-}: ReplaneProviderWithOptionsProps<T> & {
-  snapshot: NonNullable<ReplaneProviderWithOptionsProps<T>["snapshot"]>;
-}) {
+  connection,
+  ...options
+}: ReplaneProviderWithOptionsProps<T>) {
   const replaneRef = useRef<Replane<T>>(undefined as unknown as Replane<T>);
 
   if (!replaneRef.current) {
-    replaneRef.current = new Replane<T>({
-      snapshot,
-      logger: options.logger,
-      context: options.context,
-      defaults: options.defaults,
-    });
+    replaneRef.current = new Replane<T>(options);
   }
 
+  const connectionJson = connection ? JSON.stringify(connection) : undefined;
+
   useEffect(() => {
-    replaneRef.current
-      .connect({
-        baseUrl: options.baseUrl,
-        sdkKey: options.sdkKey,
-        connectTimeoutMs: options.connectTimeoutMs,
-        retryDelayMs: options.retryDelayMs,
-        requestTimeoutMs: options.requestTimeoutMs,
-        inactivityTimeoutMs: options.inactivityTimeoutMs,
-        fetchFn: options.fetchFn,
-        agent: options.agent ?? DEFAULT_AGENT,
-      })
-      .catch((err) => {
-        (options.logger ?? console)?.error("Failed to connect Replane client", err);
-      });
+    const parsedConnection = connectionJson ? JSON.parse(connectionJson) : undefined;
+    if (!parsedConnection) {
+      return;
+    }
+
+    replaneRef.current.connect(parsedConnection).catch((err) => {
+      (options.logger ?? console)?.error("Failed to connect Replane client", err);
+    });
 
     return () => {
       replaneRef.current.disconnect();
     };
-  }, [
-    options.agent,
-    options.baseUrl,
-    options.connectTimeoutMs,
-    options.fetchFn,
-    options.inactivityTimeoutMs,
-    options.logger,
-    options.requestTimeoutMs,
-    options.retryDelayMs,
-    options.sdkKey,
-  ]);
+  }, [connectionJson, options.logger]);
 
   const value = useMemo<ReplaneContextValue<T>>(() => ({ replane: replaneRef.current }), []);
   return <ReplaneContext.Provider value={value}>{children}</ReplaneContext.Provider>;
@@ -85,12 +64,16 @@ function ReplaneProviderWithSnapshot<T extends object>({
  * Internal provider component for options-based client creation (non-suspense).
  * Throws errors during rendering so they can be caught by Error Boundaries.
  */
-function ReplaneProviderWithOptions<T extends object>({
-  options,
+function LoaderReplaneProvider<T extends object>({
   children,
   loader,
-}: ReplaneProviderWithOptionsProps<T>) {
-  const state = useReplaneClientInternal<T>(options);
+  connection,
+  ...options
+}: ReplaneProviderWithOptionsProps<T> & { connection: ConnectOptions }) {
+  if (!connection) {
+    throw new Error("Connection is required when using Loader");
+  }
+  const state = useReplaneClientInternal<T>(options, connection);
 
   if (state.status === "loading") {
     return <>{loader ?? null}</>;
@@ -108,11 +91,15 @@ function ReplaneProviderWithOptions<T extends object>({
 /**
  * Internal provider component for options-based client creation with Suspense.
  */
-function ReplaneProviderWithSuspense<T extends object>({
-  options,
+function SuspenseReplaneProvider<T extends object>({
+  connection,
   children,
-}: ReplaneProviderWithOptionsProps<T>) {
-  const client = useReplaneClientSuspense<T>(options);
+  ...options
+}: ReplaneProviderWithOptionsProps<T> & { connection: ConnectOptions }) {
+  if (!connection) {
+    throw new Error("Connection is required when using Suspense");
+  }
+  const client = useReplaneClientSuspense<T>(options, connection);
   const value = useMemo<ReplaneContextValue<T>>(() => ({ replane: client }), [client]);
   return <ReplaneContext.Provider value={value}>{children}</ReplaneContext.Provider>;
 }
@@ -175,18 +162,29 @@ function ReplaneProviderWithSuspense<T extends object>({
  * allowing them to be caught by React Error Boundaries.
  */
 export function ReplaneProvider<T extends object>(props: ReplaneProviderProps<T>) {
+  const originalConnection = (props as { connection?: ConnectOptions }).connection;
+  const connection = useMemo(
+    () =>
+      originalConnection
+        ? {
+            ...originalConnection,
+            agent: originalConnection.agent ?? DEFAULT_AGENT,
+          }
+        : undefined,
+    [originalConnection]
+  );
+
   if (hasClient(props)) {
     return <ReplaneProviderWithClient {...props} />;
   }
 
-  // Has options - check if snapshot is provided
-  if (props.snapshot) {
-    return <ReplaneProviderWithSnapshot {...props} snapshot={props.snapshot} />;
+  if (props.snapshot || !connection || props.async) {
+    return <AsyncReplaneProvider {...props} />;
   }
 
   if (props.suspense) {
-    return <ReplaneProviderWithSuspense {...props} />;
+    return <SuspenseReplaneProvider {...props} connection={connection} />;
   }
 
-  return <ReplaneProviderWithOptions {...props} />;
+  return <LoaderReplaneProvider {...props} connection={connection} />;
 }

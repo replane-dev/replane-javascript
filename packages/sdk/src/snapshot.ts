@@ -1,10 +1,10 @@
 import { Replane } from "./client";
-import type { ConnectOptions, ReplaneLogger, ReplaneContext, ReplaneSnapshot } from "./client-types";
+import type { ConnectOptions, ReplaneSnapshot, ReplaneOptions } from "./client-types";
 
 /**
  * Options for getReplaneSnapshot with caching support.
  */
-export interface GetReplaneSnapshotOptions<T extends object> extends ConnectOptions {
+export interface GetReplaneSnapshotOptions<T extends object> extends ReplaneOptions<T> {
   /**
    * Cache TTL in milliseconds. When set, the client is cached and reused
    * for instant subsequent calls within this duration.
@@ -12,19 +12,9 @@ export interface GetReplaneSnapshotOptions<T extends object> extends ConnectOpti
    */
   keepAliveMs?: number;
   /**
-   * Optional logger (defaults to console).
+   * Connection options. If null, the snapshot will be created from defaults only.
    */
-  logger?: ReplaneLogger;
-  /**
-   * Default context for all config evaluations.
-   */
-  context?: ReplaneContext;
-  /**
-   * Default values to use if the initial request to fetch configs fails or times out.
-   */
-  defaults?: {
-    [K in keyof T]?: T[K];
-  };
+  connection: ConnectOptions | null;
 }
 
 interface CachedClient {
@@ -63,17 +53,37 @@ function setupCleanupTimeout(cacheKey: string, keepAliveMs: number): TimeoutId {
  * @example
  * ```ts
  * const snapshot = await getReplaneSnapshot({
- *   baseUrl: process.env.REPLANE_BASE_URL!,
- *   sdkKey: process.env.REPLANE_SDK_KEY!,
+ *   connection: {
+ *     baseUrl: process.env.REPLANE_BASE_URL!,
+ *     sdkKey: process.env.REPLANE_SDK_KEY!,
+ *   },
  * });
  * ```
  */
 export async function getReplaneSnapshot<T extends object>(
   options: GetReplaneSnapshotOptions<T>
 ): Promise<ReplaneSnapshot<T>> {
-  const { keepAliveMs = 60_000, logger, context, defaults, ...connectOptions } = options;
+  const {
+    keepAliveMs = 60_000,
+    logger,
+    context,
+    defaults,
+    connection: connectionOptions,
+  } = options;
 
-  const cacheKey = getCacheKey(connectOptions);
+  if (!connectionOptions) {
+    return {
+      configs: [
+        ...Object.entries(defaults ?? {}).map(([name, value]) => ({
+          name,
+          value,
+          overrides: [],
+        })),
+      ],
+    };
+  }
+
+  const cacheKey = getCacheKey(connectionOptions);
   const cached = clientCache.get(cacheKey);
 
   // Return from cache if valid
@@ -98,7 +108,9 @@ export async function getReplaneSnapshot<T extends object>(
   });
 
   // Store pending connection promise
-  const connectionPromise = client.connect(connectOptions).then(() => client as unknown as Replane<object>);
+  const connectionPromise = client
+    .connect(connectionOptions)
+    .then(() => client as unknown as Replane<object>);
   pendingConnections.set(cacheKey, { promise: connectionPromise });
 
   try {
