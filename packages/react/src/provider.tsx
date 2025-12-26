@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { restoreReplaneClient } from "@replanejs/sdk";
+import { Replane } from "@replanejs/sdk";
 import { ReplaneContext } from "./context";
 import { useReplaneClientInternal, useReplaneClientSuspense } from "./useReplaneClient";
 import { useStateful } from "./hooks";
@@ -27,7 +27,7 @@ function ReplaneProviderWithClient<T extends object>({
 
 /**
  * Internal provider component for restoring client from snapshot.
- * Uses restoreReplaneClient which is synchronous.
+ * Creates a Replane client synchronously and connects in background.
  */
 function ReplaneProviderWithSnapshot<T extends object>({
   options,
@@ -37,22 +37,27 @@ function ReplaneProviderWithSnapshot<T extends object>({
   snapshot: NonNullable<ReplaneProviderWithOptionsProps<T>["snapshot"]>;
 }) {
   const client = useStateful(
-    () =>
-      restoreReplaneClient<T>({
+    () => {
+      const replane = new Replane<T>({
         snapshot,
-        connection: {
-          baseUrl: options.baseUrl,
-          sdkKey: options.sdkKey,
-          fetchFn: options.fetchFn,
-          requestTimeoutMs: options.requestTimeoutMs,
-          retryDelayMs: options.retryDelayMs,
-          inactivityTimeoutMs: options.inactivityTimeoutMs,
-          logger: options.logger,
-          agent: options.agent ?? DEFAULT_AGENT,
-        },
+        logger: options.logger,
         context: options.context,
-      }),
-    (c) => c.close(),
+        defaults: options.defaults,
+      });
+      // Start connection in background (don't await)
+      replane.connect({
+        baseUrl: options.baseUrl,
+        sdkKey: options.sdkKey,
+        fetchFn: options.fetchFn,
+        requestTimeoutMs: options.requestTimeoutMs,
+        retryDelayMs: options.retryDelayMs,
+        inactivityTimeoutMs: options.inactivityTimeoutMs,
+        connectTimeoutMs: options.connectTimeoutMs,
+        agent: options.agent ?? DEFAULT_AGENT,
+      });
+      return replane;
+    },
+    (c) => c.disconnect(),
     [snapshot, options]
   );
   const value = useMemo<ReplaneContextValue<T>>(() => ({ client }), [client]);
@@ -96,13 +101,14 @@ function ReplaneProviderWithSuspense<T extends object>({
 }
 
 /**
- * Provider component that makes a ReplaneClient available to the component tree.
+ * Provider component that makes a Replane client available to the component tree.
  *
- * Can be used in three ways:
+ * Can be used in several ways:
  *
  * 1. With a pre-created client:
  * ```tsx
- * const client = await createReplaneClient({ ... });
+ * const client = new Replane({ defaults: { ... } });
+ * await client.connect({ baseUrl: '...', sdkKey: '...' });
  * <ReplaneProvider client={client}>
  *   <App />
  * </ReplaneProvider>

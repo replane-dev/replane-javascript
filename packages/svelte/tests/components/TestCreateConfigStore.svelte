@@ -1,9 +1,9 @@
 <script lang="ts">
-  import type { ReplaneClient } from "@replanejs/sdk";
+  import type { Replane } from "@replanejs/sdk";
   import { configFrom } from "../../src/stores";
 
   interface Props {
-    client: ReplaneClient<any>;
+    client: Replane<any>;
     configName: string;
   }
 

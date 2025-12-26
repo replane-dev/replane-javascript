@@ -1,12 +1,12 @@
 <script lang="ts">
-  import type { ReplaneClient } from "@replanejs/sdk";
+  import type { Replane } from "@replanejs/sdk";
   import { setReplaneContext } from "../../src/context";
   import { configFrom } from "../../src/stores";
   import type { Readable } from "svelte/store";
   import ConfigValue from "./ConfigValue.svelte";
 
   interface Props {
-    client: ReplaneClient<any>;
+    client: Replane<any>;
     configNames: string[];
     testId?: string[];
   }

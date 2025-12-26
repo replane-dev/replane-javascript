@@ -3,14 +3,14 @@
 import { useCallback, useContext, useEffect, useRef, useSyncExternalStore } from "react";
 import { ReplaneContext } from "./context";
 import type { UntypedReplaneConfig } from "./types";
-import type { ReplaneClient, GetConfigOptions } from "@replanejs/sdk";
+import type { Replane, GetConfigOptions } from "@replanejs/sdk";
 
-export function useReplane<T extends object = UntypedReplaneConfig>(): ReplaneClient<T> {
+export function useReplane<T extends object = UntypedReplaneConfig>(): Replane<T> {
   const context = useContext(ReplaneContext);
   if (!context) {
     throw new Error("useReplane must be used within a ReplaneProvider");
   }
-  return context.client as ReplaneClient<T>;
+  return context.client as Replane<T>;
 }
 
 export function useConfig<T>(name: string, options?: GetConfigOptions<T>): T {
@@ -51,7 +51,7 @@ export function useConfig<T>(name: string, options?: GetConfigOptions<T>): T {
  * ```
  */
 export function createReplaneHook<TConfigs extends object>() {
-  return function useTypedReplane(): ReplaneClient<TConfigs> {
+  return function useTypedReplane(): Replane<TConfigs> {
     return useReplane<TConfigs>();
   };
 }

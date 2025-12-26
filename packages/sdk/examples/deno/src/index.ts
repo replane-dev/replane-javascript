@@ -1,4 +1,4 @@
-import { createReplaneClient } from "@replanejs/sdk";
+import { Replane } from "@replanejs/sdk";
 
 // Define your config types for type-safe access
 interface Configs {
@@ -37,9 +37,7 @@ async function main() {
   console.log("Connecting to Replane...");
 
   // Create the Replane client with type-safe config access
-  const replane = await createReplaneClient<Configs>({
-    sdkKey,
-    baseUrl,
+  const replane = new Replane<Configs>({
     // Optional: set default context for all config evaluations
     context: {
       environment: "development",
@@ -58,6 +56,9 @@ async function main() {
       },
     },
   });
+
+  // Connect to the server
+  await replane.connect({ sdkKey, baseUrl });
 
   console.log("Connected to Replane!\n");
 
@@ -100,7 +101,7 @@ async function main() {
     console.log("\nShutting down...");
     unsubscribeAll();
     unsubscribeFeatures();
-    replane.close();
+    replane.disconnect();
     Deno.exit(0);
   });
 }

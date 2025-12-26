@@ -86,29 +86,21 @@ export {
   createReplaneHook,
   createConfigHook,
   clearSuspenseCache,
+  Replane,
+  ReplaneError,
+  ReplaneErrorCode,
 } from "@replanejs/react";
 
 export type {
   ReplaneProviderProps,
   ReplaneProviderWithClientProps,
   ReplaneProviderWithOptionsProps,
+  ReplaneProviderOptions,
   GetReplaneSnapshotOptions,
-} from "@replanejs/react";
-
-export {
-  createReplaneClient,
-  createInMemoryReplaneClient,
-  restoreReplaneClient,
-  ReplaneError,
-  ReplaneErrorCode,
-} from "@replanejs/sdk";
-
-export type {
-  ReplaneClient,
-  ReplaneClientOptions,
   ReplaneSnapshot,
   ReplaneContext,
   ReplaneLogger,
+  ReplaneOptions,
+  ConnectOptions,
   GetConfigOptions,
-  RestoreReplaneClientOptions,
-} from "@replanejs/sdk";
+} from "@replanejs/react";

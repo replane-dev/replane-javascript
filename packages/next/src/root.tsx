@@ -4,8 +4,8 @@
  */
 
 import type { ReactNode } from "react";
-import { getReplaneSnapshot, type ReplaneClientOptions } from "@replanejs/sdk";
-import { ReplaneProvider } from "@replanejs/react";
+import { getReplaneSnapshot } from "@replanejs/sdk";
+import { ReplaneProvider, type ReplaneProviderOptions } from "@replanejs/react";
 import { DEFAULT_AGENT } from "./version";
 
 /**
@@ -16,7 +16,7 @@ export interface ReplaneRootProps<T extends object> {
    * Options for Replane client.
    * Used for both server-side fetching and client-side live updates.
    */
-  options: ReplaneClientOptions<T>;
+  options: ReplaneProviderOptions<T>;
   /**
    * React children to render inside the provider
    */

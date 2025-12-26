@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/svelte";
 import { tick } from "svelte";
-import type { ReplaneClient, ReplaneClientOptions } from "@replanejs/sdk";
+import type { Replane } from "@replanejs/sdk";
+import type { ReplaneContextOptions } from "../src/types";
 import * as sdk from "@replanejs/sdk";
 
 // Import test components and utilities
@@ -20,7 +21,7 @@ import TestProviderWithOptions from "./components/TestProviderWithOptions.svelte
 // ============================================================================
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function createMockClient(configs: Record<string, unknown> = {}): ReplaneClient<any> & {
+function createMockClient(configs: Record<string, unknown> = {}): Replane<any> & {
   _updateConfig: (name: string, value: unknown) => void;
   _triggerGlobalUpdate: () => void;
 } {
@@ -46,7 +47,8 @@ function createMockClient(configs: Record<string, unknown> = {}): ReplaneClient<
         subscribers.get(name)?.delete(callback!);
       };
     }),
-    close: vi.fn(),
+    disconnect: vi.fn(),
+    connect: vi.fn().mockResolvedValue(undefined),
     getSnapshot: vi.fn(() => ({
       configs: Object.entries(currentConfigs).map(([name, value]) => ({
         name,
@@ -63,14 +65,14 @@ function createMockClient(configs: Record<string, unknown> = {}): ReplaneClient<
       globalSubscribers.forEach((cb) => cb());
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } as unknown as ReplaneClient<any> & {
+  } as unknown as Replane<any> & {
     _updateConfig: (name: string, value: unknown) => void;
     _triggerGlobalUpdate: () => void;
   };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const defaultTestOptions: ReplaneClientOptions<any> = {
+const defaultTestOptions: ReplaneContextOptions<any> = {
   baseUrl: "https://test.replane.dev",
   sdkKey: "rp_test_key",
 };
@@ -91,7 +93,7 @@ describe("ReplaneContext with client prop", () => {
     });
 
     // Provider should render without issues
-    expect(client.close).not.toHaveBeenCalled();
+    expect(client.disconnect).not.toHaveBeenCalled();
   });
 
   it("provides client to children via context", () => {
@@ -104,7 +106,7 @@ describe("ReplaneContext with client prop", () => {
     expect(screen.getByTestId("has-client")).toHaveTextContent("true");
   });
 
-  it("does not call client.close on unmount when client is passed as prop", () => {
+  it("does not call client.disconnect on unmount when client is passed as prop", () => {
     const client = createMockClient();
 
     const { unmount } = render(TestUseReplane, {
@@ -113,8 +115,8 @@ describe("ReplaneContext with client prop", () => {
 
     unmount();
 
-    // Client should NOT be closed when passed as prop (user manages lifecycle)
-    expect(client.close).not.toHaveBeenCalled();
+    // Client should NOT be disconnected when passed as prop (user manages lifecycle)
+    expect(client.disconnect).not.toHaveBeenCalled();
   });
 
   it("works with deeply nested children", () => {
@@ -134,23 +136,22 @@ describe("ReplaneContext with client prop", () => {
 
 describe("ReplaneContext with options prop - Loading States", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let mockCreateClient: any;
+  let mockReplaneClass: any;
   let mockClient: ReturnType<typeof createMockClient>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let resolveClient: (client: ReplaneClient<any>) => void;
+  let resolveConnect: () => void;
 
   beforeEach(() => {
     mockClient = createMockClient({ feature: true });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const clientPromise = new Promise<ReplaneClient<any>>((resolve) => {
-      resolveClient = resolve;
+    const connectPromise = new Promise<void>((resolve) => {
+      resolveConnect = resolve;
     });
 
-    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockReturnValue(clientPromise);
+    mockClient.connect = vi.fn().mockReturnValue(connectPromise);
+    mockReplaneClass = vi.spyOn(sdk, "Replane").mockImplementation(() => mockClient);
   });
 
   afterEach(() => {
-    mockCreateClient.mockRestore();
+    mockReplaneClass.mockRestore();
   });
 
   it("shows loader while initializing", async () => {
@@ -161,9 +162,7 @@ describe("ReplaneContext with options prop - Loading States", () => {
     });
 
     // Provider should be in loading state
-    expect(mockCreateClient).toHaveBeenCalledWith(
-      expect.objectContaining(defaultTestOptions)
-    );
+    expect(mockReplaneClass).toHaveBeenCalled();
     expect(screen.getByTestId("loader")).toBeInTheDocument();
   });
 
@@ -176,7 +175,7 @@ describe("ReplaneContext with options prop - Loading States", () => {
 
     expect(screen.getByTestId("loader")).toBeInTheDocument();
 
-    resolveClient(mockClient);
+    resolveConnect();
     await tick();
 
     await waitFor(() => {
@@ -187,7 +186,7 @@ describe("ReplaneContext with options prop - Loading States", () => {
 
   it("throws error when initialization fails (for error boundary)", async () => {
     const error = new Error("Connection failed");
-    mockCreateClient.mockRejectedValue(error);
+    mockClient.connect = vi.fn().mockRejectedValue(error);
 
     render(TestProviderWithOptions, {
       props: {
@@ -202,7 +201,7 @@ describe("ReplaneContext with options prop - Loading States", () => {
   });
 
   it("wraps non-Error rejections in Error", async () => {
-    mockCreateClient.mockRejectedValue("string error");
+    mockClient.connect = vi.fn().mockRejectedValue("string error");
 
     render(TestProviderWithOptions, {
       props: {
@@ -222,15 +221,16 @@ describe("ReplaneContext with options prop - Loading States", () => {
 
 describe("ReplaneContext with options prop - Client Lifecycle", () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let mockCreateClient: any;
+  let mockReplaneClass: any;
 
   afterEach(() => {
-    mockCreateClient?.mockRestore();
+    mockReplaneClass?.mockRestore();
   });
 
-  it("calls createReplaneClient with correct options", async () => {
+  it("creates Replane instance with correct options and calls connect", async () => {
     const mockClient = createMockClient();
-    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
+    mockClient.connect = vi.fn().mockResolvedValue(undefined);
+    mockReplaneClass = vi.spyOn(sdk, "Replane").mockImplementation(() => mockClient);
 
     render(TestProviderWithOptions, {
       props: {
@@ -239,15 +239,20 @@ describe("ReplaneContext with options prop - Client Lifecycle", () => {
     });
 
     await waitFor(() => {
-      expect(mockCreateClient).toHaveBeenCalledWith(
-        expect.objectContaining(defaultTestOptions)
+      expect(mockReplaneClass).toHaveBeenCalled();
+      expect(mockClient.connect).toHaveBeenCalledWith(
+        expect.objectContaining({
+          baseUrl: defaultTestOptions.baseUrl,
+          sdkKey: defaultTestOptions.sdkKey,
+        })
       );
     });
   });
 
-  it("closes client on unmount after successful initialization", async () => {
+  it("disconnects client on unmount after successful initialization", async () => {
     const mockClient = createMockClient();
-    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockResolvedValue(mockClient);
+    mockClient.connect = vi.fn().mockResolvedValue(undefined);
+    mockReplaneClass = vi.spyOn(sdk, "Replane").mockImplementation(() => mockClient);
 
     const { unmount } = render(TestProviderWithOptions, {
       props: {
@@ -262,20 +267,19 @@ describe("ReplaneContext with options prop - Client Lifecycle", () => {
     unmount();
 
     await waitFor(() => {
-      expect(mockClient.close).toHaveBeenCalledTimes(1);
+      expect(mockClient.disconnect).toHaveBeenCalledTimes(1);
     });
   });
 
   it("handles unmount during initialization gracefully", async () => {
     const mockClient = createMockClient();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let resolveClient: (client: ReplaneClient<any>) => void;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const clientPromise = new Promise<ReplaneClient<any>>((resolve) => {
-      resolveClient = resolve;
+    let resolveConnect: () => void;
+    const connectPromise = new Promise<void>((resolve) => {
+      resolveConnect = resolve;
     });
 
-    mockCreateClient = vi.spyOn(sdk, "createReplaneClient").mockReturnValue(clientPromise);
+    mockClient.connect = vi.fn().mockReturnValue(connectPromise);
+    mockReplaneClass = vi.spyOn(sdk, "Replane").mockImplementation(() => mockClient);
 
     const { unmount } = render(TestProviderWithOptions, {
       props: {
@@ -286,12 +290,12 @@ describe("ReplaneContext with options prop - Client Lifecycle", () => {
     // Unmount while still loading
     unmount();
 
-    // Resolve after unmount - should close the client
-    resolveClient!(mockClient);
+    // Resolve after unmount - should disconnect the client
+    resolveConnect!();
     await tick();
 
     await waitFor(() => {
-      expect(mockClient.close).toHaveBeenCalled();
+      expect(mockClient.disconnect).toHaveBeenCalled();
     });
   });
 });

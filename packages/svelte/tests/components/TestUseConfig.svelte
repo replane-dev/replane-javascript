@@ -1,10 +1,10 @@
 <script lang="ts">
-  import type { ReplaneClient } from "@replanejs/sdk";
+  import type { Replane } from "@replanejs/sdk";
   import { setReplaneContext } from "../../src/context";
   import { config } from "../../src/stores";
 
   interface Props {
-    client: ReplaneClient<any>;
+    client: Replane<any>;
     configName: string;
     isArray?: boolean;
     isObject?: boolean;

@@ -10,8 +10,8 @@
 
 import { describe, it, beforeAll, afterAll, afterEach, expect } from "vitest";
 import { ReplaneAdmin, type ConfigValue, type Override } from "@replanejs/admin";
-import { createReplaneClient, ReplaneError, ReplaneErrorCode } from "@replanejs/sdk";
-import type { ReplaneClient, ReplaneContext } from "@replanejs/sdk";
+import { Replane, ReplaneError, ReplaneErrorCode } from "@replanejs/sdk";
+import type { ReplaneContext } from "@replanejs/sdk";
 import type { TestSuiteOptions, TestContext } from "./types";
 import { createSignal, createCollector, delay, uniqueId, syncReplica } from "./utils";
 
@@ -61,19 +61,22 @@ function createTestContext(
     async createClient<T extends object = Record<string, unknown>>(clientOptions?: {
       context?: ReplaneContext;
       defaults?: Partial<T>;
-      required?: (keyof T)[] | Partial<T>;
-    }): Promise<ReplaneClient<T>> {
+    }): Promise<Replane<T>> {
       await sync();
 
-      return createReplaneClient<T>({
-        sdkKey,
-        baseUrl: options.edgeApiBaseUrl,
+      const client = new Replane<T>({
         logger: options.debug ? console : silentLogger,
-        initializationTimeoutMs: defaultTimeout,
         context: clientOptions?.context,
         defaults: clientOptions?.defaults as T | undefined,
-        required: clientOptions?.required as (keyof T)[] | undefined,
       });
+
+      await client.connect({
+        sdkKey,
+        baseUrl: options.edgeApiBaseUrl,
+        connectTimeoutMs: defaultTimeout,
+      });
+
+      return client;
     },
 
     async createConfig(
@@ -89,7 +92,6 @@ function createTestContext(
         name,
         description: configOptions?.description ?? "",
         editors: [],
-        maintainers: [],
         base: {
           value,
           schema: null,
@@ -157,7 +159,7 @@ export function testSuite(options: TestSuiteOptions): void {
     let ctx: TestContext;
 
     // Track clients for cleanup
-    const activeClients: ReplaneClient<Record<string, unknown>>[] = [];
+    const activeClients: Replane<Record<string, unknown>>[] = [];
 
     beforeAll(async () => {
       // Create admin client with superadmin key
@@ -204,10 +206,10 @@ export function testSuite(options: TestSuiteOptions): void {
     });
 
     afterAll(async () => {
-      // Close all active clients
+      // Disconnect all active clients
       for (const client of activeClients) {
         try {
-          client.close();
+          client.disconnect();
         } catch {
           // Ignore errors during cleanup
         }
@@ -221,8 +223,8 @@ export function testSuite(options: TestSuiteOptions): void {
     });
 
     // Helper to track clients for cleanup
-    const trackClient = <T extends object>(client: ReplaneClient<T>): ReplaneClient<T> => {
-      activeClients.push(client as ReplaneClient<Record<string, unknown>>);
+    const trackClient = <T extends object>(client: Replane<T>): Replane<T> => {
+      activeClients.push(client as Replane<Record<string, unknown>>);
       return client;
     };
 
@@ -243,15 +245,13 @@ export function testSuite(options: TestSuiteOptions): void {
 
         // Create client - sync ensures configs are available
         const client = trackClient(
-          await ctx.createClient<{ "test-config": string }>({
-            required: ["test-config"],
-          })
+          await ctx.createClient<{ "test-config": string }>({})
         );
 
         const value = client.get("test-config");
         expect(value).toBe("initial-value");
 
-        client.close();
+        client.disconnect();
       });
 
       it("should handle empty project (no configs)", async () => {
@@ -272,19 +272,20 @@ export function testSuite(options: TestSuiteOptions): void {
         // Wait for SDK key to sync
         await syncReplica({ edgeApiBaseUrl, sdkKey });
 
-        const client = trackClient(
-          await createReplaneClient({
-            sdkKey: emptySdkKeyRes.key,
-            baseUrl: edgeApiBaseUrl,
-            logger: silentLogger,
-            initializationTimeoutMs: defaultTimeout,
-          })
-        );
+        const emptyClient = new Replane({
+          logger: silentLogger,
+        });
+        await emptyClient.connect({
+          sdkKey: emptySdkKeyRes.key,
+          baseUrl: edgeApiBaseUrl,
+          connectTimeoutMs: defaultTimeout,
+        });
+        const client = trackClient(emptyClient);
 
         // Should not throw, but get() with no default should throw
         expect(() => client.get("nonexistent")).toThrow();
 
-        client.close();
+        client.disconnect();
 
         // Cleanup
         await admin.projects.delete({ projectId: emptyProjectRes.id });
@@ -300,16 +301,9 @@ export function testSuite(options: TestSuiteOptions): void {
         const value = client.get("missing-config");
         expect(value).toBe("default-value");
 
-        client.close();
+        client.disconnect();
       });
 
-      it("should throw when required config is missing", { timeout: 15000 }, async () => {
-        await expect(
-          ctx.createClient({
-            required: ["definitely-missing-config"],
-          })
-        ).rejects.toThrow();
-      });
     });
 
     // ==================== GET CONFIG TESTS ====================
@@ -319,33 +313,33 @@ export function testSuite(options: TestSuiteOptions): void {
         await ctx.createConfig("string-config", "hello");
 
         const client = trackClient(
-          await ctx.createClient<{ "string-config": string }>({ required: ["string-config"] })
+          await ctx.createClient<{ "string-config": string }>({})
         );
 
         expect(client.get("string-config")).toBe("hello");
-        client.close();
+        client.disconnect();
       });
 
       it("should get number config", async () => {
         await ctx.createConfig("number-config", 42);
 
         const client = trackClient(
-          await ctx.createClient<{ "number-config": number }>({ required: ["number-config"] })
+          await ctx.createClient<{ "number-config": number }>({})
         );
 
         expect(client.get("number-config")).toBe(42);
-        client.close();
+        client.disconnect();
       });
 
       it("should get boolean config", async () => {
         await ctx.createConfig("boolean-config", true);
 
         const client = trackClient(
-          await ctx.createClient<{ "boolean-config": boolean }>({ required: ["boolean-config"] })
+          await ctx.createClient<{ "boolean-config": boolean }>({})
         );
 
         expect(client.get("boolean-config")).toBe(true);
-        client.close();
+        client.disconnect();
       });
 
       it("should get object config", async () => {
@@ -354,12 +348,11 @@ export function testSuite(options: TestSuiteOptions): void {
 
         const client = trackClient(
           await ctx.createClient<{ "object-config": typeof objValue }>({
-            required: ["object-config"],
-          })
+                      })
         );
 
         expect(client.get("object-config")).toEqual(objValue);
-        client.close();
+        client.disconnect();
       });
 
       it("should get array config", async () => {
@@ -367,29 +360,29 @@ export function testSuite(options: TestSuiteOptions): void {
         await ctx.createConfig("array-config", arrValue);
 
         const client = trackClient(
-          await ctx.createClient<{ "array-config": number[] }>({ required: ["array-config"] })
+          await ctx.createClient<{ "array-config": number[] }>({})
         );
 
         expect(client.get("array-config")).toEqual(arrValue);
-        client.close();
+        client.disconnect();
       });
 
       it("should get null config", async () => {
         await ctx.createConfig("null-config", null);
 
         const client = trackClient(
-          await ctx.createClient<{ "null-config": null }>({ required: ["null-config"] })
+          await ctx.createClient<{ "null-config": null }>({})
         );
 
         expect(client.get("null-config")).toBe(null);
-        client.close();
+        client.disconnect();
       });
 
       it("should return default value when config not found", async () => {
         const client = trackClient(await ctx.createClient());
         const value = client.get("nonexistent", { default: "fallback" });
         expect(value).toBe("fallback");
-        client.close();
+        client.disconnect();
       });
 
       it("should throw ReplaneError when config not found and no default", async () => {
@@ -401,7 +394,7 @@ export function testSuite(options: TestSuiteOptions): void {
           expect(error).toBeInstanceOf(ReplaneError);
           expect((error as ReplaneError).code).toBe(ReplaneErrorCode.NotFound);
         }
-        client.close();
+        client.disconnect();
       });
     });
 
@@ -412,7 +405,7 @@ export function testSuite(options: TestSuiteOptions): void {
         await ctx.createConfig("live-config", "initial");
 
         const client = trackClient(
-          await ctx.createClient<{ "live-config": string }>({ required: ["live-config"] })
+          await ctx.createClient<{ "live-config": string }>({})
         );
 
         expect(client.get("live-config")).toBe("initial");
@@ -435,7 +428,7 @@ export function testSuite(options: TestSuiteOptions): void {
         // Verify get() returns new value
         expect(client.get("live-config")).toBe("updated");
 
-        client.close();
+        client.disconnect();
       });
 
       it("should receive multiple updates in order", async () => {
@@ -443,8 +436,7 @@ export function testSuite(options: TestSuiteOptions): void {
 
         const client = trackClient(
           await ctx.createClient<{ "multi-update-config": number }>({
-            required: ["multi-update-config"],
-          })
+                      })
         );
 
         expect(client.get("multi-update-config")).toBe(0);
@@ -468,14 +460,14 @@ export function testSuite(options: TestSuiteOptions): void {
         const values = await collector.waitForCount(3, { timeout: defaultTimeout });
         expect(values).toEqual([1, 2, 3]);
 
-        client.close();
+        client.disconnect();
       });
 
       it("should handle rapid updates", async () => {
         await ctx.createConfig("rapid-config", 0);
 
         const client = trackClient(
-          await ctx.createClient<{ "rapid-config": number }>({ required: ["rapid-config"] })
+          await ctx.createClient<{ "rapid-config": number }>({})
         );
 
         expect(client.get("rapid-config")).toBe(0);
@@ -497,7 +489,7 @@ export function testSuite(options: TestSuiteOptions): void {
         // Final value should be correct
         expect(client.get("rapid-config")).toBe(updateCount);
 
-        client.close();
+        client.disconnect();
       });
 
       it("should call global subscription for any config change", async () => {
@@ -506,8 +498,7 @@ export function testSuite(options: TestSuiteOptions): void {
 
         const client = trackClient(
           await ctx.createClient<{ "config-a": string; "config-b": string }>({
-            required: ["config-a", "config-b"],
-          })
+                      })
         );
 
         expect(client.get("config-a")).toBe("a");
@@ -535,14 +526,14 @@ export function testSuite(options: TestSuiteOptions): void {
         expect(aUpdate?.value).toBe("a-updated");
         expect(bUpdate?.value).toBe("b-updated");
 
-        client.close();
+        client.disconnect();
       });
 
       it("should allow unsubscribing", async () => {
         await ctx.createConfig("unsub-config", "initial");
 
         const client = trackClient(
-          await ctx.createClient<{ "unsub-config": string }>({ required: ["unsub-config"] })
+          await ctx.createClient<{ "unsub-config": string }>({})
         );
 
         expect(client.get("unsub-config")).toBe("initial");
@@ -568,7 +559,7 @@ export function testSuite(options: TestSuiteOptions): void {
         // Should only have 1 update
         expect(collector.count()).toBe(1);
 
-        client.close();
+        client.disconnect();
       });
     });
 
@@ -588,30 +579,28 @@ export function testSuite(options: TestSuiteOptions): void {
 
         // Without context - should get default
         const client1 = trackClient(
-          await ctx.createClient<{ "env-config": string }>({ required: ["env-config"] })
+          await ctx.createClient<{ "env-config": string }>({})
         );
         expect(client1.get("env-config")).toBe("default");
-        client1.close();
+        client1.disconnect();
 
         // With matching context
         const client2 = trackClient(
           await ctx.createClient<{ "env-config": string }>({
             context: { env: "production" },
-            required: ["env-config"],
-          })
+                      })
         );
         expect(client2.get("env-config")).toBe("production-value");
-        client2.close();
+        client2.disconnect();
 
         // With non-matching context
         const client3 = trackClient(
           await ctx.createClient<{ "env-config": string }>({
             context: { env: "staging" },
-            required: ["env-config"],
-          })
+                      })
         );
         expect(client3.get("env-config")).toBe("default");
-        client3.close();
+        client3.disconnect();
       });
 
       it("should evaluate in condition", async () => {
@@ -628,29 +617,26 @@ export function testSuite(options: TestSuiteOptions): void {
         const client1 = trackClient(
           await ctx.createClient<{ "region-config": string }>({
             context: { region: "us" },
-            required: ["region-config"],
-          })
+                      })
         );
         expect(client1.get("region-config")).toBe("western");
-        client1.close();
+        client1.disconnect();
 
         const client2 = trackClient(
           await ctx.createClient<{ "region-config": string }>({
             context: { region: "eu" },
-            required: ["region-config"],
-          })
+                      })
         );
         expect(client2.get("region-config")).toBe("western");
-        client2.close();
+        client2.disconnect();
 
         const client3 = trackClient(
           await ctx.createClient<{ "region-config": string }>({
             context: { region: "asia" },
-            required: ["region-config"],
-          })
+                      })
         );
         expect(client3.get("region-config")).toBe("default");
-        client3.close();
+        client3.disconnect();
       });
 
       it("should evaluate not_in condition", async () => {
@@ -673,20 +659,18 @@ export function testSuite(options: TestSuiteOptions): void {
         const client1 = trackClient(
           await ctx.createClient<{ "allow-config": string }>({
             context: { country: "blocked1" },
-            required: ["allow-config"],
           })
         );
         expect(client1.get("allow-config")).toBe("allowed");
-        client1.close();
+        client1.disconnect();
 
         const client2 = trackClient(
           await ctx.createClient<{ "allow-config": string }>({
             context: { country: "normal" },
-            required: ["allow-config"],
           })
         );
         expect(client2.get("allow-config")).toBe("not-blocked");
-        client2.close();
+        client2.disconnect();
       });
 
       it("should evaluate numeric comparison conditions", async () => {
@@ -705,29 +689,26 @@ export function testSuite(options: TestSuiteOptions): void {
         const client1 = trackClient(
           await ctx.createClient<{ "tier-config": string }>({
             context: { level: 5 },
-            required: ["tier-config"],
           })
         );
         expect(client1.get("tier-config")).toBe("free");
-        client1.close();
+        client1.disconnect();
 
         const client2 = trackClient(
           await ctx.createClient<{ "tier-config": string }>({
             context: { level: 10 },
-            required: ["tier-config"],
           })
         );
         expect(client2.get("tier-config")).toBe("premium");
-        client2.close();
+        client2.disconnect();
 
         const client3 = trackClient(
           await ctx.createClient<{ "tier-config": string }>({
             context: { level: 15 },
-            required: ["tier-config"],
           })
         );
         expect(client3.get("tier-config")).toBe("premium");
-        client3.close();
+        client3.disconnect();
       });
 
       it("should evaluate and condition", async () => {
@@ -753,21 +734,19 @@ export function testSuite(options: TestSuiteOptions): void {
         const client1 = trackClient(
           await ctx.createClient<{ "combo-config": string }>({
             context: { plan: "enterprise", verified: true },
-            required: ["combo-config"],
           })
         );
         expect(client1.get("combo-config")).toBe("enterprise-verified");
-        client1.close();
+        client1.disconnect();
 
         // Only one matches
         const client2 = trackClient(
           await ctx.createClient<{ "combo-config": string }>({
             context: { plan: "enterprise", verified: false },
-            required: ["combo-config"],
           })
         );
         expect(client2.get("combo-config")).toBe("default");
-        client2.close();
+        client2.disconnect();
       });
 
       it("should evaluate or condition", async () => {
@@ -792,29 +771,26 @@ export function testSuite(options: TestSuiteOptions): void {
         const client1 = trackClient(
           await ctx.createClient<{ "either-config": string }>({
             context: { role: "admin" },
-            required: ["either-config"],
           })
         );
         expect(client1.get("either-config")).toBe("privileged");
-        client1.close();
+        client1.disconnect();
 
         const client2 = trackClient(
           await ctx.createClient<{ "either-config": string }>({
             context: { role: "superadmin" },
-            required: ["either-config"],
           })
         );
         expect(client2.get("either-config")).toBe("privileged");
-        client2.close();
+        client2.disconnect();
 
         const client3 = trackClient(
           await ctx.createClient<{ "either-config": string }>({
             context: { role: "user" },
-            required: ["either-config"],
           })
         );
         expect(client3.get("either-config")).toBe("default");
-        client3.close();
+        client3.disconnect();
       });
 
       it("should allow per-request context override", async () => {
@@ -829,7 +805,7 @@ export function testSuite(options: TestSuiteOptions): void {
         });
 
         const client = trackClient(
-          await ctx.createClient<{ "dynamic-config": string }>({ required: ["dynamic-config"] })
+          await ctx.createClient<{ "dynamic-config": string }>({})
         );
 
         // Without context
@@ -843,7 +819,7 @@ export function testSuite(options: TestSuiteOptions): void {
         // Original still returns default
         expect(client.get("dynamic-config")).toBe("default");
 
-        client.close();
+        client.disconnect();
       });
 
       it("should apply first matching override", async () => {
@@ -871,11 +847,10 @@ export function testSuite(options: TestSuiteOptions): void {
         const client = trackClient(
           await ctx.createClient<{ "priority-config": string }>({
             context: { tier: "gold", score: 100 },
-            required: ["priority-config"],
           })
         );
         expect(client.get("priority-config")).toBe("gold-value");
-        client.close();
+        client.disconnect();
       });
     });
 
@@ -887,9 +862,7 @@ export function testSuite(options: TestSuiteOptions): void {
         await ctx.createConfig("snap-config-2", "value-2");
 
         const client = trackClient(
-          await ctx.createClient<{ "snap-config-1": string; "snap-config-2": string }>({
-            required: ["snap-config-1", "snap-config-2"],
-          })
+          await ctx.createClient<{ "snap-config-1": string; "snap-config-2": string }>({})
         );
 
         const snapshot = client.getSnapshot();
@@ -913,64 +886,55 @@ export function testSuite(options: TestSuiteOptions): void {
           "snap-config-2",
         ]);
 
-        client.close();
+        client.disconnect();
       });
 
-      it("should include context in snapshot", async () => {
-        await ctx.createConfig("ctx-config", "value");
-
-        const client = trackClient(
-          await ctx.createClient<{ "ctx-config": string }>({
-            context: { userId: "123" },
-            required: ["ctx-config"],
-          })
-        );
-
-        const snapshot = client.getSnapshot();
-        expect(snapshot.context).toEqual({ userId: "123" });
-
-        client.close();
-      });
     });
 
     // ==================== ERROR HANDLING TESTS ====================
 
     describe("Error Handling", () => {
       it("should throw on invalid SDK key", async () => {
+        const invalidClient = new Replane({
+          logger: silentLogger,
+        });
         await expect(
-          createReplaneClient({
+          invalidClient.connect({
             sdkKey: "invalid-key",
             baseUrl: edgeApiBaseUrl,
-            logger: silentLogger,
-            initializationTimeoutMs: 2000,
+            connectTimeoutMs: 2000,
           })
         ).rejects.toThrow();
       });
 
-      it("should handle closed client gracefully", async () => {
+      it("should handle disconnected client gracefully", async () => {
         await ctx.createConfig("close-test", "value");
 
         const client = trackClient(
-          await ctx.createClient<{ "close-test": string }>({ required: ["close-test"] })
+          await ctx.createClient<{ "close-test": string }>({
+            defaults: { "close-test": "default" },
+          })
         );
 
         expect(client.get("close-test")).toBe("value");
 
-        client.close();
+        client.disconnect();
 
-        // After close, client should still return cached value (doesn't throw)
-        // This verifies the client handles close gracefully
+        // After disconnect, client should still return cached value (doesn't throw)
+        // This verifies the client handles disconnect gracefully
         const cachedValue = client.get("close-test");
         expect(cachedValue).toBe("value");
       });
 
       it("should timeout on unreachable server", async () => {
+        const unreachableClient = new Replane({
+          logger: silentLogger,
+        });
         await expect(
-          createReplaneClient({
+          unreachableClient.connect({
             sdkKey: "rp_test",
             baseUrl: "http://localhost:59999", // Non-existent port
-            logger: silentLogger,
-            initializationTimeoutMs: 1000,
+            connectTimeoutMs: 1000,
           })
         ).rejects.toThrow();
       });
@@ -1000,14 +964,14 @@ export function testSuite(options: TestSuiteOptions): void {
 
         expect(client.get("late-config")).toBe("late-value");
 
-        client.close();
+        client.disconnect();
       });
 
       it("should ignore config deletion on client", async () => {
         await ctx.createConfig("delete-me", "exists");
 
         const client = trackClient(
-          await ctx.createClient<{ "delete-me": string }>({ required: ["delete-me"] })
+          await ctx.createClient<{ "delete-me": string }>({})
         );
 
         expect(client.get("delete-me")).toBe("exists");
@@ -1019,7 +983,7 @@ export function testSuite(options: TestSuiteOptions): void {
 
         expect(client.get("delete-me")).toBe("exists");
 
-        client.close();
+        client.disconnect();
       });
     });
 
@@ -1030,10 +994,10 @@ export function testSuite(options: TestSuiteOptions): void {
         await ctx.createConfig("shared-config", "initial");
 
         const client1 = trackClient(
-          await ctx.createClient<{ "shared-config": string }>({ required: ["shared-config"] })
+          await ctx.createClient<{ "shared-config": string }>({})
         );
         const client2 = trackClient(
-          await ctx.createClient<{ "shared-config": string }>({ required: ["shared-config"] })
+          await ctx.createClient<{ "shared-config": string }>({})
         );
 
         expect(client1.get("shared-config")).toBe("initial");
@@ -1060,8 +1024,8 @@ export function testSuite(options: TestSuiteOptions): void {
         expect(v1).toBe("updated");
         expect(v2).toBe("updated");
 
-        client1.close();
-        client2.close();
+        client1.disconnect();
+        client2.disconnect();
       });
 
       it("should isolate context between clients", async () => {
@@ -1078,21 +1042,19 @@ export function testSuite(options: TestSuiteOptions): void {
         const client1 = trackClient(
           await ctx.createClient<{ "context-config": string }>({
             context: { env: "prod" },
-            required: ["context-config"],
           })
         );
         const client2 = trackClient(
           await ctx.createClient<{ "context-config": string }>({
             context: { env: "dev" },
-            required: ["context-config"],
           })
         );
 
         expect(client1.get("context-config")).toBe("prod-value");
         expect(client2.get("context-config")).toBe("default");
 
-        client1.close();
-        client2.close();
+        client1.disconnect();
+        client2.disconnect();
       });
     });
   });

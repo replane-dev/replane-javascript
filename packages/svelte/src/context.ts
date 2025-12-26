@@ -1,5 +1,5 @@
 import { getContext, setContext } from "svelte";
-import type { ReplaneClient } from "@replanejs/sdk";
+import type { Replane } from "@replanejs/sdk";
 import type { ReplaneContextValue } from "./types";
 
 const REPLANE_CONTEXT_KEY = Symbol("replane");
@@ -8,7 +8,7 @@ const REPLANE_CONTEXT_KEY = Symbol("replane");
  * Set the Replane client in Svelte context.
  * @internal
  */
-export function setReplaneContext<T extends object>(client: ReplaneClient<T>): void {
+export function setReplaneContext<T extends object>(client: Replane<T>): void {
   const value: ReplaneContextValue<T> = { client };
   setContext(REPLANE_CONTEXT_KEY, value);
 }

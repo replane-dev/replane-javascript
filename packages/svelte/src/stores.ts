@@ -1,5 +1,5 @@
 import { readable, type Readable } from "svelte/store";
-import type { GetConfigOptions, ReplaneClient } from "@replanejs/sdk";
+import type { GetConfigOptions, Replane } from "@replanejs/sdk";
 import { getReplaneContext } from "./context";
 
 /**
@@ -21,7 +21,7 @@ import { getReplaneContext } from "./context";
  * ```
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function getReplane<T extends Record<string, unknown> = any>(): ReplaneClient<T> {
+export function getReplane<T extends Record<string, unknown> = any>(): Replane<T> {
   return getReplaneContext<T>().client;
 }
 
@@ -91,7 +91,7 @@ export function config<T>(name: string, options?: GetConfigOptions<T>): Readable
  * ```
  */
 export function configFrom<TConfigs extends Record<string, unknown>, K extends keyof TConfigs>(
-  replane: ReplaneClient<TConfigs>,
+  replane: Replane<TConfigs>,
   name: K,
   options?: GetConfigOptions<TConfigs[K]>
 ): Readable<TConfigs[K]> {
@@ -133,7 +133,7 @@ export function configFrom<TConfigs extends Record<string, unknown>, K extends k
  * ```
  */
 export function createTypedReplane<TConfigs extends Record<string, unknown>>() {
-  return function (): ReplaneClient<TConfigs> {
+  return function (): Replane<TConfigs> {
     return getReplane<TConfigs>();
   };
 }

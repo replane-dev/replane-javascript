@@ -1,5 +1,5 @@
 <script lang="ts" module>
-  import type { ReplaneClient } from "@replanejs/sdk";
+  import type { Replane } from "@replanejs/sdk";
   import type {
     ReplaneContextProps,
     ReplaneContextWithClientProps,
@@ -15,7 +15,7 @@
 </script>
 
 <script lang="ts" generics="T extends object">
-  import { createReplaneClient, restoreReplaneClient } from "@replanejs/sdk";
+  import { Replane as ReplaneClass } from "@replanejs/sdk";
   import { setReplaneContext } from "./context";
   import { hasClient } from "./types";
 
@@ -23,11 +23,11 @@
 
   type ClientState =
     | { status: "loading"; client: null; error: null }
-    | { status: "ready"; client: ReplaneClient<T>; error: null }
+    | { status: "ready"; client: Replane<T>; error: null }
     | { status: "error"; client: null; error: Error };
 
   let state = $state<ClientState>({ status: "loading", client: null, error: null });
-  let clientRef: ReplaneClient<T> | null = null;
+  let clientRef: Replane<T> | null = null;
   let cancelled = false;
 
   // Handle client initialization based on props
@@ -44,21 +44,24 @@
     const { options, snapshot } = props;
 
     if (snapshot) {
-      // Restore from snapshot synchronously
+      // Restore from snapshot synchronously, connect in background
       try {
-        const client = restoreReplaneClient<T>({
+        const client = new ReplaneClass<T>({
           snapshot,
-          connection: {
-            baseUrl: options.baseUrl,
-            sdkKey: options.sdkKey,
-            fetchFn: options.fetchFn,
-            requestTimeoutMs: options.requestTimeoutMs,
-            retryDelayMs: options.retryDelayMs,
-            inactivityTimeoutMs: options.inactivityTimeoutMs,
-            logger: options.logger,
-            agent: options.agent ?? DEFAULT_AGENT,
-          },
+          logger: options.logger,
           context: options.context,
+          defaults: options.defaults,
+        });
+        // Start connection in background (don't await)
+        client.connect({
+          baseUrl: options.baseUrl,
+          sdkKey: options.sdkKey,
+          fetchFn: options.fetchFn,
+          requestTimeoutMs: options.requestTimeoutMs,
+          retryDelayMs: options.retryDelayMs,
+          inactivityTimeoutMs: options.inactivityTimeoutMs,
+          connectTimeoutMs: options.connectTimeoutMs,
+          agent: options.agent ?? DEFAULT_AGENT,
         });
         clientRef = client;
         state = { status: "ready", client, error: null };
@@ -72,13 +75,26 @@
     // Async client creation
     state = { status: "loading", client: null, error: null };
 
-    createReplaneClient<T>({
-      ...options,
-      agent: options.agent ?? DEFAULT_AGENT,
-    })
-      .then((client) => {
+    const client = new ReplaneClass<T>({
+      logger: options.logger,
+      context: options.context,
+      defaults: options.defaults,
+    });
+
+    client
+      .connect({
+        baseUrl: options.baseUrl,
+        sdkKey: options.sdkKey,
+        fetchFn: options.fetchFn,
+        requestTimeoutMs: options.requestTimeoutMs,
+        retryDelayMs: options.retryDelayMs,
+        inactivityTimeoutMs: options.inactivityTimeoutMs,
+        connectTimeoutMs: options.connectTimeoutMs,
+        agent: options.agent ?? DEFAULT_AGENT,
+      })
+      .then(() => {
         if (cancelled) {
-          client.close();
+          client.disconnect();
           return;
         }
         clientRef = client;
@@ -92,9 +108,9 @@
 
     return () => {
       cancelled = true;
-      // Only close client if we created it (not pre-created)
+      // Only disconnect client if we created it (not pre-created)
       if (clientRef && !hasClient(props)) {
-        clientRef.close();
+        clientRef.disconnect();
         clientRef = null;
       }
     };

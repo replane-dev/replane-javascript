@@ -7,8 +7,17 @@ export type {
   ReplaneProviderProps,
   ReplaneProviderWithClientProps,
   ReplaneProviderWithOptionsProps,
+  ReplaneProviderOptions,
 } from "./types";
 
-// Re-export snapshot utilities from SDK
-export { getReplaneSnapshot } from "@replanejs/sdk";
-export type { GetReplaneSnapshotOptions } from "@replanejs/sdk";
+// Re-export from SDK
+export { Replane, getReplaneSnapshot, ReplaneError, ReplaneErrorCode } from "@replanejs/sdk";
+export type {
+  ReplaneSnapshot,
+  ReplaneContext,
+  ReplaneLogger,
+  ReplaneOptions,
+  ConnectOptions,
+  GetConfigOptions,
+  GetReplaneSnapshotOptions,
+} from "@replanejs/sdk";

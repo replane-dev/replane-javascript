@@ -1,8 +1,4 @@
-import {
-  createReplaneClient,
-  createInMemoryReplaneClient,
-  type ReplaneClient,
-} from "@replanejs/sdk";
+import { Replane } from "@replanejs/sdk";
 
 // Define your config types for type-safe access
 interface Configs {
@@ -41,7 +37,7 @@ function setStatus(status: "loading" | "connected" | "error", message: string) {
   statusEl.textContent = message;
 }
 
-function renderConfig(replane: ReplaneClient<Configs>) {
+function renderConfig(replane: Replane<Configs>) {
   const maintenanceMode = replane.get("maintenance-mode");
   const featureFlags = replane.get("feature-flags");
   const rateLimits = replane.get("rate-limits");
@@ -102,13 +98,13 @@ async function main() {
   const baseUrl = import.meta.env.VITE_REPLANE_BASE_URL || "https://replane.example.com";
 
   try {
-    let replane: ReplaneClient<Configs>;
+    let replane: Replane<Configs>;
 
     // Use in-memory client for demo if no real credentials
     if (sdkKey === "demo-sdk-key") {
-      setStatus("connected", "Connected (Demo Mode - using in-memory client)");
-      replane = createInMemoryReplaneClient<Configs>({
-        configs: {
+      setStatus("connected", "Connected (Demo Mode - using in-memory defaults)");
+      replane = new Replane<Configs>({
+        defaults: {
           "maintenance-mode": false,
           "feature-flags": {
             newDashboard: true,
@@ -123,9 +119,7 @@ async function main() {
       });
     } else {
       setStatus("loading", "Connecting to Replane...");
-      replane = await createReplaneClient<Configs>({
-        sdkKey,
-        baseUrl,
+      replane = new Replane<Configs>({
         context: {
           environment: "browser",
         },
@@ -142,6 +136,7 @@ async function main() {
           },
         },
       });
+      await replane.connect({ sdkKey, baseUrl });
       setStatus("connected", "Connected to Replane");
     }
 
@@ -163,7 +158,7 @@ async function main() {
 
     // Cleanup on page unload
     window.addEventListener("beforeunload", () => {
-      replane.close();
+      replane.disconnect();
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

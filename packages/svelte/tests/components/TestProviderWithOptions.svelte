@@ -1,9 +1,9 @@
 <script lang="ts">
-  import type { ReplaneClientOptions } from "@replanejs/sdk";
+  import type { ReplaneContextOptions } from "../../src/types";
   import ReplaneContext from "../../src/ReplaneContext.svelte";
 
   interface Props {
-    options: ReplaneClientOptions<any>;
+    options: ReplaneContextOptions<any>;
   }
 
   let { options }: Props = $props();

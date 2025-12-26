@@ -1,5 +1,5 @@
 import type { ConfigValue, Override, ReplaneAdmin } from "@replanejs/admin";
-import type { ReplaneClient } from "@replanejs/sdk";
+import type { Replane } from "@replanejs/sdk";
 
 /**
  * Options for the test suite
@@ -49,8 +49,7 @@ export interface TestContext {
   createClient<T extends object = Record<string, unknown>>(options?: {
     context?: Record<string, string | number | boolean | null | undefined>;
     defaults?: Partial<T>;
-    required?: (keyof T)[] | Partial<T>;
-  }): Promise<ReplaneClient<T>>;
+  }): Promise<Replane<T>>;
 
   /**
    * Create a config in the test project
