@@ -67,23 +67,6 @@ describe("getReplaneSnapshot", () => {
       expect(snapshot.configs.find((c) => c.name === "theme")?.value).toBe("dark");
     });
 
-    it("should return snapshot with context", async () => {
-      const snapshotPromise = getSnapshot({
-        context: { userId: "123", region: "us-east" },
-      });
-
-      const connection = await mockServer.acceptConnection();
-
-      await connection.push({
-        type: "init",
-        configs: [{ name: "config1", overrides: [], value: "value1" }],
-      });
-
-      const snapshot = await snapshotPromise;
-      await sync();
-
-      expect(snapshot.context).toEqual({ userId: "123", region: "us-east" });
-    });
   });
 
   describe("caching behavior", () => {

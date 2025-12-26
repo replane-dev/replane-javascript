@@ -1,11 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import {
-  createReplaneClient,
-  createInMemoryReplaneClient,
-  restoreReplaneClient,
-  ReplaneError,
-} from "../src/index";
-import type { ReplaneClient, ReplaneSnapshot } from "../src/index";
+import { Replane, ReplaneError } from "../src/index";
+import type { ReplaneSnapshot, ConnectOptions } from "../src/index";
 import { MockReplaneServerController } from "./utils";
 
 function sync() {
@@ -21,9 +16,9 @@ function createSilentLogger() {
   };
 }
 
-describe("createReplaneClient", () => {
+describe("Replane", () => {
   let mockServer: MockReplaneServerController;
-  let clientPromise: Promise<ReplaneClient<Record<string, unknown>>>;
+  let clientPromise: Promise<Replane<Record<string, unknown>>>;
   let silentLogger: ReturnType<typeof createSilentLogger>;
 
   beforeEach(() => {
@@ -34,7 +29,7 @@ describe("createReplaneClient", () => {
   afterEach(async () => {
     try {
       const client = await clientPromise;
-      client.close();
+      client.disconnect();
     } catch {
       // Client may have failed to initialize
     }
@@ -42,15 +37,23 @@ describe("createReplaneClient", () => {
   });
 
   function createClient<T extends Record<string, unknown> = Record<string, unknown>>(
-    options: Partial<Parameters<typeof createReplaneClient<T>>[0]> = {}
-  ) {
-    return createReplaneClient<T>({
+    options: {
+      defaults?: { [K in keyof T]?: T[K] };
+      context?: Record<string, string | number | boolean | null | undefined>;
+    } & Partial<ConnectOptions> = {}
+  ): Promise<Replane<T>> {
+    const { defaults, context, ...connectOptions } = options;
+    const client = new Replane<T>({
+      logger: silentLogger,
+      defaults,
+      context,
+    });
+    return client.connect({
       sdkKey: "test-sdk-key",
       baseUrl: "https://replane.my-host.com",
       fetchFn: mockServer.fetchFn,
-      logger: silentLogger,
-      ...options,
-    });
+      ...connectOptions,
+    }).then(() => client);
   }
 
   describe("basic config fetching", () => {
@@ -1380,57 +1383,73 @@ describe("createReplaneClient", () => {
   });
 
   describe("initialization and defaults", () => {
-    it("should not throw error when SDK key is missing", async () => {
+    it("should timeout when SDK key is missing and no configs available", async () => {
+      const client = new Replane({ logger: silentLogger });
       await expect(
-        createReplaneClient({
+        client.connect({
           sdkKey: undefined as unknown as string,
           baseUrl: undefined as unknown as string,
           fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-          initializationTimeoutMs: 200,
+          connectTimeoutMs: 200,
         })
-      ).rejects.toThrow("Replane client initialization timed out");
+      ).rejects.toThrow("Replane client connection timed out");
     });
 
-    it("should use defaults and timeout when server does not respond", async () => {
-      clientPromise = createClient<Record<string, unknown>>({
+    it("should use defaults immediately without waiting for connect", async () => {
+      // Client with defaults is usable immediately
+      const client = new Replane<Record<string, unknown>>({
         defaults: { config1: "fallback-value" },
-        initializationTimeoutMs: 50,
+        logger: silentLogger,
       });
 
-      // Don't push any events - let it timeout
-      const client = await clientPromise;
+      // Can use defaults before connecting
+      expect(client.get("config1")).toBe("fallback-value");
+
+      // connect() will timeout if server doesn't respond
+      clientPromise = Promise.resolve(client);
+      await expect(
+        client.connect({
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: mockServer.fetchFn,
+          connectTimeoutMs: 50,
+        })
+      ).rejects.toThrow("Replane client connection timed out");
+
+      // But client is still usable with defaults after failed connect
       expect(client.get("config1")).toBe("fallback-value");
     });
 
     it("should throw timeout error when no defaults and server does not respond", async () => {
       clientPromise = createClient({
-        initializationTimeoutMs: 50,
+        connectTimeoutMs: 50,
       });
 
-      await expect(clientPromise).rejects.toThrow("Replane client initialization timed out");
+      await expect(clientPromise).rejects.toThrow("Replane client connection timed out");
     });
 
-    it("should throw error when required config is missing from defaults", async () => {
-      clientPromise = createClient<Record<string, unknown>>({
+    it("should allow checking for required configs in application code", async () => {
+      const client = new Replane<Record<string, unknown>>({
         defaults: { config1: "fallback-value" },
-        required: ["config1", "config2"],
-        initializationTimeoutMs: 50,
+        logger: silentLogger,
       });
 
-      await expect(clientPromise).rejects.toThrow("Required configs are missing: config2");
+      // Application can check if required configs exist
+      expect(client.get("config1")).toBe("fallback-value");
+      expect(() => client.get("config2")).toThrow("Config not found: config2");
     });
 
-    it("should succeed when all required configs are in defaults", async () => {
-      clientPromise = createClient<Record<string, unknown>>({
+    it("should have all defaults available without connecting", async () => {
+      const client = new Replane<Record<string, unknown>>({
         defaults: { config1: "fallback1", config2: "fallback2" },
-        required: ["config1", "config2"],
-        initializationTimeoutMs: 50,
+        logger: silentLogger,
       });
 
-      const client = await clientPromise;
+      // All defaults are available immediately
       expect(client.get("config1")).toBe("fallback1");
       expect(client.get("config2")).toBe("fallback2");
+
+      clientPromise = Promise.resolve(client);
     });
 
     it("should override defaults with server values", async () => {
@@ -1448,67 +1467,36 @@ describe("createReplaneClient", () => {
       expect(client.get("config1")).toBe("server-value");
     });
 
-    it("should accept required as object format", async () => {
-      clientPromise = createClient<Record<string, unknown>>({
-        defaults: { config1: "fallback1", config2: "fallback2" },
-        required: { config1: true, config2: true },
-        initializationTimeoutMs: 50,
-      });
-
-      const client = await clientPromise;
-      expect(client.get("config1")).toBe("fallback1");
-    });
-
-    it("should handle empty required array", async () => {
-      clientPromise = createClient<Record<string, unknown>>({
-        defaults: { config1: "fallback1" },
-        required: [],
-        initializationTimeoutMs: 50,
-      });
-
-      const client = await clientPromise;
-      expect(client.get("config1")).toBe("fallback1");
-    });
-
-    it("should call onConnectionError callback when initial connection fails with defaults", async () => {
-      const onConnectionError = vi.fn();
+    it("should log error and throw when connection fails", async () => {
       const failingFetch = vi.fn().mockRejectedValue(new Error("Connection refused"));
 
-      clientPromise = createReplaneClient<Record<string, unknown>>({
-        sdkKey: "test-sdk-key",
-        baseUrl: "https://replane.my-host.com",
-        fetchFn: failingFetch,
-        logger: silentLogger,
+      const client = new Replane<Record<string, unknown>>({
         defaults: { config1: "fallback-value" },
-        initializationTimeoutMs: 50,
-        retryDelayMs: 10,
-        onConnectionError,
+        logger: silentLogger,
       });
 
-      const client = await clientPromise;
+      // Defaults available before connecting
       expect(client.get("config1")).toBe("fallback-value");
 
-      // Wait a bit for retry attempts
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // connect() should throw on connection failure
+      await expect(
+        client.connect({
+          sdkKey: "test-sdk-key",
+          baseUrl: "https://replane.my-host.com",
+          fetchFn: failingFetch,
+          connectTimeoutMs: 50,
+          retryDelayMs: 10,
+        })
+      ).rejects.toThrow();
 
-      // onConnectionError should have been called
-      expect(onConnectionError).toHaveBeenCalled();
-      expect(onConnectionError.mock.calls[0][0]).toBeInstanceOf(Error);
-      expect((onConnectionError.mock.calls[0][0] as Error).message).toBe("Connection refused");
+      // But client is still usable with defaults
+      expect(client.get("config1")).toBe("fallback-value");
 
-      client.close();
+      clientPromise = Promise.resolve(client);
     });
 
-    it("should call onConnected callback when initial connection succeeds", async () => {
-      const onConnected = vi.fn();
-
-      clientPromise = createReplaneClient<Record<string, unknown>>({
-        sdkKey: "test-sdk-key",
-        baseUrl: "https://replane.my-host.com",
-        fetchFn: mockServer.fetchFn,
-        logger: silentLogger,
-        onConnected,
-      });
+    it("should receive values when initial connection succeeds", async () => {
+      clientPromise = createClient<Record<string, unknown>>({});
 
       const connection = await mockServer.acceptConnection();
       await connection.push({
@@ -1519,10 +1507,10 @@ describe("createReplaneClient", () => {
       const client = await clientPromise;
       await sync();
 
-      // onConnected should have been called once
-      expect(onConnected).toHaveBeenCalledTimes(1);
+      // Client should have received the server value
+      expect(client.get("config1")).toBe("value1");
 
-      client.close();
+      client.disconnect();
     });
   });
 
@@ -1949,7 +1937,7 @@ describe("createReplaneClient", () => {
       await sync();
       expect(client.get("config1")).toBe("initial");
 
-      client.close();
+      client.disconnect();
       await sync();
 
       // Verify signal was aborted after close
@@ -1979,13 +1967,13 @@ describe("createReplaneClient", () => {
       await sync();
 
       // First close
-      expect(() => client.close()).not.toThrow();
+      expect(() => client.disconnect()).not.toThrow();
 
       // Second close should also not throw
-      expect(() => client.close()).not.toThrow();
+      expect(() => client.disconnect()).not.toThrow();
 
       // Third close for good measure
-      expect(() => client.close()).not.toThrow();
+      expect(() => client.disconnect()).not.toThrow();
 
       // Client should still be usable for reading cached data
       expect(client.get("config1")).toBe("value1");
@@ -1993,12 +1981,14 @@ describe("createReplaneClient", () => {
   });
 });
 
-describe("createInMemoryReplaneClient", () => {
+describe("Replane with defaults (no connection)", () => {
   it("should return config values from initial data", () => {
-    const client = createInMemoryReplaneClient({
-      config1: "value1",
-      config2: 42,
-      config3: true,
+    const client = new Replane({
+      defaults: {
+        config1: "value1",
+        config2: 42,
+        config3: true,
+      },
     });
 
     expect(client.get("config1")).toBe("value1");
@@ -2007,8 +1997,10 @@ describe("createInMemoryReplaneClient", () => {
   });
 
   it("should throw ReplaneError when config not found", () => {
-    const client = createInMemoryReplaneClient({
-      config1: "value1",
+    const client = new Replane({
+      defaults: {
+        config1: "value1",
+      },
     });
 
     expect(() => client.get("nonexistent" as never)).toThrow(ReplaneError);
@@ -2016,8 +2008,10 @@ describe("createInMemoryReplaneClient", () => {
   });
 
   it("should return default value when config not found and default is provided", () => {
-    const client = createInMemoryReplaneClient({
-      config1: "value1",
+    const client = new Replane({
+      defaults: {
+        config1: "value1",
+      },
     });
 
     expect(client.get("nonexistent" as never, { default: "fallback" as never })).toBe("fallback");
@@ -2030,18 +2024,22 @@ describe("createInMemoryReplaneClient", () => {
   });
 
   it("should return actual value when config exists even if default is provided", () => {
-    const client = createInMemoryReplaneClient({
-      config1: "actual",
+    const client = new Replane({
+      defaults: {
+        config1: "actual",
+      },
     });
 
     expect(client.get("config1", { default: "fallback" })).toBe("actual");
   });
 
   it("should handle complex values", () => {
-    const client = createInMemoryReplaneClient({
-      array: [1, 2, 3],
-      object: { nested: { deep: "value" } },
-      null: null,
+    const client = new Replane({
+      defaults: {
+        array: [1, 2, 3],
+        object: { nested: { deep: "value" } },
+        null: null,
+      },
     });
 
     expect(client.get("array")).toEqual([1, 2, 3]);
@@ -2049,19 +2047,19 @@ describe("createInMemoryReplaneClient", () => {
     expect(client.get("null")).toBe(null);
   });
 
-  it("should be safe to call close() multiple times", () => {
-    const client = createInMemoryReplaneClient({ config1: "value1" });
+  it("should be safe to call disconnect() multiple times", () => {
+    const client = new Replane({ defaults: { config1: "value1" } });
 
-    // First close
-    expect(() => client.close()).not.toThrow();
+    // First disconnect
+    expect(() => client.disconnect()).not.toThrow();
 
-    // Second close should also not throw
-    expect(() => client.close()).not.toThrow();
+    // Second disconnect should also not throw
+    expect(() => client.disconnect()).not.toThrow();
 
-    // Third close for good measure
-    expect(() => client.close()).not.toThrow();
+    // Third disconnect for good measure
+    expect(() => client.disconnect()).not.toThrow();
 
-    // Config should still work after close
+    // Config should still work after disconnect
     expect(client.get("config1")).toBe("value1");
   });
 });
@@ -2090,7 +2088,7 @@ describe("ReplaneError", () => {
   });
 });
 
-describe("restoreReplaneClient", () => {
+describe("Replane with snapshot", () => {
   function sync() {
     return new Promise((resolve) => setTimeout(resolve, 0));
   }
@@ -2113,7 +2111,7 @@ describe("restoreReplaneClient", () => {
         ],
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot });
 
       expect(client.get("config1")).toBe("value1");
       expect(client.get("config2")).toBe(42);
@@ -2131,7 +2129,7 @@ describe("restoreReplaneClient", () => {
         ],
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot });
 
       expect(client.get("string")).toBe("hello");
       expect(client.get("number")).toBe(123.45);
@@ -2146,7 +2144,7 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "value1", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot });
 
       expect(() => client.get("nonexistent")).toThrow(ReplaneError);
       expect(() => client.get("nonexistent")).toThrow("Config not found: nonexistent");
@@ -2157,7 +2155,7 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "value1", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot });
 
       expect(client.get("nonexistent", { default: "fallback" })).toBe("fallback");
       expect(client.get("nonexistent", { default: 42 })).toBe(42);
@@ -2173,7 +2171,7 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "actual", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot });
 
       expect(client.get("config1", { default: "fallback" })).toBe("actual");
     });
@@ -2183,16 +2181,16 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "value1", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot });
 
       // First close
-      expect(() => client.close()).not.toThrow();
+      expect(() => client.disconnect()).not.toThrow();
 
       // Second close should also not throw
-      expect(() => client.close()).not.toThrow();
+      expect(() => client.disconnect()).not.toThrow();
 
       // Third close for good measure
-      expect(() => client.close()).not.toThrow();
+      expect(() => client.disconnect()).not.toThrow();
 
       // Config should still work after close
       expect(client.get("config1")).toBe("value1");
@@ -2206,7 +2204,7 @@ describe("restoreReplaneClient", () => {
         ],
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot });
       const returnedSnapshot = client.getSnapshot();
 
       expect(returnedSnapshot.configs).toHaveLength(2);
@@ -2224,7 +2222,7 @@ describe("restoreReplaneClient", () => {
   });
 
   describe("context handling", () => {
-    it("should use context from snapshot", () => {
+    it("should use context from options", () => {
       const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           {
@@ -2239,15 +2237,14 @@ describe("restoreReplaneClient", () => {
             ],
           },
         ],
-        context: { env: "production" },
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot, context: { env: "production" } });
 
       expect(client.get("feature")).toBe("prod-value");
     });
 
-    it("should override snapshot context with options context", () => {
+    it("should use options context for override evaluation", () => {
       const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [
           {
@@ -2267,10 +2264,9 @@ describe("restoreReplaneClient", () => {
             ],
           },
         ],
-        context: { env: "production" },
       };
 
-      const client = restoreReplaneClient({ snapshot, context: { env: "staging" } });
+      const client = new Replane({ snapshot, context: { env: "staging" } });
 
       expect(client.get("feature")).toBe("staging-value");
     });
@@ -2290,10 +2286,9 @@ describe("restoreReplaneClient", () => {
             ],
           },
         ],
-        context: { env: "production" },
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot });
 
       expect(client.get("feature")).toBe("default");
       expect(client.get("feature", { context: { env: "staging" } })).toBe("staging-value");
@@ -2322,37 +2317,12 @@ describe("restoreReplaneClient", () => {
             ],
           },
         ],
-        context: { env: "production" },
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot, context: { env: "production" } });
 
       expect(client.get("feature")).toBe("default");
       expect(client.get("feature", { context: { role: "admin" } })).toBe("admin-value");
-    });
-
-    it("should include context in getSnapshot result", () => {
-      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
-        configs: [{ name: "config1", value: "value1", overrides: [] }],
-        context: { env: "production" },
-      };
-
-      const client = restoreReplaneClient({ snapshot });
-      const returnedSnapshot = client.getSnapshot();
-
-      expect(returnedSnapshot.context).toEqual({ env: "production" });
-    });
-
-    it("should include overridden context in getSnapshot result", () => {
-      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
-        configs: [{ name: "config1", value: "value1", overrides: [] }],
-        context: { env: "production" },
-      };
-
-      const client = restoreReplaneClient({ snapshot, context: { env: "staging" } });
-      const returnedSnapshot = client.getSnapshot();
-
-      expect(returnedSnapshot.context).toEqual({ env: "staging" });
     });
   });
 
@@ -2372,10 +2342,9 @@ describe("restoreReplaneClient", () => {
             ],
           },
         ],
-        context: { env: "production" },
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot, context: { env: "production" } });
       expect(client.get("feature")).toBe("prod-value");
     });
 
@@ -2394,10 +2363,9 @@ describe("restoreReplaneClient", () => {
             ],
           },
         ],
-        context: { country: "US" },
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot, context: { country: "US" } });
       expect(client.get("feature")).toBe("na-value");
     });
 
@@ -2418,10 +2386,9 @@ describe("restoreReplaneClient", () => {
             ],
           },
         ],
-        context: { country: "UK" },
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot, context: { country: "UK" } });
       expect(client.get("feature")).toBe("non-na-value");
     });
 
@@ -2440,10 +2407,9 @@ describe("restoreReplaneClient", () => {
             ],
           },
         ],
-        context: { age: 16 },
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot, context: { age: 16 } });
       expect(client.get("feature")).toBe("minor-value");
     });
 
@@ -2470,10 +2436,9 @@ describe("restoreReplaneClient", () => {
             ],
           },
         ],
-        context: { env: "production", country: "US" },
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot, context: { env: "production", country: "US" } });
       expect(client.get("feature")).toBe("override-value");
     });
 
@@ -2500,10 +2465,9 @@ describe("restoreReplaneClient", () => {
             ],
           },
         ],
-        context: { env: "staging" },
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot, context: { env: "staging" } });
       expect(client.get("feature")).toBe("override-value");
     });
 
@@ -2527,10 +2491,9 @@ describe("restoreReplaneClient", () => {
             ],
           },
         ],
-        context: { env: "development" },
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot, context: { env: "development" } });
       expect(client.get("feature")).toBe("non-prod-value");
     });
 
@@ -2557,10 +2520,9 @@ describe("restoreReplaneClient", () => {
             ],
           },
         ],
-        context: { userId: "user-123" },
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot, context: { userId: "user-123" } });
       expect(client.get("feature")).toBe("in-segment");
     });
 
@@ -2579,10 +2541,9 @@ describe("restoreReplaneClient", () => {
             ],
           },
         ],
-        context: { env: "development" },
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot, context: { env: "development" } });
       expect(client.get("feature")).toBe("default");
     });
 
@@ -2606,10 +2567,9 @@ describe("restoreReplaneClient", () => {
             ],
           },
         ],
-        context: { env: "staging" },
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot, context: { env: "staging" } });
       expect(client.get("feature")).toBe("staging-value");
     });
   });
@@ -2620,7 +2580,7 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "initial", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot });
 
       const updates: Array<{ name: string; value: unknown }> = [];
       const unsubscribe = client.subscribe((config) => {
@@ -2639,7 +2599,7 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "value1", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot });
 
       const updates: Array<{ name: string; value: unknown }> = [];
       const unsubscribe = client.subscribe("config1", (config) => {
@@ -2656,7 +2616,7 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "value1", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({ snapshot });
+      const client = new Replane({ snapshot });
 
       expect(() => {
         // @ts-expect-error Testing error case
@@ -2678,19 +2638,35 @@ describe("restoreReplaneClient", () => {
       mockServer.close();
     });
 
+    function createClientWithConnection(
+      snapshot: ReplaneSnapshot<Record<string, unknown>>,
+      options: {
+        context?: Record<string, string | number | boolean | null | undefined>;
+      } & Partial<ConnectOptions> = {}
+    ): Replane<Record<string, unknown>> {
+      const { context, ...connectionOptions } = options;
+      const client = new Replane({ snapshot, logger: silentLogger, context });
+      // Start connection in background (don't await)
+      client.connect({
+        sdkKey: "test-sdk-key",
+        baseUrl: "https://replane.my-host.com",
+        fetchFn: mockServer.fetchFn,
+        ...connectionOptions,
+      });
+      return client;
+    }
+
     it("should not throw error when SDK key and baseUrl are missing", async () => {
       const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: undefined as unknown as string,
-          baseUrl: undefined as unknown as string,
-          fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-        },
+      const client = new Replane({ snapshot, logger: silentLogger });
+      // Start connection in background with invalid options
+      client.connect({
+        sdkKey: undefined as unknown as string,
+        baseUrl: undefined as unknown as string,
+        fetchFn: mockServer.fetchFn,
       });
 
       // Should work with snapshot data even though connection is invalid
@@ -2702,7 +2678,7 @@ describe("restoreReplaneClient", () => {
       // Should still work after streaming failure
       expect(client.get("config1")).toBe("snapshot-value");
 
-      client.close();
+      client.disconnect();
     });
 
     it("should restore from snapshot and connect for live updates", async () => {
@@ -2710,15 +2686,7 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-        },
-      });
+      const client = createClientWithConnection(snapshot);
 
       // Should immediately have snapshot value
       expect(client.get("config1")).toBe("snapshot-value");
@@ -2733,7 +2701,7 @@ describe("restoreReplaneClient", () => {
       // Should now have server value
       expect(client.get("config1")).toBe("server-value");
 
-      client.close();
+      client.disconnect();
     });
 
     it("should receive config changes via streaming", async () => {
@@ -2741,15 +2709,7 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "initial", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-        },
-      });
+      const client = createClientWithConnection(snapshot);
 
       const connection = await mockServer.acceptConnection();
       await connection.push({
@@ -2766,7 +2726,7 @@ describe("restoreReplaneClient", () => {
 
       expect(client.get("config1")).toBe("updated");
 
-      client.close();
+      client.disconnect();
     });
 
     it("should add new configs via config_change", async () => {
@@ -2774,15 +2734,7 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "value1", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-        },
-      });
+      const client = createClientWithConnection(snapshot);
 
       const connection = await mockServer.acceptConnection();
       await connection.push({
@@ -2799,7 +2751,7 @@ describe("restoreReplaneClient", () => {
 
       expect(client.get("config2")).toBe("value2");
 
-      client.close();
+      client.disconnect();
     });
 
     it("should notify subscribers on config updates", async () => {
@@ -2807,15 +2759,7 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "initial", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-        },
-      });
+      const client = createClientWithConnection(snapshot);
 
       const updates: Array<{ name: string; value: unknown }> = [];
       const unsubscribe = client.subscribe((config) => {
@@ -2839,7 +2783,7 @@ describe("restoreReplaneClient", () => {
       expect(updates).toContainEqual({ name: "config1", value: "updated-value" });
 
       unsubscribe();
-      client.close();
+      client.disconnect();
     });
 
     it("should notify specific config subscribers", async () => {
@@ -2850,15 +2794,7 @@ describe("restoreReplaneClient", () => {
         ],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-        },
-      });
+      const client = createClientWithConnection(snapshot);
 
       const updates: Array<{ name: string; value: unknown }> = [];
       const unsubscribe = client.subscribe("config1", (config) => {
@@ -2891,7 +2827,7 @@ describe("restoreReplaneClient", () => {
       expect(updates).not.toContainEqual(expect.objectContaining({ name: "config2" }));
 
       unsubscribe();
-      client.close();
+      client.disconnect();
     });
 
     it("should stop receiving updates after close", async () => {
@@ -2899,15 +2835,7 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "initial", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-        },
-      });
+      const client = createClientWithConnection(snapshot);
 
       const connection = await mockServer.acceptConnection();
       await connection.push({
@@ -2918,7 +2846,7 @@ describe("restoreReplaneClient", () => {
 
       expect(client.get("config1")).toBe("init-value");
 
-      client.close();
+      client.disconnect();
       await sync();
 
       // Verify connection was closed
@@ -2939,15 +2867,7 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "initial", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-        },
-      });
+      const client = createClientWithConnection(snapshot);
 
       const updates: Array<{ name: string; value: unknown }> = [];
       const unsubscribe = client.subscribe((config) => {
@@ -2972,7 +2892,7 @@ describe("restoreReplaneClient", () => {
       // Should only have the init update, not the config_change
       expect(updates).toEqual([{ name: "config1", value: "init-value" }]);
 
-      client.close();
+      client.disconnect();
     });
 
     it("should include updated configs in getSnapshot", async () => {
@@ -2980,15 +2900,7 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-        },
-      });
+      const client = createClientWithConnection(snapshot);
 
       const connection = await mockServer.acceptConnection();
       await connection.push({
@@ -3005,7 +2917,7 @@ describe("restoreReplaneClient", () => {
         overrides: [],
       });
 
-      client.close();
+      client.disconnect();
     });
 
     it("should strip trailing slashes from base URL", async () => {
@@ -3013,14 +2925,8 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "value1", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com///",
-          fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-        },
+      const client = createClientWithConnection(snapshot, {
+        baseUrl: "https://replane.my-host.com///",
       });
 
       const connection = await mockServer.acceptConnection();
@@ -3032,7 +2938,7 @@ describe("restoreReplaneClient", () => {
 
       expect(client.get("config1")).toBe("value1");
 
-      client.close();
+      client.disconnect();
     });
 
     it("should use context for override evaluation with live updates", async () => {
@@ -3050,18 +2956,9 @@ describe("restoreReplaneClient", () => {
             ],
           },
         ],
-        context: { env: "production" },
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-        },
-      });
+      const client = createClientWithConnection(snapshot, { context: { env: "production" } });
 
       // Should use snapshot context for override evaluation
       expect(client.get("feature")).toBe("prod-value");
@@ -3088,7 +2985,7 @@ describe("restoreReplaneClient", () => {
       // Should use context for new override from server
       expect(client.get("feature")).toBe("server-prod-value");
 
-      client.close();
+      client.disconnect();
     });
 
     it("should support multiple subscribers", async () => {
@@ -3096,15 +2993,7 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "initial", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-        },
-      });
+      const client = createClientWithConnection(snapshot);
 
       const updates1: Array<{ name: string; value: unknown }> = [];
       const updates2: Array<{ name: string; value: unknown }> = [];
@@ -3128,7 +3017,7 @@ describe("restoreReplaneClient", () => {
 
       unsubscribe1();
       unsubscribe2();
-      client.close();
+      client.disconnect();
     });
   });
 
@@ -3145,6 +3034,24 @@ describe("restoreReplaneClient", () => {
       mockServer.close();
     });
 
+    function createClientWithConnection(
+      snapshot: ReplaneSnapshot<Record<string, unknown>>,
+      options: {
+        context?: Record<string, string | number | boolean | null | undefined>;
+      } & Partial<ConnectOptions> = {}
+    ): Replane<Record<string, unknown>> {
+      const { context, ...connectionOptions } = options;
+      const client = new Replane({ snapshot, logger: silentLogger, context });
+      // Start connection in background (don't await)
+      client.connect({
+        sdkKey: "test-sdk-key",
+        baseUrl: "https://replane.my-host.com",
+        fetchFn: mockServer.fetchFn,
+        ...connectionOptions,
+      });
+      return client;
+    }
+
     it("should be immediately available without waiting for server (non-blocking)", async () => {
       const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
@@ -3152,15 +3059,7 @@ describe("restoreReplaneClient", () => {
 
       // Create client - should return immediately without waiting for server
       const startTime = Date.now();
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-        },
-      });
+      const client = createClientWithConnection(snapshot);
       const elapsed = Date.now() - startTime;
 
       // Should be available immediately (< 50ms)
@@ -3168,7 +3067,7 @@ describe("restoreReplaneClient", () => {
       expect(client.get("config1")).toBe("snapshot-value");
 
       // Clean up
-      client.close();
+      client.disconnect();
     });
 
     it("should fallback to snapshot when server never responds", async () => {
@@ -3176,15 +3075,8 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-          requestTimeoutMs: 50,
-        },
+      const client = createClientWithConnection(snapshot, {
+        requestTimeoutMs: 50,
       });
 
       // Client should work with snapshot data even without server response
@@ -3196,7 +3088,7 @@ describe("restoreReplaneClient", () => {
 
       expect(client.get("config1")).toBe("snapshot-value");
 
-      client.close();
+      client.disconnect();
     });
 
     it("should continue working after connection error and use snapshot", async () => {
@@ -3206,16 +3098,10 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: failingFetch,
-          logger: silentLogger,
-          requestTimeoutMs: 50,
-          retryDelayMs: 10,
-        },
+      const client = createClientWithConnection(snapshot, {
+        fetchFn: failingFetch,
+        requestTimeoutMs: 50,
+        retryDelayMs: 10,
       });
 
       // Should still work with snapshot data
@@ -3230,7 +3116,7 @@ describe("restoreReplaneClient", () => {
       // Error should be logged
       expect(silentLogger.error).toHaveBeenCalled();
 
-      client.close();
+      client.disconnect();
     });
 
     it("should log error when connection fails but continue serving snapshot", async () => {
@@ -3243,15 +3129,9 @@ describe("restoreReplaneClient", () => {
         ],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: failingFetch,
-          logger: silentLogger,
-          requestTimeoutMs: 50,
-        },
+      const client = createClientWithConnection(snapshot, {
+        fetchFn: failingFetch,
+        requestTimeoutMs: 50,
       });
 
       // All configs should be available from snapshot
@@ -3263,7 +3143,7 @@ describe("restoreReplaneClient", () => {
       // Error should have been logged
       expect(silentLogger.error).toHaveBeenCalled();
 
-      client.close();
+      client.disconnect();
     });
 
     it("should use default timeout values when not specified", async () => {
@@ -3271,16 +3151,8 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "value1", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-          // No timeout values specified - should use defaults
-        },
-      });
+      // No timeout values specified - should use defaults
+      const client = createClientWithConnection(snapshot);
 
       // Should work with default values
       expect(client.get("config1")).toBe("value1");
@@ -3294,7 +3166,7 @@ describe("restoreReplaneClient", () => {
 
       expect(client.get("config1")).toBe("server-value");
 
-      client.close();
+      client.disconnect();
     });
 
     it("should recover from temporary connection failure and receive updates", async () => {
@@ -3311,16 +3183,10 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: failOnceFetch,
-          logger: silentLogger,
-          requestTimeoutMs: 100,
-          retryDelayMs: 10,
-        },
+      const client = createClientWithConnection(snapshot, {
+        fetchFn: failOnceFetch,
+        requestTimeoutMs: 100,
+        retryDelayMs: 10,
       });
 
       // Should initially have snapshot value
@@ -3340,7 +3206,7 @@ describe("restoreReplaneClient", () => {
       // Should now have server value after recovery
       expect(client.get("config1")).toBe("server-value");
 
-      client.close();
+      client.disconnect();
     });
 
     it("should handle inactivity timeout and reconnect", async () => {
@@ -3348,15 +3214,8 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-          inactivityTimeoutMs: 100, // Short timeout for testing
-        },
+      const client = createClientWithConnection(snapshot, {
+        inactivityTimeoutMs: 100, // Short timeout for testing
       });
 
       // Accept first connection
@@ -3382,7 +3241,7 @@ describe("restoreReplaneClient", () => {
 
       expect(client.get("config1")).toBe("value2");
 
-      client.close();
+      client.disconnect();
     });
 
     it("should send current configs in request body when reconnecting", async () => {
@@ -3403,15 +3262,7 @@ describe("restoreReplaneClient", () => {
         ],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-        },
-      });
+      const client = createClientWithConnection(snapshot);
 
       const connection = await mockServer.acceptConnection();
 
@@ -3424,91 +3275,62 @@ describe("restoreReplaneClient", () => {
         expect.objectContaining({ name: "config2", value: "snapshot-value2" })
       );
 
-      client.close();
+      client.disconnect();
     });
 
-    it("should call onConnectionError callback when connection fails", async () => {
-      const onConnectionError = vi.fn();
+    it("should log error when connection fails", async () => {
       const failingFetch = vi.fn().mockRejectedValue(new Error("Connection refused"));
 
       const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: failingFetch,
-          logger: silentLogger,
-          requestTimeoutMs: 50,
-          retryDelayMs: 10,
-          onConnectionError,
-        },
+      const client = createClientWithConnection(snapshot, {
+        fetchFn: failingFetch,
+        requestTimeoutMs: 50,
+        retryDelayMs: 10,
       });
 
       // Wait for fetch attempt and retry
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // onConnectionError should have been called at least once
-      expect(onConnectionError).toHaveBeenCalled();
-      expect(onConnectionError.mock.calls[0][0]).toBeInstanceOf(Error);
-      expect((onConnectionError.mock.calls[0][0] as Error).message).toBe("Connection refused");
+      // Logger.error should have been called at least once
+      expect(silentLogger.error).toHaveBeenCalled();
 
       // Client should still work with snapshot data
       expect(client.get("config1")).toBe("snapshot-value");
 
-      client.close();
+      client.disconnect();
     });
 
-    it("should call onConnectionError callback on each retry attempt", async () => {
-      const onConnectionError = vi.fn();
+    it("should log error on each retry attempt", async () => {
       const failingFetch = vi.fn().mockRejectedValue(new Error("Network error"));
 
       const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: failingFetch,
-          logger: silentLogger,
-          requestTimeoutMs: 10,
-          retryDelayMs: 10,
-          onConnectionError,
-        },
+      const client = createClientWithConnection(snapshot, {
+        fetchFn: failingFetch,
+        requestTimeoutMs: 10,
+        retryDelayMs: 10,
       });
 
       // Wait for multiple retry attempts
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // onConnectionError should have been called multiple times (once per retry)
-      expect(onConnectionError.mock.calls.length).toBeGreaterThan(1);
+      // Logger.error should have been called multiple times (once per retry)
+      expect(silentLogger.error.mock.calls.length).toBeGreaterThan(1);
 
-      client.close();
+      client.disconnect();
     });
 
-    it("should not call onConnectionError when connection succeeds", async () => {
-      const onConnectionError = vi.fn();
-
+    it("should not log error when connection succeeds", async () => {
       const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-          onConnectionError,
-        },
-      });
+      const client = createClientWithConnection(snapshot);
 
       // Accept connection and send init
       const connection = await mockServer.acceptConnection();
@@ -3518,14 +3340,13 @@ describe("restoreReplaneClient", () => {
       });
       await sync();
 
-      // onConnectionError should not have been called
-      expect(onConnectionError).not.toHaveBeenCalled();
+      // Logger.error should not have been called
+      expect(silentLogger.error).not.toHaveBeenCalled();
 
-      client.close();
+      client.disconnect();
     });
 
-    it("should call onConnectionError when connection is lost and retrying", async () => {
-      const onConnectionError = vi.fn();
+    it("should log error when connection is lost and retrying", async () => {
       let callCount = 0;
       const failOnSecondFetch = vi
         .fn()
@@ -3541,17 +3362,10 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: failOnSecondFetch,
-          logger: silentLogger,
-          inactivityTimeoutMs: 50,
-          retryDelayMs: 10,
-          onConnectionError,
-        },
+      const client = createClientWithConnection(snapshot, {
+        fetchFn: failOnSecondFetch,
+        inactivityTimeoutMs: 50,
+        retryDelayMs: 10,
       });
 
       // Accept first connection
@@ -3567,29 +3381,18 @@ describe("restoreReplaneClient", () => {
       // Wait for inactivity timeout which will trigger reconnection
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // onConnectionError should have been called when second connection failed
-      expect(onConnectionError).toHaveBeenCalled();
+      // Logger.error should have been called when second connection failed
+      expect(silentLogger.error).toHaveBeenCalled();
 
-      client.close();
+      client.disconnect();
     });
 
-    it("should call onConnected callback when connection is established", async () => {
-      const onConnected = vi.fn();
-
+    it("should receive updates when connection is established", async () => {
       const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-          onConnected,
-        },
-      });
+      const client = createClientWithConnection(snapshot);
 
       // Accept connection and send init
       const connection = await mockServer.acceptConnection();
@@ -3599,29 +3402,19 @@ describe("restoreReplaneClient", () => {
       });
       await sync();
 
-      // onConnected should have been called once
-      expect(onConnected).toHaveBeenCalledTimes(1);
+      // Client should have received the server value
+      expect(client.get("config1")).toBe("server-value");
 
-      client.close();
+      client.disconnect();
     });
 
-    it("should call onConnected callback on each successful reconnection", async () => {
-      const onConnected = vi.fn();
-
+    it("should receive updates on each successful reconnection", async () => {
       const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: mockServer.fetchFn,
-          logger: silentLogger,
-          inactivityTimeoutMs: 50,
-          onConnected,
-        },
+      const client = createClientWithConnection(snapshot, {
+        inactivityTimeoutMs: 100,
       });
 
       // Accept first connection
@@ -3632,11 +3425,10 @@ describe("restoreReplaneClient", () => {
       });
       await sync();
 
-      const callCountAfterFirst = onConnected.mock.calls.length;
-      expect(callCountAfterFirst).toBeGreaterThanOrEqual(1);
+      expect(client.get("config1")).toBe("value1");
 
       // Wait for inactivity timeout which will trigger reconnection
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 150));
 
       // Accept second connection
       const connection2 = await mockServer.acceptConnection();
@@ -3646,45 +3438,35 @@ describe("restoreReplaneClient", () => {
       });
       await sync();
 
-      // onConnected should have been called more times after the reconnection
-      expect(onConnected.mock.calls.length).toBeGreaterThan(callCountAfterFirst);
+      // Client should have received the new value after reconnection
+      expect(client.get("config1")).toBe("value2");
 
-      client.close();
+      client.disconnect();
     });
 
-    it("should not call onConnected when connection fails", async () => {
-      const onConnected = vi.fn();
+    it("should not receive updates when connection fails", async () => {
       const failingFetch = vi.fn().mockRejectedValue(new Error("Connection refused"));
 
       const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: failingFetch,
-          logger: silentLogger,
-          requestTimeoutMs: 50,
-          retryDelayMs: 10,
-          onConnected,
-        },
+      const client = createClientWithConnection(snapshot, {
+        fetchFn: failingFetch,
+        requestTimeoutMs: 50,
+        retryDelayMs: 10,
       });
 
       // Wait for retry attempts
       await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // onConnected should not have been called
-      expect(onConnected).not.toHaveBeenCalled();
+      // Should still have snapshot value (no server updates received)
+      expect(client.get("config1")).toBe("snapshot-value");
 
-      client.close();
+      client.disconnect();
     });
 
-    it("should call both onConnected and onConnectionError appropriately", async () => {
-      const onConnected = vi.fn();
-      const onConnectionError = vi.fn();
+    it("should recover after initial failure and receive updates", async () => {
       let callCount = 0;
       const failOnceFetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
         callCount++;
@@ -3698,18 +3480,10 @@ describe("restoreReplaneClient", () => {
         configs: [{ name: "config1", value: "snapshot-value", overrides: [] }],
       };
 
-      const client = restoreReplaneClient({
-        snapshot,
-        connection: {
-          sdkKey: "test-sdk-key",
-          baseUrl: "https://replane.my-host.com",
-          fetchFn: failOnceFetch,
-          logger: silentLogger,
-          requestTimeoutMs: 100,
-          retryDelayMs: 10,
-          onConnected,
-          onConnectionError,
-        },
+      const client = createClientWithConnection(snapshot, {
+        fetchFn: failOnceFetch,
+        requestTimeoutMs: 100,
+        retryDelayMs: 10,
       });
 
       // Wait for retry
@@ -3723,12 +3497,12 @@ describe("restoreReplaneClient", () => {
       });
       await sync();
 
-      // onConnectionError should have been called once (for the first failed attempt)
-      expect(onConnectionError).toHaveBeenCalledTimes(1);
-      // onConnected should have been called once (for the successful retry)
-      expect(onConnected).toHaveBeenCalledTimes(1);
+      // Logger.error should have been called once (for the first failed attempt)
+      expect(silentLogger.error).toHaveBeenCalledTimes(1);
+      // Client should have received the server value after successful retry
+      expect(client.get("config1")).toBe("server-value");
 
-      client.close();
+      client.disconnect();
     });
   });
 });

@@ -1,7 +1,7 @@
 // Re-export public API
 
-// Client functions
-export { createReplaneClient, createInMemoryReplaneClient, restoreReplaneClient } from "./client";
+// Client class
+export { Replane } from "./client";
 
 // Error types
 export { ReplaneError, ReplaneErrorCode } from "./error";
@@ -12,9 +12,8 @@ export type {
   ReplaneLogger,
   GetConfigOptions,
   ReplaneSnapshot,
-  ReplaneClient,
-  ReplaneClientOptions,
-  RestoreReplaneClientOptions,
+  ReplaneOptions,
+  ConnectOptions,
 } from "./client-types";
 
 // Snapshot utilities

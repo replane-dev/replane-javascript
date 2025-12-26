@@ -1,4 +1,4 @@
-import type { ConfigDto, RenderedOverride } from "./types";
+import type { RenderedOverride } from "./types";
 
 /**
  * Context object for override evaluation.
@@ -52,43 +52,46 @@ export interface ReplaneSnapshot<_T extends object = object> {
     value: unknown;
     overrides: RenderedOverride[];
   }>;
-  /** Default context used for override evaluation */
-  context?: ReplaneContext;
 }
 
 /**
- * The Replane client interface
+ * Options for the Replane constructor
  */
-export interface ReplaneClient<T extends object> {
-  /** Get a config by its name. */
-  get<K extends keyof T>(configName: K, options?: GetConfigOptions<T[K]>): T[K];
-  /** Subscribe to config changes.
-   *  @param callback - A function to call when an config is changed. The callback will be called with the new config value.
-   *  @returns A function to unsubscribe from the config changes.
-   */
-  subscribe(callback: (config: MapConfig<T>) => void): () => void;
-  /** Subscribe to a specific config change.
-   *  @param configName - The name of the config to subscribe to.
-   *  @param callback - A function to call when the config is changed. The callback will be called with the new config value.
-   *  @returns A function to unsubscribe from the config changes.
-   */
-  subscribe<K extends keyof T>(
-    configName: K,
-    callback: (config: MapConfig<Pick<T, K>>) => void
-  ): () => void;
+export interface ReplaneOptions<T extends object> {
   /**
-   * Get a serializable snapshot of the current client state.
-   * Useful for SSR/hydration scenarios where you want to pass configs from server to client.
+   * Optional logger (defaults to console).
    */
-  getSnapshot(): ReplaneSnapshot<T>;
-  /** Close the client and clean up resources. */
-  close(): void;
+  logger?: ReplaneLogger;
+  /**
+   * Default context for all config evaluations.
+   * Can be overridden per-request in `client.get()`.
+   */
+  context?: ReplaneContext;
+  /**
+   * Default values to use before connection is established.
+   * These values are used immediately and can be overwritten by server data.
+   * @example
+   * {
+   *   defaults: {
+   *     config1: "value1",
+   *     config2: 42,
+   *   },
+   * }
+   */
+  defaults?: {
+    [K in keyof T]?: T[K];
+  };
+  /**
+   * Snapshot from a server-side client's getSnapshot() call.
+   * Used for SSR/hydration scenarios.
+   */
+  snapshot?: ReplaneSnapshot<T>;
 }
 
 /**
- * Options for creating a Replane client
+ * Options for connecting to the Replane server
  */
-export interface ReplaneClientOptions<T extends object> {
+export interface ConnectOptions {
   /**
    * Base URL of the Replane instance (no trailing slash).
    * @example
@@ -105,24 +108,20 @@ export interface ReplaneClientOptions<T extends object> {
    */
   sdkKey: string;
   /**
-   * Custom fetch implementation (useful for tests / polyfills).
-   */
-  fetchFn?: typeof fetch;
-  /**
-   * Optional timeout in ms for the request.
-   * @default 2000
-   */
-  requestTimeoutMs?: number;
-  /**
-   * Optional timeout in ms for the SDK initialization.
+   * Optional timeout in ms for the initial connection.
    * @default 5000
    */
-  initializationTimeoutMs?: number;
+  connectTimeoutMs?: number;
   /**
    * Delay between retries in ms.
    * @default 200
    */
   retryDelayMs?: number;
+  /**
+   * Optional timeout in ms for individual requests.
+   * @default 2000
+   */
+  requestTimeoutMs?: number;
   /**
    * Timeout in ms for SSE connection inactivity.
    * If no events (including pings) are received within this time, the connection will be re-established.
@@ -130,161 +129,35 @@ export interface ReplaneClientOptions<T extends object> {
    */
   inactivityTimeoutMs?: number;
   /**
-   * Optional logger (defaults to console).
+   * Custom fetch implementation (useful for tests / polyfills).
    */
-  logger?: ReplaneLogger;
-  /**
-   * Default context for all config evaluations.
-   * Can be overridden per-request in `client.get()`.
-   */
-  context?: ReplaneContext;
-
-  /**
-   * Required configs for the client.
-   * If a config is not present, the client will throw an error during initialization.
-   * @example
-   * {
-   *   required: {
-   *     config1: true,
-   *     config2: true,
-   *     config3: false,
-   *   },
-   * }
-   *
-   * @example
-   * {
-   *   required: ["config1", "config2", "config3"],
-   * }
-   */
-  required?:
-    | {
-        [K in keyof T]: boolean;
-      }
-    | Array<keyof T>;
-
-  /**
-   * Default values to use if the initial request to fetch configs fails or times out.
-   * These values are used immediately while waiting for server connection.
-   * @example
-   * {
-   *   defaults: {
-   *     config1: "value1",
-   *     config2: 42,
-   *   },
-   * }
-   */
-  defaults?: {
-    [K in keyof T]: T[K];
-  };
-
+  fetchFn?: typeof fetch;
   /**
    * Agent identifier sent in User-Agent header.
    * Defaults to SDK identifier (e.g., "replane-js/x.y.z").
    */
   agent?: string;
-
-  /**
-   * Callback invoked when a connection error occurs during SSE streaming.
-   * This is called on each retry attempt, useful for tracking connection health.
-   * The SDK will automatically retry connections, so this is informational.
-   * @param error - The error that caused the connection failure
-   */
-  onConnectionError?: (error: unknown) => void;
-
-  /**
-   * Callback invoked when the SSE connection is successfully established.
-   * This is called on initial connection and on every successful reconnection.
-   * Useful for tracking connection health and reconnection metrics.
-   */
-  onConnected?: () => void;
 }
 
 /**
- * Options for restoring a Replane client from a snapshot
+ * Internal options after processing connect options
  */
-export interface RestoreReplaneClientOptions<T extends object> {
-  /**
-   * Snapshot from a server-side client's getSnapshot() call.
-   */
-  snapshot: ReplaneSnapshot<T>;
-  /**
-   * Optional connection options for live updates.
-   * If provided, the client will connect to the Replane server for real-time config updates.
-   * If not provided, the client will only use the snapshot data (no live updates).
-   */
-  connection?: {
-    /**
-     * Base URL of the Replane instance (no trailing slash).
-     */
-    baseUrl: string;
-    /**
-     * Project SDK key for authorization.
-     */
-    sdkKey: string;
-    /**
-     * Custom fetch implementation (useful for tests / polyfills).
-     */
-    fetchFn?: typeof fetch;
-    /**
-     * Optional timeout in ms for the request.
-     * @default 2000
-     */
-    requestTimeoutMs?: number;
-    /**
-     * Delay between retries in ms.
-     * @default 200
-     */
-    retryDelayMs?: number;
-    /**
-     * Timeout in ms for SSE connection inactivity.
-     * @default 30000
-     */
-    inactivityTimeoutMs?: number;
-    /**
-     * Optional logger (defaults to console).
-     */
-    logger?: ReplaneLogger;
-    /**
-     * Agent identifier sent in User-Agent header.
-     * Defaults to SDK identifier (e.g., "replane-js/x.y.z").
-     */
-    agent?: string;
-    /**
-     * Callback invoked when a connection error occurs during SSE streaming.
-     * This is called on each retry attempt, useful for tracking connection health.
-     * The SDK will automatically retry connections, so this is informational.
-     * @param error - The error that caused the connection failure
-     */
-    onConnectionError?: (error: unknown) => void;
-    /**
-     * Callback invoked when the SSE connection is successfully established.
-     * This is called on initial connection and on every successful reconnection.
-     * Useful for tracking connection health and reconnection metrics.
-     */
-    onConnected?: () => void;
-  };
-  /**
-   * Override the context from the snapshot.
-   */
-  context?: ReplaneContext;
-}
-
-/**
- * Internal options after processing user options
- */
-export interface ReplaneFinalOptions {
+export interface ConnectFinalOptions {
   baseUrl: string;
-  fetchFn: typeof fetch;
-  requestTimeoutMs: number;
-  initializationTimeoutMs: number;
-  inactivityTimeoutMs: number;
   sdkKey: string;
-  logger: ReplaneLogger;
+  connectTimeoutMs: number;
   retryDelayMs: number;
-  context: ReplaneContext;
-  requiredConfigs: string[];
-  defaults: ConfigDto[];
+  requestTimeoutMs: number;
+  inactivityTimeoutMs: number;
+  fetchFn: typeof fetch;
   agent: string;
-  onConnectionError?: (error: unknown) => void;
-  onConnected?: () => void;
+}
+
+/**
+ * Internal representation of initial configs
+ */
+export interface InitialConfig {
+  name: string;
+  value: unknown;
+  overrides: RenderedOverride[];
 }

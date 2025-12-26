@@ -1,27 +1,45 @@
-import { createReplaneClient } from "./client";
-import type { ReplaneClient, ReplaneClientOptions, ReplaneSnapshot } from "./client-types";
+import { Replane } from "./client";
+import type { ConnectOptions, ReplaneLogger, ReplaneContext, ReplaneSnapshot } from "./client-types";
 
 /**
- * Extended options for getReplaneSnapshot with caching support.
+ * Options for getReplaneSnapshot with caching support.
  */
-export interface GetReplaneSnapshotOptions<T extends object> extends ReplaneClientOptions<T> {
+export interface GetReplaneSnapshotOptions<T extends object> extends ConnectOptions {
   /**
    * Cache TTL in milliseconds. When set, the client is cached and reused
    * for instant subsequent calls within this duration.
    * @default 60_000 (1 minute)
    */
   keepAliveMs?: number;
+  /**
+   * Optional logger (defaults to console).
+   */
+  logger?: ReplaneLogger;
+  /**
+   * Default context for all config evaluations.
+   */
+  context?: ReplaneContext;
+  /**
+   * Default values to use if the initial request to fetch configs fails or times out.
+   */
+  defaults?: {
+    [K in keyof T]?: T[K];
+  };
 }
 
 interface CachedClient {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  clientPromise: Promise<ReplaneClient<any>>;
+  client: Replane<object>;
   timeoutId: TimeoutId;
 }
 
-const clientCache = new Map<string, CachedClient>();
+interface PendingConnection {
+  promise: Promise<Replane<object>>;
+}
 
-function getCacheKey<T extends object>(options: ReplaneClientOptions<T>): string {
+const clientCache = new Map<string, CachedClient>();
+const pendingConnections = new Map<string, PendingConnection>();
+
+function getCacheKey(options: ConnectOptions): string {
   return `${options.baseUrl}:${options.sdkKey}`;
 }
 
@@ -29,7 +47,11 @@ type TimeoutId = ReturnType<typeof setTimeout>;
 
 function setupCleanupTimeout(cacheKey: string, keepAliveMs: number): TimeoutId {
   return setTimeout(() => {
-    clientCache.delete(cacheKey);
+    const cached = clientCache.get(cacheKey);
+    if (cached) {
+      cached.client.disconnect();
+      clientCache.delete(cacheKey);
+    }
   }, keepAliveMs);
 }
 
@@ -49,42 +71,61 @@ function setupCleanupTimeout(cacheKey: string, keepAliveMs: number): TimeoutId {
 export async function getReplaneSnapshot<T extends object>(
   options: GetReplaneSnapshotOptions<T>
 ): Promise<ReplaneSnapshot<T>> {
-  const { keepAliveMs = 60_000, ...clientOptions } = options;
+  const { keepAliveMs = 60_000, logger, context, defaults, ...connectOptions } = options;
 
-  const cacheKey = getCacheKey(clientOptions);
+  const cacheKey = getCacheKey(connectOptions);
   const cached = clientCache.get(cacheKey);
 
   // Return from cache if valid
   if (cached) {
     clearTimeout(cached.timeoutId);
     cached.timeoutId = setupCleanupTimeout(cacheKey, keepAliveMs);
+    return cached.client.getSnapshot() as ReplaneSnapshot<T>;
+  }
 
-    const client = await cached.clientPromise;
+  // Check for pending connection (for concurrent requests)
+  const pending = pendingConnections.get(cacheKey);
+  if (pending) {
+    const client = await pending.promise;
     return client.getSnapshot() as ReplaneSnapshot<T>;
   }
 
-  // Create new client and cache it
-  const clientPromise = createReplaneClient<T>(clientOptions);
-  const entry: CachedClient = {
-    clientPromise: clientPromise,
-    timeoutId: setupCleanupTimeout(cacheKey, keepAliveMs),
-  };
-  clientCache.set(cacheKey, entry);
+  // Create new client and connect
+  const client = new Replane<T>({
+    logger,
+    context,
+    defaults,
+  });
 
-  const client = await clientPromise;
+  // Store pending connection promise
+  const connectionPromise = client.connect(connectOptions).then(() => client as unknown as Replane<object>);
+  pendingConnections.set(cacheKey, { promise: connectionPromise });
 
-  return client.getSnapshot();
+  try {
+    await connectionPromise;
+
+    // Cache the connected client
+    const entry: CachedClient = {
+      client: client as unknown as Replane<object>,
+      timeoutId: setupCleanupTimeout(cacheKey, keepAliveMs),
+    };
+    clientCache.set(cacheKey, entry);
+
+    return client.getSnapshot();
+  } finally {
+    pendingConnections.delete(cacheKey);
+  }
 }
 
 /**
  * Clears the client cache used by getReplaneSnapshot.
  * Useful for testing or when you need to force re-initialization.
  */
-export async function clearSnapshotCache(): Promise<void> {
-  const clientPromises = [...clientCache.values()].map((cached) => cached.clientPromise);
-  clientCache.clear();
-  for (const clientPromise of clientPromises) {
-    const client = await clientPromise;
-    client.close();
+export function clearSnapshotCache(): void {
+  for (const cached of clientCache.values()) {
+    clearTimeout(cached.timeoutId);
+    cached.client.disconnect();
   }
+  clientCache.clear();
+  pendingConnections.clear();
 }

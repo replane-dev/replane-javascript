@@ -1,5 +1,5 @@
 import type { ReplicationStreamRecord, StartReplicationStreamBody } from "./types";
-import type { ReplaneFinalOptions } from "./client-types";
+import type { ConnectFinalOptions, ReplaneLogger } from "./client-types";
 import { fetchSse } from "./sse";
 import { combineAbortSignals, retryDelay } from "./utils";
 
@@ -11,14 +11,12 @@ const SUPPORTED_REPLICATION_STREAM_RECORD_TYPES = Object.keys({
 /**
  * Options for starting a replication stream
  */
-export interface StartReplicationStreamOptions extends ReplaneFinalOptions {
+export interface StartReplicationStreamOptions extends ConnectFinalOptions {
   // getBody is a function to get the latest configs when we are trying
   // to reestablish the replication stream
   getBody: () => StartReplicationStreamBody;
   signal?: AbortSignal;
-  onConnect?: () => void;
-  onConnectionError?: (error: unknown) => void;
-  onConnected?: () => void;
+  logger: ReplaneLogger;
 }
 
 /**
@@ -28,7 +26,7 @@ export interface ReplaneStorage {
   startReplicationStream(
     options: StartReplicationStreamOptions
   ): AsyncIterable<ReplicationStreamRecord>;
-  close(): void;
+  disconnect(): void;
 }
 
 /**
@@ -36,7 +34,7 @@ export interface ReplaneStorage {
  * and streams config updates via SSE.
  */
 export class ReplaneRemoteStorage implements ReplaneStorage {
-  private closeController = new AbortController();
+  private disconnectController = new AbortController();
 
   /**
    * Start a replication stream that yields config updates.
@@ -46,7 +44,7 @@ export class ReplaneRemoteStorage implements ReplaneStorage {
     options: StartReplicationStreamOptions
   ): AsyncIterable<ReplicationStreamRecord> {
     const { signal, cleanUpSignals } = combineAbortSignals([
-      this.closeController.signal,
+      this.disconnectController.signal,
       options.signal,
     ]);
     try {
@@ -70,10 +68,6 @@ export class ReplaneRemoteStorage implements ReplaneStorage {
               `Failed to fetch project events, retrying in ${retryDelayMs}ms...`,
               error
             );
-
-            // Call the connection error callback if provided
-            options.onConnectionError?.(error);
-
             await retryDelay(retryDelayMs);
           }
         }
@@ -84,7 +78,7 @@ export class ReplaneRemoteStorage implements ReplaneStorage {
   }
 
   private async *startReplicationStreamImpl(
-    options: StartReplicationStreamOptions
+    options: StartReplicationStreamOptions & { onConnect?: () => void }
   ): AsyncIterable<ReplicationStreamRecord> {
     // Create an abort controller for inactivity timeout
     const inactivityAbortController = new AbortController();
@@ -117,8 +111,6 @@ export class ReplaneRemoteStorage implements ReplaneStorage {
         onConnect: () => {
           resetInactivityTimer();
           options.onConnect?.();
-          // Call the user's onConnected callback
-          options.onConnected?.();
         },
       });
 
@@ -145,17 +137,19 @@ export class ReplaneRemoteStorage implements ReplaneStorage {
   }
 
   /**
-   * Close the storage and abort any active connections
+   * Disconnect the storage and abort any active connections
    */
-  close(): void {
-    this.closeController.abort();
+  disconnect(): void {
+    this.disconnectController.abort();
+    // Reset the controller for potential reconnection
+    this.disconnectController = new AbortController();
   }
 
-  private getAuthHeader(options: ReplaneFinalOptions): string {
+  private getAuthHeader(options: ConnectFinalOptions): string {
     return `Bearer ${options.sdkKey}`;
   }
 
-  private getApiEndpoint(path: string, options: ReplaneFinalOptions): string {
+  private getApiEndpoint(path: string, options: ConnectFinalOptions): string {
     return `${options.baseUrl}/api${path}`;
   }
 }
