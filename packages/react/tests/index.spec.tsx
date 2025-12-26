@@ -2778,7 +2778,7 @@ describe("ReplaneProvider with snapshot prop", () => {
 
     expect(mockReplaneClass).toHaveBeenCalledTimes(1);
 
-    // Re-render with new snapshot object - should create new instance
+    // No re-render with new snapshot object - should not create new instance
     rerender(
       <ReplaneProvider
         options={defaultOptions}
@@ -2788,7 +2788,7 @@ describe("ReplaneProvider with snapshot prop", () => {
       </ReplaneProvider>
     );
 
-    expect(mockReplaneClass).toHaveBeenCalledTimes(2);
+    expect(mockReplaneClass).toHaveBeenCalledTimes(1);
   });
 
   it("works with createReplaneHook for typed access", () => {
