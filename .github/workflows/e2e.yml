@@ -36,7 +36,7 @@ jobs:
 
       - name: Start services
         working-directory: packages/test-suite
-        run: docker compose up -d
+        run: docker compose up -d --wait
 
       - name: Run E2E tests
         working-directory: packages/test-suite
