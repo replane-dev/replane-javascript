@@ -17,9 +17,10 @@ npm install @replanejs/svelte
 ```svelte
 <script>
   import { ReplaneContext, config } from '@replanejs/svelte';
-  import { createReplaneClient } from '@replanejs/svelte';
+  import { Replane } from '@replanejs/svelte';
 
-  const replane = await createReplaneClient({
+  const replane = new Replane();
+  await replane.connect({
     baseUrl: 'https://your-replane-server.com',
     sdkKey: 'your-sdk-key',
   });
@@ -47,18 +48,22 @@ npm install @replanejs/svelte
 
 ## Client Options
 
-The `options` prop accepts all options from `@replanejs/sdk`. Key options:
+The `options` prop accepts the following options:
 
-| Option                    | Type                   | Required | Description                                |
-| ------------------------- | ---------------------- | -------- | ------------------------------------------ |
-| `baseUrl`                 | `string`               | Yes      | Replane server URL                         |
-| `sdkKey`                  | `string`               | Yes      | SDK key for authentication                 |
-| `context`                 | `Record<string, any>`  | No       | Default context for override evaluations   |
-| `defaults`                | `Record<string, any>`  | No       | Default values if server is unavailable    |
-| `required`                | `string[]` or `object` | No       | Configs that must exist for initialization |
-| `initializationTimeoutMs` | `number`               | No       | SDK initialization timeout (default: 5000) |
+| Option                | Type                  | Required | Description                              |
+| --------------------- | --------------------- | -------- | ---------------------------------------- |
+| `baseUrl`             | `string`              | Yes      | Replane server URL                       |
+| `sdkKey`              | `string`              | Yes      | SDK key for authentication               |
+| `context`             | `Record<string, any>` | No       | Default context for override evaluations |
+| `defaults`            | `Record<string, any>` | No       | Default values if server is unavailable  |
+| `connectTimeoutMs`    | `number`              | No       | SDK connection timeout (default: 5000)   |
+| `requestTimeoutMs`    | `number`              | No       | Timeout for SSE requests (default: 2000) |
+| `retryDelayMs`        | `number`              | No       | Base delay between retries (default: 200)|
+| `inactivityTimeoutMs` | `number`              | No       | SSE inactivity timeout (default: 30000)  |
+| `fetchFn`             | `typeof fetch`        | No       | Custom fetch implementation              |
+| `logger`              | `ReplaneLogger`       | No       | Custom logger (default: console)         |
 
-See [`@replanejs/sdk` documentation](https://github.com/replane-dev/replane-javascript/tree/main/packages/sdk#options) for the complete list of options.
+See [`@replanejs/sdk` documentation](https://github.com/replane-dev/replane-javascript/tree/main/packages/sdk#api) for more details.
 
 ## API
 
@@ -131,9 +136,10 @@ Can be used in three ways:
 
 ```svelte
 <script>
-  import { ReplaneContext, createReplaneClient } from '@replanejs/svelte';
+  import { ReplaneContext, Replane } from '@replanejs/svelte';
 
-  const replane = await createReplaneClient({
+  const replane = new Replane();
+  await replane.connect({
     baseUrl: 'https://your-replane-server.com',
     sdkKey: 'your-sdk-key',
   });

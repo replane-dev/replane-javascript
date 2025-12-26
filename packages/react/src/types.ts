@@ -1,15 +1,10 @@
-import type {
-  Replane,
-  ReplaneSnapshot,
-  ReplaneContext,
-  ReplaneLogger,
-} from "@replanejs/sdk";
+import type { Replane, ReplaneSnapshot, ReplaneContext, ReplaneLogger } from "@replanejs/sdk";
 import type { ReactNode } from "react";
 
 export type UntypedReplaneConfig = Record<string, unknown>;
 
 export interface ReplaneContextValue<T extends object = UntypedReplaneConfig> {
-  client: Replane<T>;
+  replane: Replane<T>;
 }
 
 /**

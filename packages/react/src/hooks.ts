@@ -10,7 +10,7 @@ export function useReplane<T extends object = UntypedReplaneConfig>(): Replane<T
   if (!context) {
     throw new Error("useReplane must be used within a ReplaneProvider");
   }
-  return context.client as Replane<T>;
+  return context.replane as Replane<T>;
 }
 
 export function useConfig<T>(name: string, options?: GetConfigOptions<T>): T {
@@ -92,31 +92,22 @@ export function createConfigHook<TConfigs extends object>() {
  * @param deps - Dependencies array (resource is recreated when these change)
  */
 export function useStateful<T>(
-  factory: () => T,
-  cleanup: (value: T) => void,
+  options: { factory: () => T; connect: () => void; cleanup: (value: T) => void },
   deps: React.DependencyList
 ): T {
-  const valueRef = useRef<T | null>(null);
+  const valueRef = useRef<T>(null as unknown as T);
   const initializedRef = useRef(false);
 
   // Create initial value synchronously on first render
   if (!initializedRef.current) {
-    valueRef.current = factory();
+    valueRef.current = options.factory();
     initializedRef.current = true;
   }
 
   useEffect(() => {
-    // On mount or deps change, we may need to recreate
-    // If this is not the initial mount, recreate the value
-    if (valueRef.current === null) {
-      valueRef.current = factory();
-    }
-
+    options.connect();
     return () => {
-      if (valueRef.current !== null) {
-        cleanup(valueRef.current);
-        valueRef.current = null;
-      }
+      options.cleanup(valueRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);

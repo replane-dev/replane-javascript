@@ -1,10 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Replane } from "@replanejs/sdk";
 import { ReplaneContext } from "./context";
 import { useReplaneClientInternal, useReplaneClientSuspense } from "./useReplaneClient";
-import { useStateful } from "./hooks";
 import type {
   ReplaneProviderProps,
   ReplaneProviderWithClientProps,
@@ -21,7 +20,7 @@ function ReplaneProviderWithClient<T extends object>({
   client,
   children,
 }: ReplaneProviderWithClientProps<T>) {
-  const value = useMemo<ReplaneContextValue<T>>(() => ({ client }), [client]);
+  const value = useMemo<ReplaneContextValue<T>>(() => ({ replane: client }), [client]);
   return <ReplaneContext.Provider value={value}>{children}</ReplaneContext.Provider>;
 }
 
@@ -36,31 +35,49 @@ function ReplaneProviderWithSnapshot<T extends object>({
 }: ReplaneProviderWithOptionsProps<T> & {
   snapshot: NonNullable<ReplaneProviderWithOptionsProps<T>["snapshot"]>;
 }) {
-  const client = useStateful(
-    () => {
-      const replane = new Replane<T>({
-        snapshot,
-        logger: options.logger,
-        context: options.context,
-        defaults: options.defaults,
-      });
-      // Start connection in background (don't await)
-      replane.connect({
+  const replaneRef = useRef<Replane<T>>(undefined as unknown as Replane<T>);
+
+  if (!replaneRef.current) {
+    replaneRef.current = new Replane<T>({
+      snapshot,
+      logger: options.logger,
+      context: options.context,
+      defaults: options.defaults,
+    });
+  }
+
+  useEffect(() => {
+    replaneRef.current
+      .connect({
         baseUrl: options.baseUrl,
         sdkKey: options.sdkKey,
-        fetchFn: options.fetchFn,
-        requestTimeoutMs: options.requestTimeoutMs,
-        retryDelayMs: options.retryDelayMs,
-        inactivityTimeoutMs: options.inactivityTimeoutMs,
         connectTimeoutMs: options.connectTimeoutMs,
+        retryDelayMs: options.retryDelayMs,
+        requestTimeoutMs: options.requestTimeoutMs,
+        inactivityTimeoutMs: options.inactivityTimeoutMs,
+        fetchFn: options.fetchFn,
         agent: options.agent ?? DEFAULT_AGENT,
+      })
+      .catch((err) => {
+        (options.logger ?? console)?.error("Failed to connect Replane client", err);
       });
-      return replane;
-    },
-    (c) => c.disconnect(),
-    [snapshot, options]
-  );
-  const value = useMemo<ReplaneContextValue<T>>(() => ({ client }), [client]);
+
+    return () => {
+      replaneRef.current.disconnect();
+    };
+  }, [
+    options.agent,
+    options.baseUrl,
+    options.connectTimeoutMs,
+    options.fetchFn,
+    options.inactivityTimeoutMs,
+    options.logger,
+    options.requestTimeoutMs,
+    options.retryDelayMs,
+    options.sdkKey,
+  ]);
+
+  const value = useMemo<ReplaneContextValue<T>>(() => ({ replane: replaneRef.current }), []);
   return <ReplaneContext.Provider value={value}>{children}</ReplaneContext.Provider>;
 }
 
@@ -84,7 +101,7 @@ function ReplaneProviderWithOptions<T extends object>({
     throw state.error;
   }
 
-  const value: ReplaneContextValue<T> = { client: state.client };
+  const value: ReplaneContextValue<T> = { replane: state.client };
   return <ReplaneContext.Provider value={value}>{children}</ReplaneContext.Provider>;
 }
 
@@ -96,7 +113,7 @@ function ReplaneProviderWithSuspense<T extends object>({
   children,
 }: ReplaneProviderWithOptionsProps<T>) {
   const client = useReplaneClientSuspense<T>(options);
-  const value = useMemo<ReplaneContextValue<T>>(() => ({ client }), [client]);
+  const value = useMemo<ReplaneContextValue<T>>(() => ({ replane: client }), [client]);
   return <ReplaneContext.Provider value={value}>{children}</ReplaneContext.Provider>;
 }
 
