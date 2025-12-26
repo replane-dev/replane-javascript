@@ -45,7 +45,7 @@ export default function App({ Component, pageProps }) {
   return (
     <ReplaneProvider
       snapshot={pageProps.replaneSnapshot}
-      options={{
+      connection={{
         baseUrl: process.env.NEXT_PUBLIC_REPLANE_BASE_URL!,
         sdkKey: process.env.NEXT_PUBLIC_REPLANE_SDK_KEY!,
       }}
@@ -63,8 +63,10 @@ import { getReplaneSnapshot } from "@replanejs/next";
 
 export const getServerSideProps = async () => {
   const snapshot = await getReplaneSnapshot({
-    baseUrl: process.env.REPLANE_BASE_URL!,
-    sdkKey: process.env.REPLANE_SDK_KEY!,
+    connection: {
+      baseUrl: process.env.REPLANE_BASE_URL!,
+      sdkKey: process.env.REPLANE_SDK_KEY!,
+    },
   });
 
   return {
@@ -80,8 +82,10 @@ import { getReplaneSnapshot } from "@replanejs/next";
 
 export const getStaticProps = async () => {
   const snapshot = await getReplaneSnapshot({
-    baseUrl: process.env.REPLANE_BASE_URL!,
-    sdkKey: process.env.REPLANE_SDK_KEY!,
+    connection: {
+      baseUrl: process.env.REPLANE_BASE_URL!,
+      sdkKey: process.env.REPLANE_SDK_KEY!,
+    },
   });
 
   return {

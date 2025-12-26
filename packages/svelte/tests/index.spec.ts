@@ -737,7 +737,8 @@ describe("ReplaneContext with async prop", () => {
 
     // Store for use in tests
     (globalThis as Record<string, unknown>).__TestAsyncProvider = TestAsyncProvider;
-    (globalThis as Record<string, unknown>).__TestAsyncProviderWithConfig = TestAsyncProviderWithConfig;
+    (globalThis as Record<string, unknown>).__TestAsyncProviderWithConfig =
+      TestAsyncProviderWithConfig;
 
     mockClient = createMockClient({ feature: "default-value" });
     const connectPromise = new Promise<void>((resolve, reject) => {
@@ -754,7 +755,8 @@ describe("ReplaneContext with async prop", () => {
   });
 
   it("renders children immediately without waiting for connection", async () => {
-    const TestAsyncProvider = (globalThis as Record<string, unknown>).__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
+    const TestAsyncProvider = (globalThis as Record<string, unknown>)
+      .__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
 
     render(TestAsyncProvider, {
       props: {
@@ -768,7 +770,8 @@ describe("ReplaneContext with async prop", () => {
   });
 
   it("creates client with defaults", async () => {
-    const TestAsyncProvider = (globalThis as Record<string, unknown>).__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
+    const TestAsyncProvider = (globalThis as Record<string, unknown>)
+      .__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
 
     const defaults = { feature: "my-default" };
 
@@ -787,7 +790,8 @@ describe("ReplaneContext with async prop", () => {
   });
 
   it("connects in the background after render", async () => {
-    const TestAsyncProvider = (globalThis as Record<string, unknown>).__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
+    const TestAsyncProvider = (globalThis as Record<string, unknown>)
+      .__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
 
     render(TestAsyncProvider, {
       props: {
@@ -813,7 +817,8 @@ describe("ReplaneContext with async prop", () => {
   });
 
   it("allows config to retrieve default values immediately", async () => {
-    const TestAsyncProviderWithConfig = (globalThis as Record<string, unknown>).__TestAsyncProviderWithConfig as typeof import("./components/TestAsyncProviderWithConfig.svelte").default;
+    const TestAsyncProviderWithConfig = (globalThis as Record<string, unknown>)
+      .__TestAsyncProviderWithConfig as typeof import("./components/TestAsyncProviderWithConfig.svelte").default;
 
     render(TestAsyncProviderWithConfig, {
       props: {
@@ -827,7 +832,8 @@ describe("ReplaneContext with async prop", () => {
   });
 
   it("updates values when connection succeeds and server sends new values", async () => {
-    const TestAsyncProviderWithConfig = (globalThis as Record<string, unknown>).__TestAsyncProviderWithConfig as typeof import("./components/TestAsyncProviderWithConfig.svelte").default;
+    const TestAsyncProviderWithConfig = (globalThis as Record<string, unknown>)
+      .__TestAsyncProviderWithConfig as typeof import("./components/TestAsyncProviderWithConfig.svelte").default;
 
     render(TestAsyncProviderWithConfig, {
       props: {
@@ -854,7 +860,8 @@ describe("ReplaneContext with async prop", () => {
   });
 
   it("logs error when connection fails but does not throw", async () => {
-    const TestAsyncProvider = (globalThis as Record<string, unknown>).__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
+    const TestAsyncProvider = (globalThis as Record<string, unknown>)
+      .__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
 
     const mockLogger = {
       error: vi.fn(),
@@ -892,7 +899,8 @@ describe("ReplaneContext with async prop", () => {
   });
 
   it("uses console.error when no logger provided and connection fails", async () => {
-    const TestAsyncProvider = (globalThis as Record<string, unknown>).__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
+    const TestAsyncProvider = (globalThis as Record<string, unknown>)
+      .__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
 
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -917,7 +925,8 @@ describe("ReplaneContext with async prop", () => {
   });
 
   it("does not connect when connection is null", async () => {
-    const TestAsyncProvider = (globalThis as Record<string, unknown>).__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
+    const TestAsyncProvider = (globalThis as Record<string, unknown>)
+      .__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
 
     render(TestAsyncProvider, {
       props: {
@@ -936,7 +945,8 @@ describe("ReplaneContext with async prop", () => {
   });
 
   it("works with context prop for override evaluations", async () => {
-    const TestAsyncProvider = (globalThis as Record<string, unknown>).__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
+    const TestAsyncProvider = (globalThis as Record<string, unknown>)
+      .__TestAsyncProvider as typeof import("./components/TestAsyncProvider.svelte").default;
 
     const context = { userId: "user-123", plan: "premium" };
 
@@ -1071,10 +1081,8 @@ describe("Additional Edge Cases", () => {
   });
 
   it("handles config with connection: null", async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let mockReplaneClass: any;
     const mockClient = createMockClient({ feature: "default-value" });
-    mockReplaneClass = vi.spyOn(sdk, "Replane").mockImplementation(() => mockClient);
+    const mockReplaneClass = vi.spyOn(sdk, "Replane").mockImplementation(() => mockClient);
 
     const TestAsyncProvider = (await import("./components/TestAsyncProvider.svelte")).default;
 

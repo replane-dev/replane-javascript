@@ -2914,11 +2914,7 @@ describe("ReplaneProvider with async prop", () => {
 
   it("renders children immediately without waiting for connection", () => {
     render(
-      <ReplaneProvider
-        connection={defaultConnection}
-        defaults={{ feature: "default-value" }}
-        async
-      >
+      <ReplaneProvider connection={defaultConnection} defaults={{ feature: "default-value" }} async>
         <div data-testid="content">Content</div>
       </ReplaneProvider>
     );
@@ -2962,11 +2958,7 @@ describe("ReplaneProvider with async prop", () => {
 
   it("connects in the background after render", async () => {
     render(
-      <ReplaneProvider
-        connection={defaultConnection}
-        defaults={{ feature: "default-value" }}
-        async
-      >
+      <ReplaneProvider connection={defaultConnection} defaults={{ feature: "default-value" }} async>
         <div data-testid="content">Content</div>
       </ReplaneProvider>
     );
@@ -2996,11 +2988,7 @@ describe("ReplaneProvider with async prop", () => {
     }
 
     render(
-      <ReplaneProvider
-        connection={defaultConnection}
-        defaults={{ feature: "default-value" }}
-        async
-      >
+      <ReplaneProvider connection={defaultConnection} defaults={{ feature: "default-value" }} async>
         <TestComponent />
       </ReplaneProvider>
     );
@@ -3015,11 +3003,7 @@ describe("ReplaneProvider with async prop", () => {
     }
 
     render(
-      <ReplaneProvider
-        connection={defaultConnection}
-        defaults={{ feature: "default-value" }}
-        async
-      >
+      <ReplaneProvider connection={defaultConnection} defaults={{ feature: "default-value" }} async>
         <TestComponent />
       </ReplaneProvider>
     );
@@ -3034,11 +3018,7 @@ describe("ReplaneProvider with async prop", () => {
     }
 
     render(
-      <ReplaneProvider
-        connection={defaultConnection}
-        defaults={{ feature: "default-value" }}
-        async
-      >
+      <ReplaneProvider connection={defaultConnection} defaults={{ feature: "default-value" }} async>
         <TestComponent />
       </ReplaneProvider>
     );
@@ -3104,11 +3084,7 @@ describe("ReplaneProvider with async prop", () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     render(
-      <ReplaneProvider
-        connection={defaultConnection}
-        defaults={{ feature: "default-value" }}
-        async
-      >
+      <ReplaneProvider connection={defaultConnection} defaults={{ feature: "default-value" }} async>
         <div data-testid="content">Content</div>
       </ReplaneProvider>
     );
@@ -3129,11 +3105,7 @@ describe("ReplaneProvider with async prop", () => {
 
   it("disconnects client on unmount", async () => {
     const { unmount } = render(
-      <ReplaneProvider
-        connection={defaultConnection}
-        defaults={{ feature: "default-value" }}
-        async
-      >
+      <ReplaneProvider connection={defaultConnection} defaults={{ feature: "default-value" }} async>
         <div data-testid="content">Content</div>
       </ReplaneProvider>
     );
@@ -3220,7 +3192,6 @@ describe("ReplaneProvider with async prop", () => {
 
 describe("ReplaneProvider edge cases", () => {
   it("renders children with connection: null and defaults only", () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mockReplaneClass = vi.spyOn(sdk, "Replane").mockImplementation(() => {
       return createMockClient({ feature: "default-value" });
     });
@@ -3259,9 +3230,7 @@ describe("ReplaneProvider edge cases", () => {
 
     function TestComponent() {
       const config = useConfig<typeof deepConfig>("deep");
-      return (
-        <div data-testid="deep">{config.level1.level2.level3.level4.value}</div>
-      );
+      return <div data-testid="deep">{config.level1.level2.level3.level4.value}</div>;
     }
 
     render(
@@ -3296,9 +3265,7 @@ describe("ReplaneProvider edge cases", () => {
     function TestComponent() {
       const value = useConfig<string | undefined>("undefinedValue");
       return (
-        <div data-testid="undefined">
-          {value === undefined ? "IS_UNDEFINED" : "NOT_UNDEFINED"}
-        </div>
+        <div data-testid="undefined">{value === undefined ? "IS_UNDEFINED" : "NOT_UNDEFINED"}</div>
       );
     }
 
@@ -3368,9 +3335,7 @@ describe("ReplaneProvider edge cases", () => {
     function TestComponent() {
       const value = useConfig<Record<string, unknown>>("emptyObject");
       return (
-        <div data-testid="object">
-          {Object.keys(value).length === 0 ? "EMPTY" : "NOT_EMPTY"}
-        </div>
+        <div data-testid="object">{Object.keys(value).length === 0 ? "EMPTY" : "NOT_EMPTY"}</div>
       );
     }
 
@@ -3493,11 +3458,9 @@ describe("ReplaneProvider edge cases", () => {
 
   it("handles rapid consecutive config updates", async () => {
     const client = createMockClient({ counter: 0 });
-    let renderCount = 0;
 
     function TestComponent() {
       const value = useConfig<number>("counter");
-      renderCount++;
       return <div data-testid="counter">{value}</div>;
     }
 
@@ -3537,7 +3500,8 @@ describe("ReplaneProvider edge cases", () => {
       }>("special");
       return (
         <div data-testid="special">
-          {Number.isNaN(value.nan) ? "NAN" : "NOT_NAN"},{!Number.isFinite(value.infinity) ? "INF" : "FIN"}
+          {Number.isNaN(value.nan) ? "NAN" : "NOT_NAN"},
+          {!Number.isFinite(value.infinity) ? "INF" : "FIN"}
         </div>
       );
     }
