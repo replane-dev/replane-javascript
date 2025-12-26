@@ -1,6 +1,6 @@
 {
   "name": "replanejs-react-example",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "private": true,
   "description": "Example React project using @replanejs/react",
   "type": "module",
