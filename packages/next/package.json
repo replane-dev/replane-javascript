@@ -1,6 +1,6 @@
 {
   "name": "@replanejs/next",
-  "version": "0.8.20",
+  "version": "0.9.0",
   "description": "Next.js SDK for Replane - feature flags and remote configuration with SSR support",
   "type": "module",
   "main": "./dist/index.cjs",
