@@ -36,7 +36,7 @@ yarn add @replanejs/sdk
 > **Important:** Each SDK key is tied to a specific project. The client can only access configs from the project that the SDK key belongs to. If you need configs from multiple projects, create separate SDK keys and initialize separate clients—one per project.
 
 ```ts
-import { createReplaneClient } from "@replanejs/sdk";
+import { Replane } from "@replanejs/sdk";
 
 // Define your config types
 interface Configs {
@@ -50,8 +50,15 @@ interface PasswordRequirements {
   requireSymbol: boolean;
 }
 
-const replane = await createReplaneClient<Configs>({
-  // Each SDK key belongs to one project only
+// Create the client with optional constructor options
+const replane = new Replane<Configs>({
+  context: {
+    environment: "production",
+  },
+});
+
+// Connect to the server
+await replane.connect({
   sdkKey: process.env.REPLANE_SDK_KEY!,
   baseUrl: "https://replane.my-hosting.com",
 });
@@ -83,35 +90,42 @@ if (enabled) {
 }
 
 // When done, clean up resources
-replane.close();
+replane.disconnect();
 ```
 
 ## API
 
-### `createReplaneClient<T>(options)`
+### `new Replane<T>(options?)`
 
-Returns a promise resolving to an object: `{ get, subscribe, close }`.
+Creates a new Replane client instance.
 
 Type parameter `T` defines the shape of your configs (a mapping of config names to their value types).
 
-`close()` stops the configs client and cleans up resources. It is safe to call multiple times (no‑op after the first call).
+The client is usable immediately after construction if you provide `defaults` or a `snapshot`. Call `connect()` to establish a server connection for real-time updates.
 
-#### Options
+#### Constructor Options
+
+- `context` (object) – default context for all config evaluations. Can be overridden per-request in `get()`. Optional.
+- `defaults` (object) – default values to use before connecting or if the connection fails. These values are available immediately. Optional.
+- `snapshot` (object) – restore from a previous `getSnapshot()` call. Useful for SSR/hydration scenarios. Optional.
+- `logger` (object) – custom logger with `debug`, `info`, `warn`, `error` methods. Default: `console`.
+
+### `replane.connect(options)`
+
+Connects to the Replane server and starts receiving real-time updates via SSE.
+
+Returns a Promise that resolves when the connection is established and initial configs are loaded.
+
+#### Connect Options
 
 - `baseUrl` (string) – Replane origin (no trailing slash needed). Required.
 - `sdkKey` (string) – SDK key for authorization. Required. **Note:** Each SDK key is tied to a specific project and can only access configs from that project. To access configs from multiple projects, create multiple SDK keys and initialize separate client instances.
-- `required` (object or array) – mark specific configs as required. If any required config is missing, the client will throw an error during initialization. Can be an object with boolean values or an array of config names. Optional.
-- `defaults` (object) – default values to use if the initial request to fetch configs fails or times out. These values are used immediately while waiting for server connection. Allows the client to start even when the API is unavailable. Optional.
-- `context` (object) – default context for all config evaluations. Can be overridden per-request in `get()`. Optional.
 - `fetchFn` (function) – custom fetch (e.g. `undici.fetch` or mocked fetch in tests). Optional.
 - `requestTimeoutMs` (number) – timeout for SSE requests in ms. Default: 2000.
-- `initializationTimeoutMs` (number) – timeout for SDK initialization in ms. Default: 5000.
+- `connectTimeoutMs` (number) – timeout for initial connection in ms. Default: 5000.
 - `retryDelayMs` (number) – base delay between retries in ms. Default: 200.
 - `inactivityTimeoutMs` (number) – timeout for SSE inactivity before reconnecting in ms. Default: 30000.
-- `logger` (object) – custom logger with `debug`, `info`, `warn`, `error` methods. Default: `console`.
 - `agent` (string) – agent identifier sent in User-Agent header.
-- `onConnectionError` (function) – callback invoked when a connection error occurs during SSE streaming.
-- `onConnected` (function) – callback invoked when the SSE connection is successfully established.
 
 ### `replane.get<K>(name, options?)`
 
@@ -141,7 +155,8 @@ interface Configs {
   "max-connections": number;
 }
 
-const replane = await createReplaneClient<Configs>({
+const replane = new Replane<Configs>();
+await replane.connect({
   sdkKey: "your-sdk-key",
   baseUrl: "https://replane.my-host.com",
 });
@@ -158,7 +173,7 @@ const userEnabled = replane.get("billing-enabled", {
 const maxConnections = replane.get("max-connections", { default: 10 });
 
 // Clean up when done
-replane.close();
+replane.disconnect();
 ```
 
 ### `replane.subscribe(callback)` or `replane.subscribe(configName, callback)`
@@ -197,7 +212,8 @@ interface Configs {
   "max-connections": number;
 }
 
-const replane = await createReplaneClient<Configs>({
+const replane = new Replane<Configs>();
+await replane.connect({
   sdkKey: "your-sdk-key",
   baseUrl: "https://replane.my-host.com",
 });
@@ -218,61 +234,55 @@ unsubscribeAll();
 unsubscribeFeature();
 
 // Clean up when done
-replane.close();
+replane.disconnect();
 ```
 
-### `createInMemoryReplaneClient(initialData)`
+### In-memory client (testing)
 
-Creates a client backed by an in-memory store instead of making HTTP requests. Handy for unit tests or local development where you want deterministic config values without a server.
-
-Parameters:
-
-- `initialData` (object) – map of config name to value.
-
-Returns the same client shape as `createReplaneClient` (`{ get, subscribe, close }`).
-
-Notes:
-
-- `get(name)` resolves to the value from `initialData`.
-- If a name is missing, it throws a `ReplaneError` (`Config not found: <name>`).
-- The client works as usual but doesn't receive SSE updates (values remain whatever is in-memory).
-
-Example:
+For unit tests or local development where you want deterministic config values without a server, create a `Replane` instance with `defaults` and don't call `connect()`:
 
 ```ts
-import { createInMemoryReplaneClient } from "@replanejs/sdk";
+import { Replane } from "@replanejs/sdk";
 
 interface Configs {
   "feature-a": boolean;
   "max-items": { value: number; ttl: number };
 }
 
-const replane = createInMemoryReplaneClient<Configs>({
-  "feature-a": true,
-  "max-items": { value: 10, ttl: 3600 },
+const replane = new Replane<Configs>({
+  defaults: {
+    "feature-a": true,
+    "max-items": { value: 10, ttl: 3600 },
+  },
 });
+
+// No connect() call - works purely from defaults
 
 const featureA = replane.get("feature-a"); // TypeScript knows this is boolean
 console.log(featureA); // true
 
 const maxItems = replane.get("max-items"); // TypeScript knows the type
 console.log(maxItems); // { value: 10, ttl: 3600 }
-
-replane.close();
 ```
 
-### `replane.close()`
+Notes:
 
-Gracefully shuts down the Replane client and cleans up resources. Subsequent method calls is a no-op, it's safe to call multiple times. Use this in environments where you manage resource lifecycles explicitly (e.g. shutting down a server or worker).
+- `get(name)` returns the value from `defaults`.
+- If a name is missing, it throws a `ReplaneError` (`Config not found: <name>`).
+- The client works as usual but doesn't receive SSE updates (values remain whatever is in-memory).
+
+### `replane.disconnect()`
+
+Gracefully shuts down the Replane client and cleans up resources. Safe to call multiple times. Use this in environments where you manage resource lifecycles explicitly (e.g. shutting down a server or worker).
 
 ```ts
 // During shutdown
-replane.close();
+replane.disconnect();
 ```
 
 ### Errors
 
-`createReplaneClient` throws if the initial request to fetch configs fails with non‑2xx HTTP responses and network errors. A `ReplaneError` is thrown for HTTP failures; other errors may be thrown for network/parse issues.
+`replane.connect()` throws if the initial request to fetch configs fails with non‑2xx HTTP responses and network errors. A `ReplaneError` is thrown for HTTP failures; other errors may be thrown for network/parse issues.
 
 The Replane client receives realtime updates via SSE in the background. SSE connection errors are logged and automatically retried, but don't affect `get` calls (which return the last known value).
 
@@ -295,7 +305,8 @@ interface Configs {
   layout: LayoutConfig;
 }
 
-const replane = await createReplaneClient<Configs>({
+const replane = new Replane<Configs>();
+await replane.connect({
   sdkKey: process.env.REPLANE_SDK_KEY!,
   baseUrl: "https://replane.my-host.com",
 });
@@ -311,7 +322,8 @@ interface Configs {
   "advanced-features": boolean;
 }
 
-const replane = await createReplaneClient<Configs>({
+const replane = new Replane<Configs>();
+await replane.connect({
   sdkKey: process.env.REPLANE_SDK_KEY!,
   baseUrl: "https://replane.my-host.com",
 });
@@ -336,13 +348,15 @@ interface Configs {
   "feature-flag": boolean;
 }
 
-const replane = await createReplaneClient<Configs>({
-  sdkKey: process.env.REPLANE_SDK_KEY!,
-  baseUrl: "https://replane.my-host.com",
+const replane = new Replane<Configs>({
   context: {
     userId: "user-123",
     region: "us-east",
   },
+});
+await replane.connect({
+  sdkKey: process.env.REPLANE_SDK_KEY!,
+  baseUrl: "https://replane.my-host.com",
 });
 
 // This context is used for all configs unless overridden
@@ -355,36 +369,12 @@ const value2 = replane.get("feature-flag", {
 ### Custom fetch (tests)
 
 ```ts
-const replane = await createReplaneClient({
+const replane = new Replane();
+await replane.connect({
   sdkKey: "TKN",
   baseUrl: "https://api",
   fetchFn: mockFetch,
 });
-```
-
-### Required configs
-
-```ts
-interface Configs {
-  "api-key": string;
-  "database-url": string;
-  "optional-feature": boolean;
-}
-
-const replane = await createReplaneClient<Configs>({
-  sdkKey: process.env.REPLANE_SDK_KEY!,
-  baseUrl: "https://replane.my-host.com",
-  required: {
-    "api-key": true,
-    "database-url": true,
-    "optional-feature": false, // Not required
-  },
-});
-
-// Alternative: use an array
-// required: ["api-key", "database-url"]
-
-// If any required config is missing, initialization will throw
 ```
 
 ### Default configs
@@ -396,14 +386,16 @@ interface Configs {
   "timeout-ms": number;
 }
 
-const replane = await createReplaneClient<Configs>({
-  sdkKey: process.env.REPLANE_SDK_KEY!,
-  baseUrl: "https://replane.my-host.com",
+const replane = new Replane<Configs>({
   defaults: {
     "feature-flag": false, // Use false if fetch fails
     "max-connections": 10, // Use 10 if fetch fails
     "timeout-ms": 5000, // Use 5s if fetch fails
   },
+});
+await replane.connect({
+  sdkKey: process.env.REPLANE_SDK_KEY!,
+  baseUrl: "https://replane.my-host.com",
 });
 
 // If the initial fetch fails or times out, default values are used
@@ -425,12 +417,14 @@ interface ProjectBConfigs {
 }
 
 // Each project needs its own SDK key and Replane client instance
-const projectAConfigs = await createReplaneClient<ProjectAConfigs>({
+const projectAConfigs = new Replane<ProjectAConfigs>();
+await projectAConfigs.connect({
   sdkKey: process.env.PROJECT_A_SDK_KEY!,
   baseUrl: "https://replane.my-host.com",
 });
 
-const projectBConfigs = await createReplaneClient<ProjectBConfigs>({
+const projectBConfigs = new Replane<ProjectBConfigs>();
+await projectBConfigs.connect({
   sdkKey: process.env.PROJECT_B_SDK_KEY!,
   baseUrl: "https://replane.my-host.com",
 });
@@ -448,7 +442,8 @@ interface Configs {
   "max-users": number;
 }
 
-const replane = await createReplaneClient<Configs>({
+const replane = new Replane<Configs>();
+await replane.connect({
   sdkKey: process.env.REPLANE_SDK_KEY!,
   baseUrl: "https://replane.my-host.com",
 });
@@ -479,7 +474,7 @@ const unsubscribeMaxUsers = replane.subscribe("max-users", (config) => {
 unsubscribeAll();
 unsubscribeFeature();
 unsubscribeMaxUsers();
-replane.close();
+replane.disconnect();
 ```
 
 ## Framework SDKs

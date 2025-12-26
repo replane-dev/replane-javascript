@@ -75,27 +75,32 @@ import { ErrorBoundary } from "react-error-boundary";
 
 #### Client Options
 
-The `options` prop accepts all options from `@replanejs/sdk`. Key options:
+The `options` prop accepts the following options:
 
-| Option                    | Type                   | Required | Description                                |
-| ------------------------- | ---------------------- | -------- | ------------------------------------------ |
-| `baseUrl`                 | `string`               | Yes      | Replane server URL                         |
-| `sdkKey`                  | `string`               | Yes      | SDK key for authentication                 |
-| `context`                 | `Record<string, any>`  | No       | Default context for override evaluations   |
-| `defaults`                | `Record<string, any>`  | No       | Default values if server is unavailable    |
-| `required`                | `string[]` or `object` | No       | Configs that must exist for initialization |
-| `initializationTimeoutMs` | `number`               | No       | SDK initialization timeout (default: 5000) |
+| Option               | Type                  | Required | Description                                  |
+| -------------------- | --------------------- | -------- | -------------------------------------------- |
+| `baseUrl`            | `string`              | Yes      | Replane server URL                           |
+| `sdkKey`             | `string`              | Yes      | SDK key for authentication                   |
+| `context`            | `Record<string, any>` | No       | Default context for override evaluations     |
+| `defaults`           | `Record<string, any>` | No       | Default values if server is unavailable      |
+| `connectTimeoutMs`   | `number`              | No       | SDK connection timeout (default: 5000)       |
+| `requestTimeoutMs`   | `number`              | No       | Timeout for SSE requests (default: 2000)     |
+| `retryDelayMs`       | `number`              | No       | Base delay between retries (default: 200)    |
+| `inactivityTimeoutMs`| `number`              | No       | SSE inactivity timeout (default: 30000)      |
+| `fetchFn`            | `typeof fetch`        | No       | Custom fetch implementation                  |
+| `logger`             | `ReplaneLogger`       | No       | Custom logger (default: console)             |
 
-See [`@replanejs/sdk` documentation](https://github.com/replane-dev/replane-javascript/tree/main/packages/sdk#options) for the complete list of options.
+See [`@replanejs/sdk` documentation](https://github.com/replane-dev/replane-javascript/tree/main/packages/sdk#api) for more details.
 
 #### 2. With pre-created client
 
 Use this when you need more control over client lifecycle:
 
 ```tsx
-import { createReplaneClient } from "@replanejs/sdk";
+import { Replane } from "@replanejs/sdk";
 
-const client = await createReplaneClient({
+const client = new Replane();
+await client.connect({
   baseUrl: "https://your-replane-server.com",
   sdkKey: "your-sdk-key",
 });
@@ -131,26 +136,24 @@ Restore a client from a snapshot obtained on the server. This is synchronous and
 
 ```tsx
 // On the server
-const serverClient = await createReplaneClient({ baseUrl: "...", sdkKey: "..." });
+const serverClient = new Replane();
+await serverClient.connect({ baseUrl: "...", sdkKey: "..." });
 const snapshot = serverClient.getSnapshot();
 // Pass snapshot to client via props, context, or serialized HTML
 
 // On the client
 <ReplaneProvider
-  restoreOptions={{
-    snapshot,
-    // Optional: connect for live updates
-    connection: {
-      baseUrl: "https://your-replane-server.com",
-      sdkKey: "your-sdk-key",
-    },
+  options={{
+    baseUrl: "https://your-replane-server.com",
+    sdkKey: "your-sdk-key",
   }}
+  snapshot={snapshot}
 >
   <App />
 </ReplaneProvider>;
 ```
 
-The restored client is immediately available with no loading state. If `connection` is provided, it will establish a connection for real-time updates in the background.
+The restored client is immediately available with no loading state. The provider will establish a connection for real-time updates in the background.
 
 ### useConfig
 

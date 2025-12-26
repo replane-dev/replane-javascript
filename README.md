@@ -24,9 +24,10 @@ npm install @replanejs/sdk
 ```
 
 ```ts
-import { createReplaneClient } from "@replanejs/sdk";
+import { Replane } from "@replanejs/sdk";
 
-const replane = await createReplaneClient({
+const replane = new Replane();
+await replane.connect({
   sdkKey: process.env.REPLANE_SDK_KEY!,
   baseUrl: "https://replane.example.com",
 });
@@ -110,15 +111,15 @@ npm install @replanejs/svelte
 ```svelte
 <!-- +layout.svelte -->
 <script>
-  import { ReplaneProvider, createReplaneClient } from "@replanejs/svelte";
-
-  const client = await createReplaneClient({
-    baseUrl: "https://replane.example.com",
-    sdkKey: "your-sdk-key",
-  });
+  import { ReplaneContext } from "@replanejs/svelte";
 </script>
 
-<ReplaneContext {client}>
+<ReplaneContext
+  options={{
+    baseUrl: "https://replane.example.com",
+    sdkKey: "your-sdk-key",
+  }}
+>
   <slot />
 </ReplaneContext>
 ```
