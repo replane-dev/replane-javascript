@@ -15,11 +15,11 @@ Examples demonstrating how to use `@replanejs/sdk` across different JavaScript r
 
 For React, Next.js, and Svelte applications, use the dedicated framework SDKs which provide hooks, context providers, and SSR support:
 
-| Framework   | Package             | Examples                                              |
-| ----------- | ------------------- | ----------------------------------------------------- |
-| **React**   | `@replanejs/react`  | [`packages/react/examples/`](../../react/examples/)   |
-| **Next.js** | `@replanejs/next`   | [`packages/next/examples/`](../../next/examples/)     |
-| **Svelte**  | `@replanejs/svelte` | [`packages/svelte/examples/`](../../svelte/examples/) |
+| Framework   | Package             | Examples                                              | GitHub README                                                                                |
+| ----------- | ------------------- | ----------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| **React**   | `@replanejs/react`  | [`packages/react/examples/`](../../react/examples/)   | [README](https://github.com/replane-dev/replane-javascript/tree/main/packages/react#readme)  |
+| **Next.js** | `@replanejs/next`   | [`packages/next/examples/`](../../next/examples/)     | [README](https://github.com/replane-dev/replane-javascript/tree/main/packages/next#readme)   |
+| **Svelte**  | `@replanejs/svelte` | [`packages/svelte/examples/`](../../svelte/examples/) | [README](https://github.com/replane-dev/replane-javascript/tree/main/packages/svelte#readme) |
 
 ## Quick Start
 

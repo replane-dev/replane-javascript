@@ -8,12 +8,12 @@ Official JavaScript/TypeScript SDKs for [Replane](https://github.com/replane-dev
 
 ## Packages
 
-| Package                                  | Description                                   | npm                                                                                                       |
-| ---------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| [`@replanejs/sdk`](./packages/sdk)       | Core SDK for Node.js, Deno, Bun, and browsers | [![npm](https://img.shields.io/npm/v/@replanejs/sdk)](https://www.npmjs.com/package/@replanejs/sdk)       |
-| [`@replanejs/react`](./packages/react)   | React bindings with hooks and context         | [![npm](https://img.shields.io/npm/v/@replanejs/react)](https://www.npmjs.com/package/@replanejs/react)   |
-| [`@replanejs/next`](./packages/next)     | Next.js SDK with SSR/SSG support              | [![npm](https://img.shields.io/npm/v/@replanejs/next)](https://www.npmjs.com/package/@replanejs/next)     |
-| [`@replanejs/svelte`](./packages/svelte) | Svelte bindings with stores                   | [![npm](https://img.shields.io/npm/v/@replanejs/svelte)](https://www.npmjs.com/package/@replanejs/svelte) |
+| Package                                  | Description                                   | Links                                                                                                                                                                                                    |
+| ---------------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@replanejs/sdk`](./packages/sdk)       | Core SDK for Node.js, Deno, Bun, and browsers | [![npm](https://img.shields.io/npm/v/@replanejs/sdk)](https://www.npmjs.com/package/@replanejs/sdk) · [GitHub](https://github.com/replane-dev/replane-javascript/tree/main/packages/sdk#readme)          |
+| [`@replanejs/react`](./packages/react)   | React bindings with hooks and context         | [![npm](https://img.shields.io/npm/v/@replanejs/react)](https://www.npmjs.com/package/@replanejs/react) · [GitHub](https://github.com/replane-dev/replane-javascript/tree/main/packages/react#readme)    |
+| [`@replanejs/next`](./packages/next)     | Next.js SDK with SSR/SSG support              | [![npm](https://img.shields.io/npm/v/@replanejs/next)](https://www.npmjs.com/package/@replanejs/next) · [GitHub](https://github.com/replane-dev/replane-javascript/tree/main/packages/next#readme)       |
+| [`@replanejs/svelte`](./packages/svelte) | Svelte bindings with stores                   | [![npm](https://img.shields.io/npm/v/@replanejs/svelte)](https://www.npmjs.com/package/@replanejs/svelte) · [GitHub](https://github.com/replane-dev/replane-javascript/tree/main/packages/svelte#readme) |
 
 ## Quick Start
 
@@ -93,7 +93,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 }
 
 // app/page.tsx (client component)
-"use client";
+("use client");
 import { useConfig } from "@replanejs/next";
 
 export default function Page() {

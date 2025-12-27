@@ -51,7 +51,10 @@ interface PasswordRequirements {
 // Create the client with optional constructor options
 const replane = new Replane<Configs>({
   context: {
-    environment: "production",
+    // example context
+    userId: "user-123",
+    plan: "premium",
+    region: "us-east",
   },
 });
 
@@ -77,9 +80,8 @@ const { minLength } = passwordReqs; // TypeScript knows this is PasswordRequirem
 // With context for override evaluation
 const enabled = replane.get("billing-enabled", {
   context: {
-    userId: "user-123",
-    plan: "premium",
-    region: "us-east",
+    plan: "free",
+    deviceType: "mobile",
   },
 });
 
