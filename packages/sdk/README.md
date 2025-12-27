@@ -4,6 +4,8 @@
 [![License](https://img.shields.io/github/license/replane-dev/replane-javascript)](https://github.com/replane-dev/replane-javascript/blob/main/LICENSE)
 [![Community](https://img.shields.io/badge/discussions-join-blue?logo=github)](https://github.com/orgs/replane-dev/discussions)
 
+> **Tip:** Get started instantly with [Replane Cloud](https://cloud.replane.dev) — no infrastructure required.
+
 Small TypeScript client for watching configuration values from a Replane API with realtime updates and context-based override evaluation.
 
 Part of the Replane project: [replane-dev/replane](https://github.com/replane-dev/replane).
@@ -61,7 +63,7 @@ const replane = new Replane<Configs>({
 // Connect to the server
 await replane.connect({
   sdkKey: process.env.REPLANE_SDK_KEY!,
-  baseUrl: "https://replane.my-hosting.com",
+  baseUrl: "https://cloud.replane.dev", // or your self-hosted URL
 });
 
 // Get a config value (knows about latest updates via SSE)
@@ -158,7 +160,7 @@ interface Configs {
 const replane = new Replane<Configs>();
 await replane.connect({
   sdkKey: "your-sdk-key",
-  baseUrl: "https://replane.my-host.com",
+  baseUrl: "https://cloud.replane.dev", // or your self-hosted URL
 });
 
 // Get value without context - TypeScript knows this is boolean
@@ -215,7 +217,7 @@ interface Configs {
 const replane = new Replane<Configs>();
 await replane.connect({
   sdkKey: "your-sdk-key",
-  baseUrl: "https://replane.my-host.com",
+  baseUrl: "https://cloud.replane.dev", // or your self-hosted URL
 });
 
 // Subscribe to all config changes

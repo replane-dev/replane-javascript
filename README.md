@@ -6,6 +6,8 @@ Official JavaScript/TypeScript SDKs for [Replane](https://github.com/replane-dev
 [![License](https://img.shields.io/github/license/replane-dev/replane-javascript)](https://github.com/replane-dev/replane-javascript/blob/main/LICENSE)
 [![Community](https://img.shields.io/badge/discussions-join-blue?logo=github)](https://github.com/orgs/replane-dev/discussions)
 
+> **Tip:** Get started instantly with [Replane Cloud](https://cloud.replane.dev) — no infrastructure required.
+
 ## Packages
 
 | Package                                  | Description                                   | Links                                                                                                                                                                                                    |
@@ -29,7 +31,7 @@ import { Replane } from "@replanejs/sdk";
 const replane = new Replane();
 await replane.connect({
   sdkKey: process.env.REPLANE_SDK_KEY!,
-  baseUrl: "https://replane.example.com",
+  baseUrl: "https://cloud.replane.dev", // or your self-hosted URL
 });
 
 const featureEnabled = replane.get("my-feature");
@@ -48,7 +50,7 @@ function App() {
   return (
     <ReplaneProvider
       options={{
-        baseUrl: "https://replane.example.com",
+        baseUrl: "https://cloud.replane.dev", // or your self-hosted URL
         sdkKey: process.env.REPLANE_SDK_KEY!,
       }}
     >
@@ -116,7 +118,7 @@ npm install @replanejs/svelte
 
 <ReplaneContext
   options={{
-    baseUrl: "https://replane.example.com",
+    baseUrl: "https://cloud.replane.dev", // or your self-hosted URL
     sdkKey: "your-sdk-key",
   }}
 >

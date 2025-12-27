@@ -4,6 +4,8 @@
 [![License](https://img.shields.io/github/license/replane-dev/replane-javascript)](https://github.com/replane-dev/replane-javascript/blob/main/LICENSE)
 [![Community](https://img.shields.io/badge/discussions-join-blue?logo=github)](https://github.com/orgs/replane-dev/discussions)
 
+> **Tip:** Get started instantly with [Replane Cloud](https://cloud.replane.dev) — no infrastructure required.
+
 React SDK for [Replane](https://github.com/replane-dev/replane) - feature flags and remote configuration.
 
 ## Installation
@@ -30,7 +32,7 @@ function App() {
   return (
     <ReplaneProvider
       connection={{
-        baseUrl: "https://your-replane-server.com",
+        baseUrl: "https://cloud.replane.dev", // or your self-hosted URL
         sdkKey: "your-sdk-key",
       }}
       loader={<div>Loading...</div>}
@@ -129,7 +131,7 @@ Integrates with React Suspense for loading states:
   <Suspense fallback={<LoadingSpinner />}>
     <ReplaneProvider
       connection={{
-        baseUrl: "https://your-replane-server.com",
+        baseUrl: "https://cloud.replane.dev", // or your self-hosted URL
         sdkKey: "your-sdk-key",
       }}
       suspense

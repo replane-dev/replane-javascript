@@ -4,6 +4,8 @@
 [![License](https://img.shields.io/github/license/replane-dev/replane-javascript)](https://github.com/replane-dev/replane-javascript/blob/main/LICENSE)
 [![Community](https://img.shields.io/badge/discussions-join-blue?logo=github)](https://github.com/orgs/replane-dev/discussions)
 
+> **Tip:** Get started instantly with [Replane Cloud](https://cloud.replane.dev) — no infrastructure required.
+
 Next.js SDK for [Replane](https://github.com/replane-dev/replane) - feature flags and remote configuration with SSR support.
 
 ## Installation
