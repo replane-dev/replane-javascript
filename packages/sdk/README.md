@@ -8,8 +8,6 @@ Small TypeScript client for watching configuration values from a Replane API wit
 
 Part of the Replane project: [replane-dev/replane](https://github.com/replane-dev/replane).
 
-> Status: early. Minimal surface area on purpose. Expect small breaking tweaks until 0.1.x.
-
 ## Why it exists
 
 You need: given a token + config name + optional context -> watch the value with realtime updates. This package does only that:
