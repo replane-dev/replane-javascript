@@ -15,6 +15,14 @@ import { evaluateOverrides } from "./evaluation";
 import { Deferred } from "./utils";
 import { DEFAULT_AGENT } from "./version";
 
+interface ReplaneHandle<T extends object> {
+  _replane: ReplaneImpl<T>;
+}
+
+function asReplaneHandle<T extends object>(replane: Replane<T>): ReplaneHandle<T> {
+  return replane as unknown as ReplaneHandle<T>;
+}
+
 /**
  * The Replane client for managing dynamic configuration.
  *
@@ -54,6 +62,34 @@ import { DEFAULT_AGENT } from "./version";
  * ```
  */
 export class Replane<T extends object = Record<string, unknown>> {
+  constructor(options: ReplaneOptions<T> = {}) {
+    asReplaneHandle(this)._replane = new ReplaneImpl<T>(options);
+  }
+  connect(options: ConnectOptions): Promise<void> {
+    return asReplaneHandle(this)._replane.connect(options);
+  }
+  disconnect(): void {
+    asReplaneHandle(this)._replane.disconnect();
+  }
+  get<K extends keyof T>(configName: K, options?: GetConfigOptions<T[K]>): T[K] {
+    return asReplaneHandle(this)._replane.get(configName, options);
+  }
+  subscribe<K extends keyof T>(
+    configName: K,
+    callback: (config: { name: K; value: T[K] }) => void
+  ): () => void {
+    return asReplaneHandle(this)._replane.subscribe(configName, callback);
+  }
+  getSnapshot(): ReplaneSnapshot<T> {
+    return asReplaneHandle(this)._replane.getSnapshot();
+  }
+}
+
+// we declare ReplaneImpl separately to avoid exposing private properties
+// otherwise function with the following signature
+// function f(client: Replane<T>): void;
+// would expect client to have all private properties of Replane
+class ReplaneImpl<T extends object = Record<string, unknown>> {
   private configs: Map<string, ConfigDto>;
   private context: ReplaneContext;
   private logger: ReplaneLogger;
