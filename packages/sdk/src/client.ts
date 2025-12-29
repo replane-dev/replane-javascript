@@ -59,7 +59,6 @@ export class Replane<T extends object = Record<string, unknown>> {
   private logger: ReplaneLogger;
   private storage: ReplaneRemoteStorage | null = null;
   private configSubscriptions = new Map<keyof T, Set<(config: MapConfig<T>) => void>>();
-  private clientSubscriptions = new Set<(config: MapConfig<T>) => void>();
 
   /**
    * Create a new Replane client.
@@ -216,24 +215,6 @@ export class Replane<T extends object = Record<string, unknown>> {
   }
 
   /**
-   * Subscribe to config changes.
-   *
-   * @param callback - Function called when any config changes
-   * @returns Unsubscribe function
-   *
-   * @example
-   * ```typescript
-   * const unsubscribe = client.subscribe((change) => {
-   *   console.log(`Config ${change.name} changed to ${change.value}`);
-   * });
-   *
-   * // Later: stop listening
-   * unsubscribe();
-   * ```
-   */
-  subscribe(callback: (config: MapConfig<T>) => void): () => void;
-
-  /**
    * Subscribe to a specific config's changes.
    *
    * @param configName - The config to watch
@@ -250,46 +231,20 @@ export class Replane<T extends object = Record<string, unknown>> {
   subscribe<K extends keyof T>(
     configName: K,
     callback: (config: { name: K; value: T[K] }) => void
-  ): () => void;
-
-  subscribe<K extends keyof T>(
-    callbackOrConfigName: K | ((config: MapConfig<T>) => void),
-    callbackOrUndefined?: (config: { name: K; value: T[K] }) => void
   ): () => void {
-    let configName: keyof T | undefined = undefined;
-    let callback: (config: MapConfig<T>) => void;
-
-    if (typeof callbackOrConfigName === "function") {
-      callback = callbackOrConfigName;
-    } else {
-      configName = callbackOrConfigName as keyof T;
-      if (callbackOrUndefined === undefined) {
-        throw new Error("callback is required when config name is provided");
-      }
-      // Type assertion is safe: MapConfig<T> is a union that includes { name: K, value: T[K] }
-      callback = callbackOrUndefined as (config: MapConfig<T>) => void;
-    }
-
     // Wrap the callback to ensure that we have a unique reference
-    const originalCallback = callback;
-    callback = (...args: Parameters<typeof callback>) => {
-      originalCallback(...args);
+    // Type assertion is safe: MapConfig<T> is a union that includes { name: K, value: T[K] }
+    const wrappedCallback = (config: MapConfig<T>) => {
+      callback(config as { name: K; value: T[K] });
     };
-
-    if (configName === undefined) {
-      this.clientSubscriptions.add(callback);
-      return () => {
-        this.clientSubscriptions.delete(callback);
-      };
-    }
 
     if (!this.configSubscriptions.has(configName)) {
       this.configSubscriptions.set(configName, new Set());
     }
-    this.configSubscriptions.get(configName)!.add(callback);
+    this.configSubscriptions.get(configName)!.add(wrappedCallback);
 
     return () => {
-      this.configSubscriptions.get(configName)?.delete(callback);
+      this.configSubscriptions.get(configName)?.delete(wrappedCallback);
       if (this.configSubscriptions.get(configName)?.size === 0) {
         this.configSubscriptions.delete(configName);
       }
@@ -378,9 +333,6 @@ export class Replane<T extends object = Record<string, unknown>> {
 
       const change = { name: config.name as keyof T, value: config.value as T[keyof T] };
 
-      for (const callback of this.clientSubscriptions) {
-        callback(change);
-      }
       for (const callback of this.configSubscriptions.get(config.name as keyof T) ?? []) {
         callback(change);
       }

@@ -143,15 +143,20 @@ async function main() {
     // Render initial config
     renderConfig(replane);
 
-    // Subscribe to all config changes
-    replane.subscribe((config) => {
+    // Subscribe to specific configs
+    replane.subscribe("feature-flags", (config) => {
       log(`Config "${config.name}" updated`);
       renderConfig(replane);
     });
 
-    // Subscribe to specific config
-    replane.subscribe("feature-flags", () => {
-      log("Feature flags changed!");
+    replane.subscribe("rate-limits", (config) => {
+      log(`Config "${config.name}" updated`);
+      renderConfig(replane);
+    });
+
+    replane.subscribe("maintenance-mode", (config) => {
+      log(`Config "${config.name}" updated`);
+      renderConfig(replane);
     });
 
     log("Subscribed to config updates");

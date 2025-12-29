@@ -178,31 +178,14 @@ const maxConnections = replane.get("max-connections", { default: 10 });
 replane.disconnect();
 ```
 
-### `replane.subscribe(callback)` or `replane.subscribe(configName, callback)`
+### `replane.subscribe(configName, callback)`
 
-Subscribe to config changes and receive real-time updates when configs are modified.
-
-**Two overloads:**
-
-1. **Subscribe to all config changes:**
-
-   ```ts
-   const unsubscribe = replane.subscribe((config) => {
-     console.log(`Config ${config.name} changed to:`, config.value);
-   });
-   ```
-
-2. **Subscribe to a specific config:**
-   ```ts
-   const unsubscribe = replane.subscribe("billing-enabled", (config) => {
-     console.log(`billing-enabled changed to:`, config.value);
-   });
-   ```
+Subscribe to a specific config's changes and receive real-time updates when it is modified.
 
 Parameters:
 
-- `callback` (function) – Function called when any config changes. Receives an object with `{ name, value }`.
-- `configName` (K extends keyof T) – Optional. If provided, only changes to this specific config will trigger the callback.
+- `configName` (K extends keyof T) – The config to watch for changes.
+- `callback` (function) – Function called when the config changes. Receives an object with `{ name, value }`.
 
 Returns a function to unsubscribe from the config changes.
 
@@ -220,11 +203,6 @@ await replane.connect({
   baseUrl: "https://cloud.replane.dev", // or your self-hosted URL
 });
 
-// Subscribe to all config changes
-const unsubscribeAll = replane.subscribe((config) => {
-  console.log(`Config ${config.name} updated:`, config.value);
-});
-
 // Subscribe to a specific config
 const unsubscribeFeature = replane.subscribe("feature-flag", (config) => {
   console.log("Feature flag changed:", config.value);
@@ -232,7 +210,6 @@ const unsubscribeFeature = replane.subscribe("feature-flag", (config) => {
 });
 
 // Later: unsubscribe when done
-unsubscribeAll();
 unsubscribeFeature();
 
 // Clean up when done
@@ -450,30 +427,18 @@ await replane.connect({
   baseUrl: "https://replane.my-host.com",
 });
 
-// Subscribe to all config changes
-const unsubscribeAll = replane.subscribe((config) => {
-  console.log(`Config ${config.name} changed:`, config.value);
-
-  // React to specific config changes
-  if (config.name === "feature-flag") {
-    console.log("Feature flag updated:", config.value);
-  }
-});
-
-// Subscribe to a specific config only
+// Subscribe to specific configs
 const unsubscribeFeature = replane.subscribe("feature-flag", (config) => {
   console.log("Feature flag changed:", config.value);
   // config.value is automatically typed as boolean
 });
 
-// Subscribe to multiple specific configs
 const unsubscribeMaxUsers = replane.subscribe("max-users", (config) => {
   console.log("Max users changed:", config.value);
   // config.value is automatically typed as number
 });
 
 // Cleanup
-unsubscribeAll();
 unsubscribeFeature();
 unsubscribeMaxUsers();
 replane.disconnect();

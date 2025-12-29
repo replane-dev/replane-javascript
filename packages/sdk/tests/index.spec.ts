@@ -1532,115 +1532,6 @@ describe("Replane", () => {
   });
 
   describe("subscribe", () => {
-    describe("subscribe to all configs", () => {
-      it("should receive updates for any config change", async () => {
-        clientPromise = createClient();
-        const connection = await mockServer.acceptConnection();
-        await connection.push({
-          type: "init",
-          configs: [
-            { name: "config1", overrides: [], value: "value1" },
-            { name: "config2", overrides: [], value: "value2" },
-          ],
-        });
-
-        const client = await clientPromise;
-        await sync();
-
-        const updates: Array<{ name: string; value: unknown }> = [];
-        const unsubscribe = client.subscribe((config) => {
-          updates.push({ name: String(config.name), value: config.value });
-        });
-
-        await connection.push({
-          type: "config_change",
-          config: { name: "config1", overrides: [], value: "updated1" },
-        });
-        await sync();
-
-        await connection.push({
-          type: "config_change",
-          config: { name: "config2", overrides: [], value: "updated2" },
-        });
-        await sync();
-
-        expect(updates).toEqual([
-          { name: "config1", value: "updated1" },
-          { name: "config2", value: "updated2" },
-        ]);
-
-        unsubscribe();
-      });
-
-      it("should not receive updates after unsubscribe", async () => {
-        clientPromise = createClient();
-        const connection = await mockServer.acceptConnection();
-        await connection.push({
-          type: "init",
-          configs: [{ name: "config1", overrides: [], value: "initial" }],
-        });
-
-        const client = await clientPromise;
-        await sync();
-
-        const updates: Array<{ name: string; value: unknown }> = [];
-        const unsubscribe = client.subscribe((config) => {
-          updates.push({ name: String(config.name), value: config.value });
-        });
-
-        await connection.push({
-          type: "config_change",
-          config: { name: "config1", overrides: [], value: "updated1" },
-        });
-        await sync();
-
-        unsubscribe();
-
-        await connection.push({
-          type: "config_change",
-          config: { name: "config1", overrides: [], value: "updated2" },
-        });
-        await sync();
-
-        expect(updates).toEqual([{ name: "config1", value: "updated1" }]);
-      });
-
-      it("should support multiple subscribers", async () => {
-        clientPromise = createClient();
-        const connection = await mockServer.acceptConnection();
-        await connection.push({
-          type: "init",
-          configs: [{ name: "config1", overrides: [], value: "initial" }],
-        });
-
-        const client = await clientPromise;
-        await sync();
-
-        const updates1: Array<{ name: string; value: unknown }> = [];
-        const updates2: Array<{ name: string; value: unknown }> = [];
-
-        const unsubscribe1 = client.subscribe((config) => {
-          updates1.push({ name: String(config.name), value: config.value });
-        });
-
-        const unsubscribe2 = client.subscribe((config) => {
-          updates2.push({ name: String(config.name), value: config.value });
-        });
-
-        await connection.push({
-          type: "config_change",
-          config: { name: "config1", overrides: [], value: "updated" },
-        });
-        await sync();
-
-        expect(updates1).toEqual([{ name: "config1", value: "updated" }]);
-        expect(updates2).toEqual([{ name: "config1", value: "updated" }]);
-
-        unsubscribe1();
-        unsubscribe2();
-      });
-    });
-
     describe("subscribe to specific config", () => {
       it("should receive updates only for subscribed config", async () => {
         clientPromise = createClient();
@@ -1825,98 +1716,6 @@ describe("Replane", () => {
       });
     });
 
-    describe("subscribe with new configs", () => {
-      it("should receive updates when new config is added via config_change", async () => {
-        clientPromise = createClient();
-        const connection = await mockServer.acceptConnection();
-        await connection.push({
-          type: "init",
-          configs: [{ name: "config1", overrides: [], value: "value1" }],
-        });
-
-        const client = await clientPromise;
-        await sync();
-
-        const updates: Array<{ name: string; value: unknown }> = [];
-        const unsubscribe = client.subscribe((config) => {
-          updates.push({ name: String(config.name), value: config.value });
-        });
-
-        await connection.push({
-          type: "config_change",
-          config: { name: "config2", overrides: [], value: "value2" },
-        });
-        await sync();
-
-        expect(updates).toEqual([{ name: "config2", value: "value2" }]);
-
-        unsubscribe();
-      });
-    });
-
-    describe("subscribe with batch updates", () => {
-      it("should receive multiple updates for multiple configs", async () => {
-        clientPromise = createClient();
-        const connection = await mockServer.acceptConnection();
-        await connection.push({
-          type: "init",
-          configs: [
-            { name: "config1", overrides: [], value: "value1" },
-            { name: "config2", overrides: [], value: "value2" },
-            { name: "config3", overrides: [], value: "value3" },
-          ],
-        });
-
-        const client = await clientPromise;
-        await sync();
-
-        const updates: Array<{ name: string; value: unknown }> = [];
-        const unsubscribe = client.subscribe((config) => {
-          updates.push({ name: String(config.name), value: config.value });
-        });
-
-        await connection.push({
-          type: "config_change",
-          config: { name: "config1", overrides: [], value: "updated1" },
-        });
-        await connection.push({
-          type: "config_change",
-          config: { name: "config2", overrides: [], value: "updated2" },
-        });
-        await connection.push({
-          type: "config_change",
-          config: { name: "config3", overrides: [], value: "updated3" },
-        });
-        await sync();
-
-        expect(updates).toEqual([
-          { name: "config1", value: "updated1" },
-          { name: "config2", value: "updated2" },
-          { name: "config3", value: "updated3" },
-        ]);
-
-        unsubscribe();
-      });
-    });
-
-    describe("subscribe error handling", () => {
-      it("should throw error when callback is not provided for specific config subscription", async () => {
-        clientPromise = createClient();
-        const connection = await mockServer.acceptConnection();
-        await connection.push({
-          type: "init",
-          configs: [{ name: "config1", overrides: [], value: "initial" }],
-        });
-
-        const client = await clientPromise;
-        await sync();
-
-        expect(() => {
-          // @ts-expect-error Testing error case
-          client.subscribe("config1");
-        }).toThrow("callback is required when config name is provided");
-      });
-    });
   });
 
   describe("client close", () => {
@@ -2583,7 +2382,7 @@ describe("Replane with snapshot", () => {
       const client = new Replane({ snapshot });
 
       const updates: Array<{ name: string; value: unknown }> = [];
-      const unsubscribe = client.subscribe((config) => {
+      const unsubscribe = client.subscribe("config1", (config) => {
         updates.push({ name: String(config.name), value: config.value });
       });
 
@@ -2592,36 +2391,6 @@ describe("Replane with snapshot", () => {
       expect(updates).toEqual([]);
 
       unsubscribe();
-    });
-
-    it("should allow subscribing to specific config", () => {
-      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
-        configs: [{ name: "config1", value: "value1", overrides: [] }],
-      };
-
-      const client = new Replane({ snapshot });
-
-      const updates: Array<{ name: string; value: unknown }> = [];
-      const unsubscribe = client.subscribe("config1", (config) => {
-        updates.push({ name: String(config.name), value: config.value });
-      });
-
-      expect(updates).toEqual([]);
-
-      unsubscribe();
-    });
-
-    it("should throw error when callback is not provided for specific config subscription", () => {
-      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
-        configs: [{ name: "config1", value: "value1", overrides: [] }],
-      };
-
-      const client = new Replane({ snapshot });
-
-      expect(() => {
-        // @ts-expect-error Testing error case
-        client.subscribe("config1");
-      }).toThrow("callback is required when config name is provided");
     });
   });
 
@@ -2762,7 +2531,7 @@ describe("Replane with snapshot", () => {
       const client = createClientWithConnection(snapshot);
 
       const updates: Array<{ name: string; value: unknown }> = [];
-      const unsubscribe = client.subscribe((config) => {
+      const unsubscribe = client.subscribe("config1", (config) => {
         updates.push({ name: String(config.name), value: config.value });
       });
 
@@ -2870,7 +2639,7 @@ describe("Replane with snapshot", () => {
       const client = createClientWithConnection(snapshot);
 
       const updates: Array<{ name: string; value: unknown }> = [];
-      const unsubscribe = client.subscribe((config) => {
+      const unsubscribe = client.subscribe("config1", (config) => {
         updates.push({ name: String(config.name), value: config.value });
       });
 
@@ -2998,10 +2767,10 @@ describe("Replane with snapshot", () => {
       const updates1: Array<{ name: string; value: unknown }> = [];
       const updates2: Array<{ name: string; value: unknown }> = [];
 
-      const unsubscribe1 = client.subscribe((config) => {
+      const unsubscribe1 = client.subscribe("config1", (config) => {
         updates1.push({ name: String(config.name), value: config.value });
       });
-      const unsubscribe2 = client.subscribe((config) => {
+      const unsubscribe2 = client.subscribe("config1", (config) => {
         updates2.push({ name: String(config.name), value: config.value });
       });
 

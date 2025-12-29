@@ -84,13 +84,17 @@ async function main() {
   // Subscribe to config changes (real-time updates via SSE)
   console.log("\nSubscribing to config changes...");
 
-  const unsubscribeAll = replane.subscribe((config) => {
-    console.log(`[Update] Config "${config.name}" changed:`, config.value);
-  });
-
-  // Subscribe to a specific config
+  // Subscribe to specific configs
   const unsubscribeFeatures = replane.subscribe("feature-flags", (config) => {
     console.log("[Update] Feature flags changed:", config.value);
+  });
+
+  const unsubscribeRateLimits = replane.subscribe("rate-limits", (config) => {
+    console.log("[Update] Rate limits changed:", config.value);
+  });
+
+  const unsubscribeMaintenance = replane.subscribe("maintenance-mode", (config) => {
+    console.log("[Update] Maintenance mode changed:", config.value);
   });
 
   // Keep the process running to receive updates
@@ -99,8 +103,9 @@ async function main() {
   // Handle graceful shutdown
   Deno.addSignalListener("SIGINT", () => {
     console.log("\nShutting down...");
-    unsubscribeAll();
     unsubscribeFeatures();
+    unsubscribeRateLimits();
+    unsubscribeMaintenance();
     replane.disconnect();
     Deno.exit(0);
   });
