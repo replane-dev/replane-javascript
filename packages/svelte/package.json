@@ -53,7 +53,7 @@
   },
   "devDependencies": {
     "@sveltejs/package": "^2.3.10",
-    "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "@sveltejs/vite-plugin-svelte": "^6.2.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/svelte": "^5.2.6",
     "@types/node": "^22.19.3",
