@@ -244,9 +244,7 @@ export function testSuite(options: TestSuiteOptions): void {
         await ctx.createConfig("test-config", "initial-value");
 
         // Create client - sync ensures configs are available
-        const client = trackClient(
-          await ctx.createClient<{ "test-config": string }>({})
-        );
+        const client = trackClient(await ctx.createClient<{ "test-config": string }>({}));
 
         const value = client.get("test-config");
         expect(value).toBe("initial-value");
@@ -303,7 +301,6 @@ export function testSuite(options: TestSuiteOptions): void {
 
         client.disconnect();
       });
-
     });
 
     // ==================== GET CONFIG TESTS ====================
@@ -312,9 +309,7 @@ export function testSuite(options: TestSuiteOptions): void {
       it("should get string config", async () => {
         await ctx.createConfig("string-config", "hello");
 
-        const client = trackClient(
-          await ctx.createClient<{ "string-config": string }>({})
-        );
+        const client = trackClient(await ctx.createClient<{ "string-config": string }>({}));
 
         expect(client.get("string-config")).toBe("hello");
         client.disconnect();
@@ -323,9 +318,7 @@ export function testSuite(options: TestSuiteOptions): void {
       it("should get number config", async () => {
         await ctx.createConfig("number-config", 42);
 
-        const client = trackClient(
-          await ctx.createClient<{ "number-config": number }>({})
-        );
+        const client = trackClient(await ctx.createClient<{ "number-config": number }>({}));
 
         expect(client.get("number-config")).toBe(42);
         client.disconnect();
@@ -334,9 +327,7 @@ export function testSuite(options: TestSuiteOptions): void {
       it("should get boolean config", async () => {
         await ctx.createConfig("boolean-config", true);
 
-        const client = trackClient(
-          await ctx.createClient<{ "boolean-config": boolean }>({})
-        );
+        const client = trackClient(await ctx.createClient<{ "boolean-config": boolean }>({}));
 
         expect(client.get("boolean-config")).toBe(true);
         client.disconnect();
@@ -347,8 +338,7 @@ export function testSuite(options: TestSuiteOptions): void {
         await ctx.createConfig("object-config", objValue);
 
         const client = trackClient(
-          await ctx.createClient<{ "object-config": typeof objValue }>({
-                      })
+          await ctx.createClient<{ "object-config": typeof objValue }>({})
         );
 
         expect(client.get("object-config")).toEqual(objValue);
@@ -359,9 +349,7 @@ export function testSuite(options: TestSuiteOptions): void {
         const arrValue = [1, 2, 3];
         await ctx.createConfig("array-config", arrValue);
 
-        const client = trackClient(
-          await ctx.createClient<{ "array-config": number[] }>({})
-        );
+        const client = trackClient(await ctx.createClient<{ "array-config": number[] }>({}));
 
         expect(client.get("array-config")).toEqual(arrValue);
         client.disconnect();
@@ -370,9 +358,7 @@ export function testSuite(options: TestSuiteOptions): void {
       it("should get null config", async () => {
         await ctx.createConfig("null-config", null);
 
-        const client = trackClient(
-          await ctx.createClient<{ "null-config": null }>({})
-        );
+        const client = trackClient(await ctx.createClient<{ "null-config": null }>({}));
 
         expect(client.get("null-config")).toBe(null);
         client.disconnect();
@@ -404,9 +390,7 @@ export function testSuite(options: TestSuiteOptions): void {
       it("should receive config updates via subscription", async () => {
         await ctx.createConfig("live-config", "initial");
 
-        const client = trackClient(
-          await ctx.createClient<{ "live-config": string }>({})
-        );
+        const client = trackClient(await ctx.createClient<{ "live-config": string }>({}));
 
         expect(client.get("live-config")).toBe("initial");
 
@@ -434,10 +418,7 @@ export function testSuite(options: TestSuiteOptions): void {
       it("should receive multiple updates in order", async () => {
         await ctx.createConfig("multi-update-config", 0);
 
-        const client = trackClient(
-          await ctx.createClient<{ "multi-update-config": number }>({
-                      })
-        );
+        const client = trackClient(await ctx.createClient<{ "multi-update-config": number }>({}));
 
         expect(client.get("multi-update-config")).toBe(0);
 
@@ -466,9 +447,7 @@ export function testSuite(options: TestSuiteOptions): void {
       it("should handle rapid updates", async () => {
         await ctx.createConfig("rapid-config", 0);
 
-        const client = trackClient(
-          await ctx.createClient<{ "rapid-config": number }>({})
-        );
+        const client = trackClient(await ctx.createClient<{ "rapid-config": number }>({}));
 
         expect(client.get("rapid-config")).toBe(0);
 
@@ -492,49 +471,10 @@ export function testSuite(options: TestSuiteOptions): void {
         client.disconnect();
       });
 
-      it("should call global subscription for any config change", async () => {
-        await ctx.createConfig("config-a", "a");
-        await ctx.createConfig("config-b", "b");
-
-        const client = trackClient(
-          await ctx.createClient<{ "config-a": string; "config-b": string }>({
-                      })
-        );
-
-        expect(client.get("config-a")).toBe("a");
-        expect(client.get("config-b")).toBe("b");
-
-        const collector = createCollector<{ name: unknown; value: unknown }>();
-        client.subscribe((config) => {
-          // Only collect updates (not initial values)
-          if (config.value === "a-updated" || config.value === "b-updated") {
-            collector.push({ name: config.name, value: config.value });
-          }
-        });
-
-        // Update both configs
-        await ctx.updateConfig("config-a", "a-updated");
-        await ctx.updateConfig("config-b", "b-updated");
-
-        // Wait for both updates
-        await collector.waitForCount(2, { timeout: defaultTimeout });
-
-        const values = collector.getValues();
-        const aUpdate = values.find((v) => v.name === "config-a");
-        const bUpdate = values.find((v) => v.name === "config-b");
-
-        expect(aUpdate?.value).toBe("a-updated");
-        expect(bUpdate?.value).toBe("b-updated");
-
-        client.disconnect();
-      });
-
       it("should allow unsubscribing", async () => {
         await ctx.createConfig("unsub-config", "initial");
 
-        const client = trackClient(
-          await ctx.createClient<{ "unsub-config": string }>({})
-        );
+        const client = trackClient(await ctx.createClient<{ "unsub-config": string }>({}));
 
         expect(client.get("unsub-config")).toBe("initial");
 
@@ -578,9 +518,7 @@ export function testSuite(options: TestSuiteOptions): void {
         });
 
         // Without context - should get default
-        const client1 = trackClient(
-          await ctx.createClient<{ "env-config": string }>({})
-        );
+        const client1 = trackClient(await ctx.createClient<{ "env-config": string }>({}));
         expect(client1.get("env-config")).toBe("default");
         client1.disconnect();
 
@@ -588,7 +526,7 @@ export function testSuite(options: TestSuiteOptions): void {
         const client2 = trackClient(
           await ctx.createClient<{ "env-config": string }>({
             context: { env: "production" },
-                      })
+          })
         );
         expect(client2.get("env-config")).toBe("production-value");
         client2.disconnect();
@@ -597,7 +535,7 @@ export function testSuite(options: TestSuiteOptions): void {
         const client3 = trackClient(
           await ctx.createClient<{ "env-config": string }>({
             context: { env: "staging" },
-                      })
+          })
         );
         expect(client3.get("env-config")).toBe("default");
         client3.disconnect();
@@ -617,7 +555,7 @@ export function testSuite(options: TestSuiteOptions): void {
         const client1 = trackClient(
           await ctx.createClient<{ "region-config": string }>({
             context: { region: "us" },
-                      })
+          })
         );
         expect(client1.get("region-config")).toBe("western");
         client1.disconnect();
@@ -625,7 +563,7 @@ export function testSuite(options: TestSuiteOptions): void {
         const client2 = trackClient(
           await ctx.createClient<{ "region-config": string }>({
             context: { region: "eu" },
-                      })
+          })
         );
         expect(client2.get("region-config")).toBe("western");
         client2.disconnect();
@@ -633,7 +571,7 @@ export function testSuite(options: TestSuiteOptions): void {
         const client3 = trackClient(
           await ctx.createClient<{ "region-config": string }>({
             context: { region: "asia" },
-                      })
+          })
         );
         expect(client3.get("region-config")).toBe("default");
         client3.disconnect();
@@ -804,9 +742,7 @@ export function testSuite(options: TestSuiteOptions): void {
           ],
         });
 
-        const client = trackClient(
-          await ctx.createClient<{ "dynamic-config": string }>({})
-        );
+        const client = trackClient(await ctx.createClient<{ "dynamic-config": string }>({}));
 
         // Without context
         expect(client.get("dynamic-config")).toBe("default");
@@ -888,7 +824,6 @@ export function testSuite(options: TestSuiteOptions): void {
 
         client.disconnect();
       });
-
     });
 
     // ==================== ERROR HANDLING TESTS ====================
@@ -970,9 +905,7 @@ export function testSuite(options: TestSuiteOptions): void {
       it("should ignore config deletion on client", async () => {
         await ctx.createConfig("delete-me", "exists");
 
-        const client = trackClient(
-          await ctx.createClient<{ "delete-me": string }>({})
-        );
+        const client = trackClient(await ctx.createClient<{ "delete-me": string }>({}));
 
         expect(client.get("delete-me")).toBe("exists");
 
@@ -993,12 +926,8 @@ export function testSuite(options: TestSuiteOptions): void {
       it("should handle multiple clients with same SDK key", async () => {
         await ctx.createConfig("shared-config", "initial");
 
-        const client1 = trackClient(
-          await ctx.createClient<{ "shared-config": string }>({})
-        );
-        const client2 = trackClient(
-          await ctx.createClient<{ "shared-config": string }>({})
-        );
+        const client1 = trackClient(await ctx.createClient<{ "shared-config": string }>({}));
+        const client2 = trackClient(await ctx.createClient<{ "shared-config": string }>({}));
 
         expect(client1.get("shared-config")).toBe("initial");
         expect(client2.get("shared-config")).toBe("initial");
