@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { delay, retryDelay, combineAbortSignals, Deferred } from "../src/utils";
+import { delay, retryDelay, combineAbortSignals, Deferred, generateClientId } from "../src/utils";
 
 describe("delay", () => {
   beforeEach(() => {
@@ -219,5 +219,25 @@ describe("Deferred", () => {
     deferred.resolve(21);
 
     await expect(chainedPromise).resolves.toBe(42);
+  });
+});
+
+describe("generateClientId", () => {
+  it("should generate a valid UUID string", () => {
+    const clientId = generateClientId();
+
+    // UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    expect(clientId).toMatch(uuidRegex);
+  });
+
+  it("should generate unique IDs on each call", () => {
+    const id1 = generateClientId();
+    const id2 = generateClientId();
+    const id3 = generateClientId();
+
+    expect(id1).not.toBe(id2);
+    expect(id2).not.toBe(id3);
+    expect(id1).not.toBe(id3);
   });
 });

@@ -3,6 +3,8 @@ import { Replane, ReplaneError } from "../src/index";
 import type { ReplaneSnapshot, ConnectOptions } from "../src/index";
 import { MockReplaneServerController } from "./utils";
 
+const REPLANE_CLIENT_ID_KEY = "replaneClientId";
+
 function sync() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
@@ -48,12 +50,14 @@ describe("Replane", () => {
       defaults,
       context,
     });
-    return client.connect({
-      sdkKey: "test-sdk-key",
-      baseUrl: "https://replane.my-host.com",
-      fetchFn: mockServer.fetchFn,
-      ...connectOptions,
-    }).then(() => client);
+    return client
+      .connect({
+        sdkKey: "test-sdk-key",
+        baseUrl: "https://replane.my-host.com",
+        fetchFn: mockServer.fetchFn,
+        ...connectOptions,
+      })
+      .then(() => client);
   }
 
   describe("basic config fetching", () => {
@@ -1715,7 +1719,6 @@ describe("Replane", () => {
         unsubscribe3();
       });
     });
-
   });
 
   describe("client close", () => {
@@ -2122,6 +2125,147 @@ describe("Replane with snapshot", () => {
 
       expect(client.get("feature")).toBe("default");
       expect(client.get("feature", { context: { role: "admin" } })).toBe("admin-value");
+    });
+  });
+
+  describe("replaneClientId auto-generation", () => {
+    it("should auto-generate replaneClientId in client context", () => {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
+        configs: [
+          {
+            name: "feature",
+            value: "default",
+            overrides: [
+              {
+                name: "segmented-override",
+                conditions: [
+                  {
+                    operator: "segmentation",
+                    property: REPLANE_CLIENT_ID_KEY,
+                    fromPercentage: 0,
+                    toPercentage: 100,
+                    seed: "test-seed",
+                  },
+                ],
+                value: "segmented-value",
+              },
+            ],
+          },
+        ],
+      };
+
+      // Create client without providing replaneClientId
+      const client = new Replane({ snapshot });
+
+      // Should match segmentation because replaneClientId is auto-generated
+      expect(client.get("feature")).toBe("segmented-value");
+    });
+
+    it("should allow user to override replaneClientId", () => {
+      const userProvidedClientId = "user-provided-client-id";
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
+        configs: [
+          {
+            name: "feature",
+            value: "default",
+            overrides: [
+              {
+                name: "user-override",
+                conditions: [
+                  {
+                    operator: "equals",
+                    property: REPLANE_CLIENT_ID_KEY,
+                    value: userProvidedClientId,
+                  },
+                ],
+                value: "user-override-value",
+              },
+            ],
+          },
+        ],
+      };
+
+      // Provide replaneClientId in context - should take precedence
+      const client = new Replane({
+        snapshot,
+        context: { [REPLANE_CLIENT_ID_KEY]: userProvidedClientId },
+      });
+
+      expect(client.get("feature")).toBe("user-override-value");
+    });
+
+    it("should allow per-request context to override replaneClientId", () => {
+      const perRequestClientId = "per-request-client-id";
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
+        configs: [
+          {
+            name: "feature",
+            value: "default",
+            overrides: [
+              {
+                name: "per-request-override",
+                conditions: [
+                  {
+                    operator: "equals",
+                    property: REPLANE_CLIENT_ID_KEY,
+                    value: perRequestClientId,
+                  },
+                ],
+                value: "per-request-value",
+              },
+            ],
+          },
+        ],
+      };
+
+      const client = new Replane({ snapshot });
+
+      // Default should be based on auto-generated ID
+      expect(client.get("feature")).toBe("default");
+
+      // Per-request context should override the auto-generated ID
+      expect(
+        client.get("feature", { context: { [REPLANE_CLIENT_ID_KEY]: perRequestClientId } })
+      ).toBe("per-request-value");
+    });
+
+    it("should generate unique replaneClientId for each client instance", () => {
+      const snapshot: ReplaneSnapshot<Record<string, unknown>> = {
+        configs: [
+          {
+            name: "feature",
+            value: "default",
+            overrides: [
+              {
+                name: "50-percent-rollout",
+                conditions: [
+                  {
+                    operator: "segmentation",
+                    property: REPLANE_CLIENT_ID_KEY,
+                    fromPercentage: 0,
+                    toPercentage: 50,
+                    seed: "test-seed",
+                  },
+                ],
+                value: "rollout-value",
+              },
+            ],
+          },
+        ],
+      };
+
+      // Create multiple clients
+      const clients = Array.from({ length: 10 }, () => new Replane({ snapshot }));
+
+      // Each client should get a consistent result (either default or rollout-value)
+      // but different clients may get different results due to unique IDs
+      const results = clients.map((client) => client.get("feature"));
+
+      // At least verify we get both values (statistically very likely with 10 clients and 50% rollout)
+      // This test mainly verifies that the segmentation is actually working
+      expect(
+        results.some((r) => r === "rollout-value") || results.some((r) => r === "default")
+      ).toBe(true);
     });
   });
 

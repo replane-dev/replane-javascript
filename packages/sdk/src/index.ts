@@ -1,6 +1,5 @@
 // Re-export public API
 
-// Client class
 export { Replane } from "./client";
 
 // Error types
