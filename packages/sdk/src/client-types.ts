@@ -1,4 +1,4 @@
-import type { RenderedOverride } from "./types";
+import type { Override } from "./types";
 
 /**
  * Context object for override evaluation.
@@ -50,7 +50,7 @@ export interface ReplaneSnapshot<_T extends object = object> {
   configs: Array<{
     name: string;
     value: unknown;
-    overrides: RenderedOverride[];
+    overrides: Override[];
   }>;
 }
 
@@ -159,5 +159,5 @@ export interface ConnectFinalOptions {
 export interface InitialConfig {
   name: string;
   value: unknown;
-  overrides: RenderedOverride[];
+  overrides: Override[];
 }

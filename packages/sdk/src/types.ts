@@ -5,7 +5,7 @@ export interface StartReplicationStreamBody {
 
 export interface ConfigDto {
   name: string;
-  overrides: RenderedOverride[];
+  overrides: Override[];
   value: unknown;
 }
 
@@ -42,28 +42,28 @@ interface SegmentationCondition {
 
 interface AndCondition {
   operator: "and";
-  conditions: RenderedCondition[];
+  conditions: Condition[];
 }
 
 interface OrCondition {
   operator: "or";
-  conditions: RenderedCondition[];
+  conditions: Condition[];
 }
 
 interface NotCondition {
   operator: "not";
-  condition: RenderedCondition;
+  condition: Condition;
 }
 
-export type RenderedCondition =
+export type Condition =
   | PropertyCondition
   | SegmentationCondition
   | AndCondition
   | OrCondition
   | NotCondition;
 
-export interface RenderedOverride {
+export interface Override {
   name: string;
-  conditions: RenderedCondition[];
+  conditions: Condition[];
   value: unknown;
 }

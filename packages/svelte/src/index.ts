@@ -8,7 +8,13 @@ export { getReplane, config, configFrom, createTypedReplane, createTypedConfig }
 export { setReplaneContext, getReplaneContext, hasReplaneContext } from "./context";
 
 // Re-export from SDK for convenience
-export { Replane, getReplaneSnapshot, ReplaneError, ReplaneErrorCode } from "@replanejs/sdk";
+export {
+  Replane,
+  getReplaneSnapshot,
+  ReplaneError,
+  ReplaneErrorCode,
+  InMemoryReplaneClient,
+} from "@replanejs/sdk";
 
 export type {
   ReplaneSnapshot,
@@ -18,6 +24,10 @@ export type {
   ConnectOptions,
   GetConfigOptions,
   GetReplaneSnapshotOptions,
+  InMemoryReplaneClientOptions,
+  SetConfigOptions,
+  Override,
+  Condition,
 } from "@replanejs/sdk";
 
 // Types

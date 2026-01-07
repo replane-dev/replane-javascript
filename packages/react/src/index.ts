@@ -10,7 +10,13 @@ export type {
 } from "./types";
 
 // Re-export from SDK
-export { Replane, getReplaneSnapshot, ReplaneError, ReplaneErrorCode } from "@replanejs/sdk";
+export {
+  Replane,
+  getReplaneSnapshot,
+  ReplaneError,
+  ReplaneErrorCode,
+  InMemoryReplaneClient,
+} from "@replanejs/sdk";
 export type {
   ReplaneSnapshot,
   ReplaneContext,
@@ -19,4 +25,8 @@ export type {
   ConnectOptions,
   GetConfigOptions,
   GetReplaneSnapshotOptions,
+  InMemoryReplaneClientOptions,
+  SetConfigOptions,
+  Override,
+  Condition,
 } from "@replanejs/sdk";

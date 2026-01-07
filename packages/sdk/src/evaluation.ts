@@ -1,4 +1,4 @@
-import type { RenderedCondition, RenderedOverride } from "./types";
+import type { Condition, Override } from "./types";
 import type { ReplaneContext, ReplaneLogger } from "./client-types";
 import { fnv1a32ToUnit } from "./hash";
 
@@ -19,7 +19,7 @@ export type EvaluationResult = "matched" | "not_matched" | "unknown";
  */
 export function evaluateOverrides<T>(
   baseValue: T,
-  overrides: RenderedOverride[],
+  overrides: Override[],
   context: ReplaneContext,
   logger: ReplaneLogger
 ): T {
@@ -53,7 +53,7 @@ export function evaluateOverrides<T>(
  * @returns The evaluation result
  */
 export function evaluateCondition(
-  condition: RenderedCondition,
+  condition: Condition,
   context: ReplaneContext,
   logger: ReplaneLogger
 ): EvaluationResult {

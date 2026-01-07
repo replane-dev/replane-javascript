@@ -360,9 +360,13 @@ class ReplaneImpl<T extends object = Record<string, unknown>> {
       });
 
       for await (const event of replicationStream) {
-        const updatedConfigs: ConfigDto[] =
-          event.type === "config_change" ? [event.config] : event.configs;
-        this.processConfigUpdates(updatedConfigs);
+        if (event.type === "init") {
+          this.processConfigUpdates(event.configs);
+          this.logger.info(`Replane: initialized with ${event.configs.length} config(s)`);
+        } else {
+          this.processConfigUpdates([event.config]);
+          this.logger.info(`Replane: config "${event.config.name}" updated`);
+        }
         clientReady.resolve();
       }
     } catch (error) {
