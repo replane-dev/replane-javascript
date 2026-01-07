@@ -50,7 +50,7 @@
   "devDependencies": {
     "@types/node": "^22.15.17",
     "async-channel": "^0.2.0",
-    "tsdown": "^0.11.9",
+    "tsdown": "^0.18.4",
     "typescript": "^5.8.3",
     "vitest": "^3.1.3"
   },
