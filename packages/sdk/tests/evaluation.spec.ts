@@ -4,7 +4,7 @@ import {
   evaluateCondition,
   castToContextType,
 } from "../src/evaluation";
-import type { RenderedCondition, RenderedOverride } from "../src/types";
+import type { Condition, Override } from "../src/types";
 import type { ReplaneLogger } from "../src/client-types";
 
 function createSilentLogger(): ReplaneLogger {
@@ -21,7 +21,7 @@ describe("evaluateCondition", () => {
 
   describe("equals operator", () => {
     it("should match when values are equal", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "equals",
         property: "env",
         value: "production",
@@ -30,7 +30,7 @@ describe("evaluateCondition", () => {
     });
 
     it("should not match when values differ", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "equals",
         property: "env",
         value: "production",
@@ -39,7 +39,7 @@ describe("evaluateCondition", () => {
     });
 
     it("should return unknown when property is missing", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "equals",
         property: "env",
         value: "production",
@@ -50,7 +50,7 @@ describe("evaluateCondition", () => {
 
   describe("in operator", () => {
     it("should match when value is in array", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "in",
         property: "country",
         value: ["US", "CA", "MX"],
@@ -59,7 +59,7 @@ describe("evaluateCondition", () => {
     });
 
     it("should not match when value is not in array", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "in",
         property: "country",
         value: ["US", "CA", "MX"],
@@ -70,7 +70,7 @@ describe("evaluateCondition", () => {
 
   describe("not_in operator", () => {
     it("should match when value is not in array", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "not_in",
         property: "country",
         value: ["US", "CA"],
@@ -79,7 +79,7 @@ describe("evaluateCondition", () => {
     });
 
     it("should not match when value is in array", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "not_in",
         property: "country",
         value: ["US", "CA"],
@@ -90,7 +90,7 @@ describe("evaluateCondition", () => {
 
   describe("comparison operators", () => {
     it("should evaluate less_than correctly", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "less_than",
         property: "age",
         value: 18,
@@ -101,7 +101,7 @@ describe("evaluateCondition", () => {
     });
 
     it("should evaluate less_than_or_equal correctly", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "less_than_or_equal",
         property: "age",
         value: 18,
@@ -112,7 +112,7 @@ describe("evaluateCondition", () => {
     });
 
     it("should evaluate greater_than correctly", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "greater_than",
         property: "score",
         value: 100,
@@ -123,7 +123,7 @@ describe("evaluateCondition", () => {
     });
 
     it("should evaluate greater_than_or_equal correctly", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "greater_than_or_equal",
         property: "score",
         value: 100,
@@ -134,7 +134,7 @@ describe("evaluateCondition", () => {
     });
 
     it("should compare strings lexicographically", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "less_than",
         property: "version",
         value: "2.0.0",
@@ -147,7 +147,7 @@ describe("evaluateCondition", () => {
 
   describe("composite conditions", () => {
     it("should evaluate and condition correctly", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "and",
         conditions: [
           { operator: "equals", property: "env", value: "production" },
@@ -166,7 +166,7 @@ describe("evaluateCondition", () => {
     });
 
     it("should return unknown for and when any condition is unknown", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "and",
         conditions: [
           { operator: "equals", property: "env", value: "production" },
@@ -177,7 +177,7 @@ describe("evaluateCondition", () => {
     });
 
     it("should return not_matched for and when any condition fails (even with unknown)", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "and",
         conditions: [
           { operator: "equals", property: "env", value: "production" },
@@ -188,7 +188,7 @@ describe("evaluateCondition", () => {
     });
 
     it("should evaluate or condition correctly", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "or",
         conditions: [
           { operator: "equals", property: "env", value: "production" },
@@ -201,7 +201,7 @@ describe("evaluateCondition", () => {
     });
 
     it("should return matched for or when any condition matches (even with unknown)", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "or",
         conditions: [
           { operator: "equals", property: "env", value: "production" },
@@ -212,7 +212,7 @@ describe("evaluateCondition", () => {
     });
 
     it("should evaluate not condition correctly", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "not",
         condition: { operator: "equals", property: "env", value: "production" },
       };
@@ -221,7 +221,7 @@ describe("evaluateCondition", () => {
     });
 
     it("should return unknown for not when inner condition is unknown", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "not",
         condition: { operator: "equals", property: "missing", value: "value" },
       };
@@ -231,7 +231,7 @@ describe("evaluateCondition", () => {
 
   describe("segmentation operator", () => {
     it("should match when user is in 100% segment", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "segmentation",
         property: "userId",
         fromPercentage: 0,
@@ -242,7 +242,7 @@ describe("evaluateCondition", () => {
     });
 
     it("should not match when user is in 0% segment", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "segmentation",
         property: "userId",
         fromPercentage: 0,
@@ -253,7 +253,7 @@ describe("evaluateCondition", () => {
     });
 
     it("should return unknown when property is missing", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "segmentation",
         property: "userId",
         fromPercentage: 0,
@@ -264,7 +264,7 @@ describe("evaluateCondition", () => {
     });
 
     it("should return unknown when property is null", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "segmentation",
         property: "userId",
         fromPercentage: 0,
@@ -275,7 +275,7 @@ describe("evaluateCondition", () => {
     });
 
     it("should be deterministic for same user and seed", () => {
-      const condition: RenderedCondition = {
+      const condition: Condition = {
         operator: "segmentation",
         property: "userId",
         fromPercentage: 0,
@@ -288,7 +288,7 @@ describe("evaluateCondition", () => {
     });
 
     it("should distribute users across segments", () => {
-      const condition50: RenderedCondition = {
+      const condition50: Condition = {
         operator: "segmentation",
         property: "userId",
         fromPercentage: 0,
@@ -320,7 +320,7 @@ describe("evaluateOverrides", () => {
   });
 
   it("should return base value when no override matches", () => {
-    const overrides: RenderedOverride[] = [
+    const overrides: Override[] = [
       {
         name: "prod-override",
         conditions: [{ operator: "equals", property: "env", value: "production" }],
@@ -331,7 +331,7 @@ describe("evaluateOverrides", () => {
   });
 
   it("should return override value when conditions match", () => {
-    const overrides: RenderedOverride[] = [
+    const overrides: Override[] = [
       {
         name: "prod-override",
         conditions: [{ operator: "equals", property: "env", value: "production" }],
@@ -344,7 +344,7 @@ describe("evaluateOverrides", () => {
   });
 
   it("should return first matching override", () => {
-    const overrides: RenderedOverride[] = [
+    const overrides: Override[] = [
       {
         name: "first-override",
         conditions: [{ operator: "equals", property: "env", value: "production" }],
@@ -362,7 +362,7 @@ describe("evaluateOverrides", () => {
   });
 
   it("should skip override when any condition is unknown", () => {
-    const overrides: RenderedOverride[] = [
+    const overrides: Override[] = [
       {
         name: "override-with-unknown",
         conditions: [
@@ -383,7 +383,7 @@ describe("evaluateOverrides", () => {
   });
 
   it("should handle complex nested conditions", () => {
-    const overrides: RenderedOverride[] = [
+    const overrides: Override[] = [
       {
         name: "complex-override",
         conditions: [
