@@ -1,6 +1,6 @@
 {
   "name": "@replanejs/admin",
-  "version": "0.9.4",
+  "version": "1.0.0",
   "description": "Admin API SDK for Replane - programmatic management of projects, configs, environments, and SDK keys",
   "type": "module",
   "main": "./dist/index.cjs",
