@@ -1,18 +1,31 @@
-# Replane JavaScript SDK
+<h1 align="center">Replane JavaScript SDK</h1>
+<p align="center">Dynamic configuration for Node.js, Deno, Bun, and browsers.</p>
 
-[![npm](https://img.shields.io/npm/v/@replanejs/sdk)](https://www.npmjs.com/package/@replanejs/sdk)
-[![License](https://img.shields.io/github/license/replane-dev/replane-javascript)](https://github.com/replane-dev/replane-javascript/blob/main/LICENSE)
-[![Community](https://img.shields.io/badge/discussions-join-blue?logo=github)](https://github.com/orgs/replane-dev/discussions)
+<p align="center">
+  <a href="https://cloud.replane.dev"><img src="https://img.shields.io/badge/Try-Replane%20Cloud-blue" alt="Replane Cloud"></a>
+  <a href="https://www.npmjs.com/package/@replanejs/sdk"><img src="https://img.shields.io/npm/v/@replanejs/sdk" alt="npm"></a>
+  <a href="https://github.com/replane-dev/replane-javascript/blob/main/LICENSE"><img src="https://img.shields.io/github/license/replane-dev/replane-javascript" alt="License"></a>
+  <a href="https://github.com/orgs/replane-dev/discussions"><img src="https://img.shields.io/badge/discussions-join-blue?logo=github" alt="Community"></a>
+</p>
 
-> **Tip:** Get started instantly with [Replane Cloud](https://cloud.replane.dev) — no infrastructure required.
+<picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/replane-dev/replane/main/public/replane-window-screenshot-dark-v1.png">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/replane-dev/replane/main/public/replane-window-screenshot-light-with-border-v2.jpg">
+    <img alt="Replane Screenshot" src="https://raw.githubusercontent.com/replane-dev/replane/main/public/replane-window-screenshot-light-with-border-v2.jpg">
+</picture>
 
-Small TypeScript client for watching configuration values from a Replane API with realtime updates and context-based override evaluation.
+[Replane](https://github.com/replane-dev/replane) is a dynamic configuration manager. Store feature flags, app settings, and operational config in one place—with version history, optional approvals, and realtime sync to your services. No redeploys needed.
 
-Part of the Replane project: [replane-dev/replane](https://github.com/replane-dev/replane).
+## Why Dynamic Configuration?
 
-## Why it exists
+- **Feature flags** – toggle features, run A/B tests, roll out to user segments
+- **Operational tuning** – adjust limits, TTLs, and timeouts without redeploying
+- **Per-environment settings** – different values for production, staging, dev
+- **Incident response** – instantly revert to a known-good version
+- **Cross-service configuration** – share settings with realtime sync
+- **Non-engineer access** – safe editing with schema validation
 
-You need: given a token + config name + optional context -> watch the value with realtime updates. This package does only that:
+## Features
 
 - Works in ESM and CJS (dual build)
 - Zero runtime deps (uses native `fetch` — bring a polyfill if your runtime lacks it)

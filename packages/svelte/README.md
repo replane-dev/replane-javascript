@@ -1,12 +1,29 @@
-# @replanejs/svelte
+<h1 align="center">Replane Svelte SDK</h1>
+<p align="center">Dynamic configuration for Svelte and SvelteKit applications.</p>
 
-[![npm](https://img.shields.io/npm/v/@replanejs/svelte)](https://www.npmjs.com/package/@replanejs/svelte)
-[![License](https://img.shields.io/github/license/replane-dev/replane-javascript)](https://github.com/replane-dev/replane-javascript/blob/main/LICENSE)
-[![Community](https://img.shields.io/badge/discussions-join-blue?logo=github)](https://github.com/orgs/replane-dev/discussions)
+<p align="center">
+  <a href="https://cloud.replane.dev"><img src="https://img.shields.io/badge/Try-Replane%20Cloud-blue" alt="Replane Cloud"></a>
+  <a href="https://www.npmjs.com/package/@replanejs/svelte"><img src="https://img.shields.io/npm/v/@replanejs/svelte" alt="npm"></a>
+  <a href="https://github.com/replane-dev/replane-javascript/blob/main/LICENSE"><img src="https://img.shields.io/github/license/replane-dev/replane-javascript" alt="License"></a>
+  <a href="https://github.com/orgs/replane-dev/discussions"><img src="https://img.shields.io/badge/discussions-join-blue?logo=github" alt="Community"></a>
+</p>
 
-> **Tip:** Get started instantly with [Replane Cloud](https://cloud.replane.dev) — no infrastructure required.
+<picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/replane-dev/replane/main/public/replane-window-screenshot-dark-v1.png">
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/replane-dev/replane/main/public/replane-window-screenshot-light-with-border-v2.jpg">
+    <img alt="Replane Screenshot" src="https://raw.githubusercontent.com/replane-dev/replane/main/public/replane-window-screenshot-light-with-border-v2.jpg">
+</picture>
 
-Svelte SDK for [Replane](https://github.com/replane-dev/replane) - feature flags and remote configuration with reactive stores.
+[Replane](https://github.com/replane-dev/replane) is a dynamic configuration manager. Store feature flags, app settings, and operational config in one place—with version history, optional approvals, and realtime sync to your services. No redeploys needed.
+
+## Why Dynamic Configuration?
+
+- **Feature flags** – toggle features, run A/B tests, roll out to user segments
+- **Operational tuning** – adjust limits, TTLs, and timeouts without redeploying
+- **Per-environment settings** – different values for production, staging, dev
+- **Incident response** – instantly revert to a known-good version
+- **Cross-service configuration** – share settings with realtime sync
+- **Non-engineer access** – safe editing with schema validation
 
 ## Installation
 
