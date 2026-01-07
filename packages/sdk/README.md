@@ -46,8 +46,6 @@ yarn add @replanejs/sdk
 
 ## Quick start
 
-> **Important:** Each SDK key is tied to a specific project. The client can only access configs from the project that the SDK key belongs to. If you need configs from multiple projects, create separate SDK keys and initialize separate clients—one per project.
-
 ```ts
 import { Replane } from "@replanejs/sdk";
 
