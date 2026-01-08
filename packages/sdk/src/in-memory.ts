@@ -102,7 +102,7 @@ function asHandle<T extends object>(
  * expect(client.get("feature-enabled")).toBe(false);
  *
  * // With overrides
- * client.setConfig("rate-limit", 100, {
+ * client.set("rate-limit", 100, {
  *   overrides: [{
  *     name: "premium-users",
  *     conditions: [{ operator: "equals", property: "plan", value: "premium" }],
@@ -158,22 +158,6 @@ export class InMemoryReplaneClient<T extends object = Record<string, unknown>> {
   }
 
   /**
-   * Set a config value (simple form without overrides).
-   *
-   * @param name - Config name
-   * @param value - Config value
-   *
-   * @example
-   * ```typescript
-   * client.set("feature-enabled", true);
-   * client.set("rate-limit", 500);
-   * ```
-   */
-  set<K extends keyof T>(name: K, value: T[K]): void {
-    asHandle(this)._impl.set(name, value);
-  }
-
-  /**
    * Set a config with optional overrides.
    *
    * @param name - Config name
@@ -182,7 +166,7 @@ export class InMemoryReplaneClient<T extends object = Record<string, unknown>> {
    *
    * @example
    * ```typescript
-   * client.setConfig("rate-limit", 100, {
+   * client.set("rate-limit", 100, {
    *   overrides: [{
    *     name: "premium-users",
    *     conditions: [
@@ -193,8 +177,8 @@ export class InMemoryReplaneClient<T extends object = Record<string, unknown>> {
    * });
    * ```
    */
-  setConfig<K extends keyof T>(name: K, value: T[K], options?: SetConfigOptions): void {
-    asHandle(this)._impl.setConfig(name, value, options);
+  set<K extends keyof T>(name: K, value: T[K], options?: SetConfigOptions): void {
+    asHandle(this)._impl.set(name, value, options);
   }
 
   /**
@@ -327,11 +311,7 @@ class InMemoryReplaneClientImpl<T extends object = Record<string, unknown>> {
     };
   }
 
-  set<K extends keyof T>(name: K, value: T[K]): void {
-    this.setConfig(name, value);
-  }
-
-  setConfig<K extends keyof T>(name: K, value: T[K], options?: SetConfigOptions): void {
+  set<K extends keyof T>(name: K, value: T[K], options?: SetConfigOptions): void {
     const overrides: Override[] = options?.overrides ?? [];
 
     const config: ConfigDto = {

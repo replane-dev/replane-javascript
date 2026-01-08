@@ -61,10 +61,10 @@ describe("InMemoryReplaneClient", () => {
     });
   });
 
-  describe("setConfig with overrides", () => {
+  describe("set with overrides", () => {
     it("evaluates equals condition", () => {
       const client = new InMemoryReplaneClient<{ feature: boolean }>();
-      client.setConfig("feature", false, {
+      client.set("feature", false, {
         overrides: [
           {
             name: "beta-override",
@@ -81,7 +81,7 @@ describe("InMemoryReplaneClient", () => {
 
     it("evaluates in condition", () => {
       const client = new InMemoryReplaneClient<{ limit: number }>();
-      client.setConfig("limit", 100, {
+      client.set("limit", 100, {
         overrides: [
           {
             name: "premium-override",
@@ -101,7 +101,7 @@ describe("InMemoryReplaneClient", () => {
       const client = new InMemoryReplaneClient<{ feature: boolean }>({
         context: { env: "prod" },
       });
-      client.setConfig("feature", false, {
+      client.set("feature", false, {
         overrides: [
           {
             name: "prod-override",
@@ -118,7 +118,7 @@ describe("InMemoryReplaneClient", () => {
       const client = new InMemoryReplaneClient<{ feature: boolean }>({
         context: { env: "prod" },
       });
-      client.setConfig("feature", false, {
+      client.set("feature", false, {
         overrides: [
           {
             name: "beta-prod-override",
@@ -253,7 +253,7 @@ describe("InMemoryReplaneClient", () => {
 
     it("includes overrides in snapshot", () => {
       const client = new InMemoryReplaneClient<{ feature: boolean }>();
-      client.setConfig("feature", false, {
+      client.set("feature", false, {
         overrides: [
           {
             name: "beta",
