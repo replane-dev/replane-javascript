@@ -91,7 +91,7 @@ export {
   Replane,
   ReplaneError,
   ReplaneErrorCode,
-  InMemoryReplaneClient,
+  InMemoryReplane,
 } from "@replanejs/react";
 
 export type {
@@ -105,7 +105,7 @@ export type {
   ReplaneOptions,
   ConnectOptions,
   GetConfigOptions,
-  InMemoryReplaneClientOptions,
+  InMemoryReplaneOptions,
   SetConfigOptions,
   Override,
   Condition,

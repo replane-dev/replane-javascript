@@ -6,10 +6,10 @@
  *
  * @example
  * ```typescript
- * import { InMemoryReplaneClient } from "@replane/sdk/testing";
+ * import { InMemoryReplane } from "@replane/sdk/testing";
  *
  * // Create client with initial configs
- * const client = new InMemoryReplaneClient({
+ * const client = new InMemoryReplane({
  *   defaults: {
  *     "feature-enabled": true,
  *     "rate-limit": 100,
@@ -45,9 +45,9 @@ export interface SetConfigOptions {
 }
 
 /**
- * Options for InMemoryReplaneClient constructor.
+ * Options for InMemoryReplane constructor.
  */
-export interface InMemoryReplaneClientOptions<T extends object> {
+export interface InMemoryReplaneOptions<T extends object> {
   /**
    * Optional logger (defaults to console).
    */
@@ -72,14 +72,14 @@ export interface InMemoryReplaneClientOptions<T extends object> {
   };
 }
 
-interface InMemoryReplaneClientHandle<T extends object> {
-  _impl: InMemoryReplaneClientImpl<T>;
+interface InMemoryReplaneHandle<T extends object> {
+  _impl: InMemoryReplaneImpl<T>;
 }
 
 function asHandle<T extends object>(
-  client: InMemoryReplaneClient<T>
-): InMemoryReplaneClientHandle<T> {
-  return client as unknown as InMemoryReplaneClientHandle<T>;
+  client: InMemoryReplane<T>
+): InMemoryReplaneHandle<T> {
+  return client as unknown as InMemoryReplaneHandle<T>;
 }
 
 /**
@@ -92,7 +92,7 @@ function asHandle<T extends object>(
  * @example
  * ```typescript
  * // Basic usage
- * const client = new InMemoryReplaneClient({
+ * const client = new InMemoryReplane({
  *   defaults: { "feature-enabled": true, "rate-limit": 100 },
  * });
  * expect(client.get("feature-enabled")).toBe(true);
@@ -115,9 +115,9 @@ function asHandle<T extends object>(
  *
  * @typeParam T - Type definition for config keys and values
  */
-export class InMemoryReplaneClient<T extends object = Record<string, unknown>> {
-  constructor(options: InMemoryReplaneClientOptions<T> = {}) {
-    asHandle(this)._impl = new InMemoryReplaneClientImpl<T>(options);
+export class InMemoryReplane<T extends object = Record<string, unknown>> {
+  constructor(options: InMemoryReplaneOptions<T> = {}) {
+    asHandle(this)._impl = new InMemoryReplaneImpl<T>(options);
   }
 
   /**
@@ -219,13 +219,13 @@ export class InMemoryReplaneClient<T extends object = Record<string, unknown>> {
 }
 
 // Implementation class to hide internal details from the public API
-class InMemoryReplaneClientImpl<T extends object = Record<string, unknown>> {
+class InMemoryReplaneImpl<T extends object = Record<string, unknown>> {
   private configs: Map<string, ConfigDto>;
   private context: ReplaneContext;
   private logger: ReplaneLogger;
   private configSubscriptions = new Map<keyof T, Set<(config: MapConfig<T>) => void>>();
 
-  constructor(options: InMemoryReplaneClientOptions<T> = {}) {
+  constructor(options: InMemoryReplaneOptions<T> = {}) {
     this.logger = options.logger ?? console;
     this.context = options.context ?? {};
 

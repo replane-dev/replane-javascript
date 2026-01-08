@@ -15,7 +15,7 @@ export {
   getReplaneSnapshot,
   ReplaneError,
   ReplaneErrorCode,
-  InMemoryReplaneClient,
+  InMemoryReplane,
 } from "@replanejs/sdk";
 export type {
   ReplaneSnapshot,
@@ -25,7 +25,7 @@ export type {
   ConnectOptions,
   GetConfigOptions,
   GetReplaneSnapshotOptions,
-  InMemoryReplaneClientOptions,
+  InMemoryReplaneOptions,
   SetConfigOptions,
   Override,
   Condition,

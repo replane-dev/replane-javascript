@@ -1,15 +1,15 @@
 import { describe, it, expect, vi } from "vitest";
-import { InMemoryReplaneClient } from "../src/in-memory";
+import { InMemoryReplane } from "../src/in-memory";
 
-describe("InMemoryReplaneClient", () => {
+describe("InMemoryReplane", () => {
   describe("constructor and defaults", () => {
     it("creates empty client", () => {
-      const client = new InMemoryReplaneClient();
+      const client = new InMemoryReplane();
       expect(client.keys()).toEqual([]);
     });
 
     it("creates client with defaults", () => {
-      const client = new InMemoryReplaneClient({
+      const client = new InMemoryReplane({
         defaults: { feature: true, limit: 100 },
       });
       expect(client.get("feature")).toBe(true);
@@ -17,7 +17,7 @@ describe("InMemoryReplaneClient", () => {
     });
 
     it("ignores undefined defaults", () => {
-      const client = new InMemoryReplaneClient({
+      const client = new InMemoryReplane({
         defaults: { feature: true, other: undefined },
       });
       expect(client.has("feature")).toBe(true);
@@ -27,17 +27,17 @@ describe("InMemoryReplaneClient", () => {
 
   describe("get", () => {
     it("throws for missing config without default", () => {
-      const client = new InMemoryReplaneClient();
+      const client = new InMemoryReplane();
       expect(() => client.get("missing")).toThrow("Config not found: missing");
     });
 
     it("returns inline default for missing config", () => {
-      const client = new InMemoryReplaneClient();
+      const client = new InMemoryReplane();
       expect(client.get("missing", { default: "fallback" })).toBe("fallback");
     });
 
     it("returns config value over inline default", () => {
-      const client = new InMemoryReplaneClient({
+      const client = new InMemoryReplane({
         defaults: { feature: true },
       });
       expect(client.get("feature", { default: false })).toBe(true);
@@ -46,13 +46,13 @@ describe("InMemoryReplaneClient", () => {
 
   describe("set", () => {
     it("sets simple value", () => {
-      const client = new InMemoryReplaneClient();
+      const client = new InMemoryReplane();
       client.set("feature", true);
       expect(client.get("feature")).toBe(true);
     });
 
     it("overwrites existing value", () => {
-      const client = new InMemoryReplaneClient({
+      const client = new InMemoryReplane({
         defaults: { value: 1 },
       });
       expect(client.get("value")).toBe(1);
@@ -63,7 +63,7 @@ describe("InMemoryReplaneClient", () => {
 
   describe("set with overrides", () => {
     it("evaluates equals condition", () => {
-      const client = new InMemoryReplaneClient<{ feature: boolean }>();
+      const client = new InMemoryReplane<{ feature: boolean }>();
       client.set("feature", false, {
         overrides: [
           {
@@ -80,7 +80,7 @@ describe("InMemoryReplaneClient", () => {
     });
 
     it("evaluates in condition", () => {
-      const client = new InMemoryReplaneClient<{ limit: number }>();
+      const client = new InMemoryReplane<{ limit: number }>();
       client.set("limit", 100, {
         overrides: [
           {
@@ -98,7 +98,7 @@ describe("InMemoryReplaneClient", () => {
     });
 
     it("uses client-level context for evaluation", () => {
-      const client = new InMemoryReplaneClient<{ feature: boolean }>({
+      const client = new InMemoryReplane<{ feature: boolean }>({
         context: { env: "prod" },
       });
       client.set("feature", false, {
@@ -115,7 +115,7 @@ describe("InMemoryReplaneClient", () => {
     });
 
     it("merges per-call context with client context", () => {
-      const client = new InMemoryReplaneClient<{ feature: boolean }>({
+      const client = new InMemoryReplane<{ feature: boolean }>({
         context: { env: "prod" },
       });
       client.set("feature", false, {
@@ -138,7 +138,7 @@ describe("InMemoryReplaneClient", () => {
 
   describe("delete", () => {
     it("deletes existing config", () => {
-      const client = new InMemoryReplaneClient({
+      const client = new InMemoryReplane({
         defaults: { feature: true },
       });
       expect(client.has("feature")).toBe(true);
@@ -148,7 +148,7 @@ describe("InMemoryReplaneClient", () => {
     });
 
     it("returns false for non-existent config", () => {
-      const client = new InMemoryReplaneClient();
+      const client = new InMemoryReplane();
       const deleted = client.delete("missing");
       expect(deleted).toBe(false);
     });
@@ -156,7 +156,7 @@ describe("InMemoryReplaneClient", () => {
 
   describe("clear", () => {
     it("removes all configs", () => {
-      const client = new InMemoryReplaneClient({
+      const client = new InMemoryReplane({
         defaults: { a: 1, b: 2, c: 3 },
       });
       expect(client.keys().length).toBe(3);
@@ -167,21 +167,21 @@ describe("InMemoryReplaneClient", () => {
 
   describe("has", () => {
     it("returns true for existing config", () => {
-      const client = new InMemoryReplaneClient({
+      const client = new InMemoryReplane({
         defaults: { feature: true },
       });
       expect(client.has("feature")).toBe(true);
     });
 
     it("returns false for missing config", () => {
-      const client = new InMemoryReplaneClient();
+      const client = new InMemoryReplane();
       expect(client.has("missing")).toBe(false);
     });
   });
 
   describe("keys", () => {
     it("returns all config names", () => {
-      const client = new InMemoryReplaneClient({
+      const client = new InMemoryReplane({
         defaults: { a: 1, b: 2, c: 3 },
       });
       expect(client.keys().sort()).toEqual(["a", "b", "c"]);
@@ -190,7 +190,7 @@ describe("InMemoryReplaneClient", () => {
 
   describe("subscribe", () => {
     it("calls callback when config is set", () => {
-      const client = new InMemoryReplaneClient<{ feature: boolean }>();
+      const client = new InMemoryReplane<{ feature: boolean }>();
       const callback = vi.fn();
 
       client.subscribe("feature", callback);
@@ -200,7 +200,7 @@ describe("InMemoryReplaneClient", () => {
     });
 
     it("calls callback on each update", () => {
-      const client = new InMemoryReplaneClient<{ count: number }>();
+      const client = new InMemoryReplane<{ count: number }>();
       const callback = vi.fn();
 
       client.subscribe("count", callback);
@@ -213,7 +213,7 @@ describe("InMemoryReplaneClient", () => {
     });
 
     it("unsubscribes correctly", () => {
-      const client = new InMemoryReplaneClient<{ feature: boolean }>();
+      const client = new InMemoryReplane<{ feature: boolean }>();
       const callback = vi.fn();
 
       const unsubscribe = client.subscribe("feature", callback);
@@ -225,7 +225,7 @@ describe("InMemoryReplaneClient", () => {
     });
 
     it("handles multiple subscribers", () => {
-      const client = new InMemoryReplaneClient<{ feature: boolean }>();
+      const client = new InMemoryReplane<{ feature: boolean }>();
       const callback1 = vi.fn();
       const callback2 = vi.fn();
 
@@ -240,7 +240,7 @@ describe("InMemoryReplaneClient", () => {
 
   describe("getSnapshot", () => {
     it("returns snapshot of current state", () => {
-      const client = new InMemoryReplaneClient({
+      const client = new InMemoryReplane({
         defaults: { feature: true, limit: 100 },
       });
 
@@ -252,7 +252,7 @@ describe("InMemoryReplaneClient", () => {
     });
 
     it("includes overrides in snapshot", () => {
-      const client = new InMemoryReplaneClient<{ feature: boolean }>();
+      const client = new InMemoryReplane<{ feature: boolean }>();
       client.set("feature", false, {
         overrides: [
           {

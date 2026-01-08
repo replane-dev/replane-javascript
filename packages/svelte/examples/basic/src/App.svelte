@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ReplaneContext, createInMemoryReplaneClient } from "@replanejs/svelte";
+  import { ReplaneContext, createInMemoryReplane } from "@replanejs/svelte";
   import MainContent from "./lib/MainContent.svelte";
 
   // Environment variables
@@ -12,7 +12,7 @@
 
   // For demo mode, create an in-memory client
   const demoClient = isDemoMode
-    ? createInMemoryReplaneClient({
+    ? createInMemoryReplane({
         configs: {
           "theme-config": { primaryColor: "#3b82f6", darkMode: false },
           "feature-flags": {

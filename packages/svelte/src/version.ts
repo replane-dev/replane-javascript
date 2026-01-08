@@ -1,3 +1,3 @@
 // Auto-generated - do not edit manually
-export const VERSION = "0.9.3";
+export const VERSION = "1.0.1";
 export const DEFAULT_AGENT = `replane-js-svelte/${VERSION}`;
