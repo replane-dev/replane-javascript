@@ -94,30 +94,30 @@ import { ErrorBoundary } from "react-error-boundary";
 
 #### Provider Props
 
-| Prop         | Type                        | Required | Description                                             |
-| ------------ | --------------------------- | -------- | ------------------------------------------------------- |
-| `connection` | `ConnectOptions \| null`    | Yes      | Connection options (see below), or `null` to skip connection |
-| `defaults`   | `Record<string, unknown>`   | No       | Default values if server is unavailable                 |
-| `context`    | `Record<string, unknown>`   | No       | Default context for override evaluations                |
-| `snapshot`   | `ReplaneSnapshot`           | No       | Snapshot for SSR hydration                              |
-| `logger`     | `ReplaneLogger`             | No       | Custom logger (default: console)                        |
-| `loader`     | `ReactNode`                 | No       | Component to show while loading                         |
-| `suspense`   | `boolean`                   | No       | Use React Suspense for loading state                    |
-| `async`      | `boolean`                   | No       | Connect asynchronously (renders immediately with defaults) |
+| Prop         | Type                      | Required | Description                                                  |
+| ------------ | ------------------------- | -------- | ------------------------------------------------------------ |
+| `connection` | `ConnectOptions \| null`  | Yes      | Connection options (see below), or `null` to skip connection |
+| `defaults`   | `Record<string, unknown>` | No       | Default values if server is unavailable                      |
+| `context`    | `Record<string, unknown>` | No       | Default context for override evaluations                     |
+| `snapshot`   | `ReplaneSnapshot`         | No       | Snapshot for SSR hydration                                   |
+| `logger`     | `ReplaneLogger`           | No       | Custom logger (default: console)                             |
+| `loader`     | `ReactNode`               | No       | Component to show while loading                              |
+| `suspense`   | `boolean`                 | No       | Use React Suspense for loading state                         |
+| `async`      | `boolean`                 | No       | Connect asynchronously (renders immediately with defaults)   |
 
 #### Connection Options
 
 The `connection` prop accepts the following options:
 
-| Option               | Type                  | Required | Description                                  |
-| -------------------- | --------------------- | -------- | -------------------------------------------- |
-| `baseUrl`            | `string`              | Yes      | Replane server URL                           |
-| `sdkKey`             | `string`              | Yes      | SDK key for authentication                   |
-| `connectTimeoutMs`   | `number`              | No       | SDK connection timeout (default: 5000)       |
-| `requestTimeoutMs`   | `number`              | No       | Timeout for SSE requests (default: 2000)     |
-| `retryDelayMs`       | `number`              | No       | Base delay between retries (default: 200)    |
-| `inactivityTimeoutMs`| `number`              | No       | SSE inactivity timeout (default: 30000)      |
-| `fetchFn`            | `typeof fetch`        | No       | Custom fetch implementation                  |
+| Option                | Type           | Required | Description                               |
+| --------------------- | -------------- | -------- | ----------------------------------------- |
+| `baseUrl`             | `string`       | Yes      | Replane server URL                        |
+| `sdkKey`              | `string`       | Yes      | SDK key for authentication                |
+| `connectTimeoutMs`    | `number`       | No       | SDK connection timeout (default: 5000)    |
+| `requestTimeoutMs`    | `number`       | No       | Timeout for SSE requests (default: 2000)  |
+| `retryDelayMs`        | `number`       | No       | Base delay between retries (default: 200) |
+| `inactivityTimeoutMs` | `number`       | No       | SSE inactivity timeout (default: 30000)   |
+| `fetchFn`             | `typeof fetch` | No       | Custom fetch implementation               |
 
 See [`@replanejs/sdk` documentation](https://github.com/replane-dev/replane-javascript/tree/main/packages/sdk#api) for more details.
 

@@ -76,9 +76,7 @@ interface InMemoryReplaneHandle<T extends object> {
   _impl: InMemoryReplaneImpl<T>;
 }
 
-function asHandle<T extends object>(
-  client: InMemoryReplane<T>
-): InMemoryReplaneHandle<T> {
+function asHandle<T extends object>(client: InMemoryReplane<T>): InMemoryReplaneHandle<T> {
   return client as unknown as InMemoryReplaneHandle<T>;
 }
 
