@@ -1,6 +1,6 @@
 {
   "name": "replanejs-sdk-bun-example",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "Example Bun project using @replanejs/sdk",
   "type": "module",
