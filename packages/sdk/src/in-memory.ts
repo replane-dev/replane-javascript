@@ -35,6 +35,7 @@ import type {
 } from "./client-types";
 import { ReplaneError, ReplaneErrorCode } from "./error";
 import { evaluateOverrides } from "./evaluation";
+import type { Replane } from "./client";
 
 /**
  * Options for setting a config with overrides.
@@ -113,9 +114,25 @@ function asHandle<T extends object>(client: InMemoryReplane<T>): InMemoryReplane
  *
  * @typeParam T - Type definition for config keys and values
  */
-export class InMemoryReplane<T extends object = Record<string, unknown>> {
+export class InMemoryReplane<T extends object = Record<string, unknown>> implements Replane<T> {
   constructor(options: InMemoryReplaneOptions<T> = {}) {
     asHandle(this)._impl = new InMemoryReplaneImpl<T>(options);
+  }
+
+  /**
+   * This method exists only to satisfy the Replane interface.
+   * It does nothing and always resolves immediately.
+   */
+  connect(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  /**
+   * This method exists only to satisfy the Replane interface.
+   * It does nothing.
+   */
+  disconnect(): void {
+    return;
   }
 
   /**
