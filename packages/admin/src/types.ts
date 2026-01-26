@@ -18,7 +18,8 @@ export interface ReferenceValue {
   type: "reference";
   projectId: string;
   configName: string;
-  path: string;
+  /** JSON path as array of keys/indices, e.g. ["settings", "threshold"] or ["items", 0, "name"] */
+  path: (string | number)[];
 }
 
 export type ConditionValue = LiteralValue | ReferenceValue;

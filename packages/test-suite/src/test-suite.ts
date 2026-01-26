@@ -22,6 +22,64 @@ function literal<T>(value: T) {
   return { type: "literal" as const, value };
 }
 
+/**
+ * Parse a JSON path string into a path array.
+ * Examples:
+ * - "" -> []
+ * - "foo.bar" -> ["foo", "bar"]
+ * - "foo[0]" -> ["foo", 0]
+ * - "foo.bar[1].baz" -> ["foo", "bar", 1, "baz"]
+ */
+function parseJsonPath(pathString: string): (string | number)[] {
+  if (!pathString) return [];
+
+  const parts: (string | number)[] = [];
+  let current = "";
+  let inBracket = false;
+
+  for (let i = 0; i < pathString.length; i++) {
+    const char = pathString[i];
+
+    if (char === "[") {
+      if (current) {
+        parts.push(current);
+        current = "";
+      }
+      inBracket = true;
+    } else if (char === "]") {
+      if (inBracket && current) {
+        const num = parseInt(current, 10);
+        parts.push(isNaN(num) ? current : num);
+        current = "";
+      }
+      inBracket = false;
+    } else if (char === "." && !inBracket) {
+      if (current) {
+        parts.push(current);
+        current = "";
+      }
+    } else {
+      current += char;
+    }
+  }
+
+  if (current) {
+    parts.push(current);
+  }
+
+  return parts;
+}
+
+/**
+ * Helper to create a reference value for conditions.
+ * @param projectId - The project ID where the referenced config lives
+ * @param configName - The name of the config to reference
+ * @param path - JSON path string to extract from the config value (empty string for entire value)
+ */
+function reference(projectId: string, configName: string, path: string = "") {
+  return { type: "reference" as const, projectId, configName, path: parseJsonPath(path) };
+}
+
 const silentLogger = {
   debug: () => {},
   info: () => {},
@@ -152,6 +210,7 @@ export function testSuite(options: TestSuiteOptions): void {
 
   describe(
     "Replane E2E Test Suite",
+    { repeats: 8 }, // several repeats to ensure that the replica implementation is stable
     () => {
       let admin: ReplaneAdmin;
       let workspaceId: string;
@@ -794,6 +853,622 @@ export function testSuite(options: TestSuiteOptions): void {
         });
       });
 
+      // ==================== REFERENCE TESTS ====================
+
+      describe("Reference Evaluation", () => {
+        it("should evaluate reference with empty path (entire config value)", async () => {
+          // Create source config that will be referenced
+          await ctx.createConfig("ref-source-simple", "allowed-region");
+
+          // Create config with override that references the source config
+          await ctx.createConfig("ref-target-simple", "default", {
+            overrides: [
+              {
+                name: "ref-override",
+                conditions: [
+                  {
+                    operator: "equals",
+                    property: "region",
+                    value: reference(projectId, "ref-source-simple", ""),
+                  },
+                ],
+                value: "matched-by-reference",
+              },
+            ],
+          });
+
+          // Context matches the referenced value
+          const client1 = trackClient(
+            await ctx.createClient<{ "ref-target-simple": string }>({
+              context: { region: "allowed-region" },
+            })
+          );
+          expect(client1.get("ref-target-simple")).toBe("matched-by-reference");
+          client1.disconnect();
+
+          // Context doesn't match
+          const client2 = trackClient(
+            await ctx.createClient<{ "ref-target-simple": string }>({
+              context: { region: "other-region" },
+            })
+          );
+          expect(client2.get("ref-target-simple")).toBe("default");
+          client2.disconnect();
+        });
+
+        it("should evaluate reference with JSON path to nested object property", async () => {
+          // Create source config with nested object
+          await ctx.createConfig("ref-source-object", {
+            settings: {
+              threshold: 100,
+              enabled: true,
+            },
+          });
+
+          // Create config that references a nested property
+          await ctx.createConfig("ref-target-object", "below-threshold", {
+            overrides: [
+              {
+                name: "threshold-override",
+                conditions: [
+                  {
+                    operator: "greater_than_or_equal",
+                    property: "score",
+                    value: reference(projectId, "ref-source-object", "settings.threshold"),
+                  },
+                ],
+                value: "above-threshold",
+              },
+            ],
+          });
+
+          // Score meets threshold from reference
+          const client1 = trackClient(
+            await ctx.createClient<{ "ref-target-object": string }>({
+              context: { score: 150 },
+            })
+          );
+          expect(client1.get("ref-target-object")).toBe("above-threshold");
+          client1.disconnect();
+
+          // Score exactly at threshold
+          const client2 = trackClient(
+            await ctx.createClient<{ "ref-target-object": string }>({
+              context: { score: 100 },
+            })
+          );
+          expect(client2.get("ref-target-object")).toBe("above-threshold");
+          client2.disconnect();
+
+          // Score below threshold
+          const client3 = trackClient(
+            await ctx.createClient<{ "ref-target-object": string }>({
+              context: { score: 50 },
+            })
+          );
+          expect(client3.get("ref-target-object")).toBe("below-threshold");
+          client3.disconnect();
+        });
+
+        it("should evaluate reference with JSON path to array element", async () => {
+          // Create source config with array
+          await ctx.createConfig("ref-source-array", {
+            tiers: ["free", "basic", "premium", "enterprise"],
+          });
+
+          // Create config that references an array element
+          await ctx.createConfig("ref-target-array", "no-match", {
+            overrides: [
+              {
+                name: "premium-override",
+                conditions: [
+                  {
+                    operator: "equals",
+                    property: "tier",
+                    value: reference(projectId, "ref-source-array", "tiers[2]"),
+                  },
+                ],
+                value: "premium-match",
+              },
+            ],
+          });
+
+          // Context matches the third element ("premium")
+          const client1 = trackClient(
+            await ctx.createClient<{ "ref-target-array": string }>({
+              context: { tier: "premium" },
+            })
+          );
+          expect(client1.get("ref-target-array")).toBe("premium-match");
+          client1.disconnect();
+
+          // Context matches a different tier
+          const client2 = trackClient(
+            await ctx.createClient<{ "ref-target-array": string }>({
+              context: { tier: "basic" },
+            })
+          );
+          expect(client2.get("ref-target-array")).toBe("no-match");
+          client2.disconnect();
+        });
+
+        it("should evaluate reference with JSON path to entire array for 'in' condition", async () => {
+          // Create source config with allowed regions array
+          await ctx.createConfig("ref-source-regions", {
+            allowedRegions: ["us-east", "us-west", "eu-west"],
+          });
+
+          // Create config that uses the array in an 'in' condition
+          await ctx.createConfig("ref-target-regions", "blocked", {
+            overrides: [
+              {
+                name: "allowed-regions-override",
+                conditions: [
+                  {
+                    operator: "in",
+                    property: "region",
+                    value: reference(projectId, "ref-source-regions", "allowedRegions"),
+                  },
+                ],
+                value: "allowed",
+              },
+            ],
+          });
+
+          // Region is in allowed list
+          const client1 = trackClient(
+            await ctx.createClient<{ "ref-target-regions": string }>({
+              context: { region: "us-east" },
+            })
+          );
+          expect(client1.get("ref-target-regions")).toBe("allowed");
+          client1.disconnect();
+
+          const client2 = trackClient(
+            await ctx.createClient<{ "ref-target-regions": string }>({
+              context: { region: "eu-west" },
+            })
+          );
+          expect(client2.get("ref-target-regions")).toBe("allowed");
+          client2.disconnect();
+
+          // Region is not in allowed list
+          const client3 = trackClient(
+            await ctx.createClient<{ "ref-target-regions": string }>({
+              context: { region: "ap-south" },
+            })
+          );
+          expect(client3.get("ref-target-regions")).toBe("blocked");
+          client3.disconnect();
+        });
+
+        it("should handle reference to non-existent config (condition fails)", async () => {
+          // Create config that references a non-existent config
+          await ctx.createConfig("ref-target-nonexistent", "default-fallback", {
+            overrides: [
+              {
+                name: "nonexistent-ref-override",
+                conditions: [
+                  {
+                    operator: "equals",
+                    property: "value",
+                    value: reference(projectId, "nonexistent-config-xyz", ""),
+                  },
+                ],
+                value: "should-not-match",
+              },
+            ],
+          });
+
+          // The override should not match since reference is invalid
+          const client = trackClient(
+            await ctx.createClient<{ "ref-target-nonexistent": string }>({
+              context: { value: "anything" },
+            })
+          );
+          expect(client.get("ref-target-nonexistent")).toBe("default-fallback");
+          client.disconnect();
+        });
+
+        it("should handle reference with invalid JSON path (condition fails)", async () => {
+          // Create source config
+          await ctx.createConfig("ref-source-invalid-path", { data: { value: 42 } });
+
+          // Create config that references with invalid path
+          await ctx.createConfig("ref-target-invalid-path", "default-value", {
+            overrides: [
+              {
+                name: "invalid-path-override",
+                conditions: [
+                  {
+                    operator: "equals",
+                    property: "test",
+                    value: reference(projectId, "ref-source-invalid-path", "data.nonexistent.deep"),
+                  },
+                ],
+                value: "should-not-match",
+              },
+            ],
+          });
+
+          // The override should not match since path doesn't resolve
+          const client = trackClient(
+            await ctx.createClient<{ "ref-target-invalid-path": string }>({
+              context: { test: "anything" },
+            })
+          );
+          expect(client.get("ref-target-invalid-path")).toBe("default-value");
+          client.disconnect();
+        });
+
+        it("should handle reference with out-of-bounds array index", async () => {
+          // Create source config with small array
+          await ctx.createConfig("ref-source-oob", { items: ["a", "b", "c"] });
+
+          // Create config that references out-of-bounds index
+          await ctx.createConfig("ref-target-oob", "default-value", {
+            overrides: [
+              {
+                name: "oob-override",
+                conditions: [
+                  {
+                    operator: "equals",
+                    property: "item",
+                    value: reference(projectId, "ref-source-oob", "items[99]"),
+                  },
+                ],
+                value: "matched",
+              },
+            ],
+          });
+
+          // The override should not match
+          const client = trackClient(
+            await ctx.createClient<{ "ref-target-oob": string }>({
+              context: { item: "anything" },
+            })
+          );
+          expect(client.get("ref-target-oob")).toBe("default-value");
+          client.disconnect();
+        });
+
+        it("should evaluate reference with deeply nested path", async () => {
+          // Create source config with deeply nested structure
+          await ctx.createConfig("ref-source-deep", {
+            level1: {
+              level2: {
+                level3: {
+                  targetValue: "deep-secret",
+                },
+              },
+            },
+          });
+
+          // Create config that references deep path
+          await ctx.createConfig("ref-target-deep", "no-match", {
+            overrides: [
+              {
+                name: "deep-override",
+                conditions: [
+                  {
+                    operator: "equals",
+                    property: "secret",
+                    value: reference(
+                      projectId,
+                      "ref-source-deep",
+                      "level1.level2.level3.targetValue"
+                    ),
+                  },
+                ],
+                value: "deep-match",
+              },
+            ],
+          });
+
+          // Context matches the deeply nested value
+          const client1 = trackClient(
+            await ctx.createClient<{ "ref-target-deep": string }>({
+              context: { secret: "deep-secret" },
+            })
+          );
+          expect(client1.get("ref-target-deep")).toBe("deep-match");
+          client1.disconnect();
+
+          // Context doesn't match
+          const client2 = trackClient(
+            await ctx.createClient<{ "ref-target-deep": string }>({
+              context: { secret: "wrong" },
+            })
+          );
+          expect(client2.get("ref-target-deep")).toBe("no-match");
+          client2.disconnect();
+        });
+
+        it("should evaluate reference with array of objects and path", async () => {
+          // Create source config with array of objects
+          await ctx.createConfig("ref-source-array-obj", {
+            users: [
+              { id: 1, name: "Alice" },
+              { id: 2, name: "Bob" },
+              { id: 3, name: "Charlie" },
+            ],
+          });
+
+          // Create config that references specific object property in array
+          await ctx.createConfig("ref-target-array-obj", "unknown-user", {
+            overrides: [
+              {
+                name: "bob-override",
+                conditions: [
+                  {
+                    operator: "equals",
+                    property: "username",
+                    value: reference(projectId, "ref-source-array-obj", "users[1].name"),
+                  },
+                ],
+                value: "its-bob",
+              },
+            ],
+          });
+
+          // Context matches Bob's name
+          const client1 = trackClient(
+            await ctx.createClient<{ "ref-target-array-obj": string }>({
+              context: { username: "Bob" },
+            })
+          );
+          expect(client1.get("ref-target-array-obj")).toBe("its-bob");
+          client1.disconnect();
+
+          // Context matches different user
+          const client2 = trackClient(
+            await ctx.createClient<{ "ref-target-array-obj": string }>({
+              context: { username: "Alice" },
+            })
+          );
+          expect(client2.get("ref-target-array-obj")).toBe("unknown-user");
+          client2.disconnect();
+        });
+
+        it("should evaluate reference to boolean value", async () => {
+          // Create source config with boolean
+          await ctx.createConfig("ref-source-bool", { featureEnabled: true });
+
+          // Create config that references boolean
+          await ctx.createConfig("ref-target-bool", "feature-off", {
+            overrides: [
+              {
+                name: "feature-override",
+                conditions: [
+                  {
+                    operator: "equals",
+                    property: "enabled",
+                    value: reference(projectId, "ref-source-bool", "featureEnabled"),
+                  },
+                ],
+                value: "feature-on",
+              },
+            ],
+          });
+
+          // Context matches boolean true
+          const client1 = trackClient(
+            await ctx.createClient<{ "ref-target-bool": string }>({
+              context: { enabled: true },
+            })
+          );
+          expect(client1.get("ref-target-bool")).toBe("feature-on");
+          client1.disconnect();
+
+          // Context doesn't match
+          const client2 = trackClient(
+            await ctx.createClient<{ "ref-target-bool": string }>({
+              context: { enabled: false },
+            })
+          );
+          expect(client2.get("ref-target-bool")).toBe("feature-off");
+          client2.disconnect();
+        });
+
+        it("should handle multiple overrides with different references", async () => {
+          // Create multiple source configs
+          await ctx.createConfig("ref-source-premium", { tier: "premium" });
+          await ctx.createConfig("ref-source-enterprise", { tier: "enterprise" });
+
+          // Create config with multiple reference overrides
+          await ctx.createConfig("ref-target-multi", "free-tier", {
+            overrides: [
+              {
+                name: "enterprise-override",
+                conditions: [
+                  {
+                    operator: "equals",
+                    property: "plan",
+                    value: reference(projectId, "ref-source-enterprise", "tier"),
+                  },
+                ],
+                value: "enterprise-tier",
+              },
+              {
+                name: "premium-override",
+                conditions: [
+                  {
+                    operator: "equals",
+                    property: "plan",
+                    value: reference(projectId, "ref-source-premium", "tier"),
+                  },
+                ],
+                value: "premium-tier",
+              },
+            ],
+          });
+
+          // Matches enterprise (first override)
+          const client1 = trackClient(
+            await ctx.createClient<{ "ref-target-multi": string }>({
+              context: { plan: "enterprise" },
+            })
+          );
+          expect(client1.get("ref-target-multi")).toBe("enterprise-tier");
+          client1.disconnect();
+
+          // Matches premium (second override)
+          const client2 = trackClient(
+            await ctx.createClient<{ "ref-target-multi": string }>({
+              context: { plan: "premium" },
+            })
+          );
+          expect(client2.get("ref-target-multi")).toBe("premium-tier");
+          client2.disconnect();
+
+          // No match
+          const client3 = trackClient(
+            await ctx.createClient<{ "ref-target-multi": string }>({
+              context: { plan: "basic" },
+            })
+          );
+          expect(client3.get("ref-target-multi")).toBe("free-tier");
+          client3.disconnect();
+        });
+
+        it("should evaluate reference combined with literal conditions using AND", async () => {
+          // Create source config
+          await ctx.createConfig("ref-source-combined", { requiredLevel: 10 });
+
+          // Create config with AND condition combining reference and literal
+          await ctx.createConfig("ref-target-combined", "access-denied", {
+            overrides: [
+              {
+                name: "combined-override",
+                conditions: [
+                  {
+                    operator: "and",
+                    conditions: [
+                      { operator: "equals", property: "role", value: literal("admin") },
+                      {
+                        operator: "greater_than_or_equal",
+                        property: "level",
+                        value: reference(projectId, "ref-source-combined", "requiredLevel"),
+                      },
+                    ],
+                  },
+                ],
+                value: "access-granted",
+              },
+            ],
+          });
+
+          // Both conditions met
+          const client1 = trackClient(
+            await ctx.createClient<{ "ref-target-combined": string }>({
+              context: { role: "admin", level: 15 },
+            })
+          );
+          expect(client1.get("ref-target-combined")).toBe("access-granted");
+          client1.disconnect();
+
+          // Only role matches
+          const client2 = trackClient(
+            await ctx.createClient<{ "ref-target-combined": string }>({
+              context: { role: "admin", level: 5 },
+            })
+          );
+          expect(client2.get("ref-target-combined")).toBe("access-denied");
+          client2.disconnect();
+
+          // Only level matches
+          const client3 = trackClient(
+            await ctx.createClient<{ "ref-target-combined": string }>({
+              context: { role: "user", level: 15 },
+            })
+          );
+          expect(client3.get("ref-target-combined")).toBe("access-denied");
+          client3.disconnect();
+        });
+
+        it("should handle reference to null value", async () => {
+          // Create source config with null
+          await ctx.createConfig("ref-source-null", null);
+
+          // Create config that references null
+          await ctx.createConfig("ref-target-null", "has-value", {
+            overrides: [
+              {
+                name: "null-override",
+                conditions: [
+                  {
+                    operator: "equals",
+                    property: "data",
+                    value: reference(projectId, "ref-source-null", ""),
+                  },
+                ],
+                value: "is-null",
+              },
+            ],
+          });
+
+          // Context is null
+          const client1 = trackClient(
+            await ctx.createClient<{ "ref-target-null": string }>({
+              context: { data: null },
+            })
+          );
+          expect(client1.get("ref-target-null")).toBe("is-null");
+          client1.disconnect();
+
+          // Context is not null
+          const client2 = trackClient(
+            await ctx.createClient<{ "ref-target-null": string }>({
+              context: { data: "something" },
+            })
+          );
+          expect(client2.get("ref-target-null")).toBe("has-value");
+          client2.disconnect();
+        });
+
+        it("should evaluate reference with not_in condition", async () => {
+          // Create source config with blocked countries
+          await ctx.createConfig("ref-source-blocked", {
+            blockedCountries: ["XX", "YY", "ZZ"],
+          });
+
+          // Create config that uses not_in with reference
+          await ctx.createConfig("ref-target-blocked", "blocked", {
+            overrides: [
+              {
+                name: "allowed-override",
+                conditions: [
+                  {
+                    operator: "not_in",
+                    property: "country",
+                    value: reference(projectId, "ref-source-blocked", "blockedCountries"),
+                  },
+                ],
+                value: "allowed",
+              },
+            ],
+          });
+
+          // Country is not in blocked list
+          const client1 = trackClient(
+            await ctx.createClient<{ "ref-target-blocked": string }>({
+              context: { country: "US" },
+            })
+          );
+          expect(client1.get("ref-target-blocked")).toBe("allowed");
+          client1.disconnect();
+
+          // Country is in blocked list
+          const client2 = trackClient(
+            await ctx.createClient<{ "ref-target-blocked": string }>({
+              context: { country: "XX" },
+            })
+          );
+          expect(client2.get("ref-target-blocked")).toBe("blocked");
+          client2.disconnect();
+        });
+      });
+
       // ==================== SNAPSHOT TESTS ====================
 
       describe("Snapshot", () => {
@@ -990,7 +1665,6 @@ export function testSuite(options: TestSuiteOptions): void {
           client2.disconnect();
         });
       });
-    },
-    { repeats: 8 } // several repeats to ensure that the replica implementation is stable
+    }
   );
 }

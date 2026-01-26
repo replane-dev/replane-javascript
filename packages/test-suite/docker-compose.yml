@@ -1,5 +1,8 @@
 x-replane-common: &replane-common
   image: ghcr.io/replane-dev/replane:latest
+  # build:
+  #   context: ../../../replane
+  #   dockerfile: Dockerfile
   depends_on:
     postgres:
       condition: service_healthy
