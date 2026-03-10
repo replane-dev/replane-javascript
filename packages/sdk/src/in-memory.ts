@@ -60,6 +60,7 @@ export interface InMemoryReplaneOptions<T extends object> {
   context?: ReplaneContext;
   /**
    * Initial config values.
+   * All config keys must be provided when defaults is specified.
    * @example
    * {
    *   defaults: {
@@ -68,9 +69,7 @@ export interface InMemoryReplaneOptions<T extends object> {
    *   },
    * }
    */
-  defaults?: {
-    [K in keyof T]?: T[K];
-  };
+  defaults?: T;
 }
 
 interface InMemoryReplaneHandle<T extends object> {

@@ -70,6 +70,7 @@ export interface ReplaneOptions<T extends object> {
   /**
    * Default values to use before connection is established.
    * These values are used immediately and can be overwritten by server data.
+   * All config keys must be provided when defaults is specified.
    * @example
    * {
    *   defaults: {
@@ -78,9 +79,7 @@ export interface ReplaneOptions<T extends object> {
    *   },
    * }
    */
-  defaults?: {
-    [K in keyof T]?: T[K];
-  };
+  defaults?: T;
   /**
    * Snapshot from a server-side client's getSnapshot() call.
    * Used for SSR/hydration scenarios.

@@ -40,7 +40,7 @@ describe("Replane", () => {
 
   function createClient<T extends Record<string, unknown> = Record<string, unknown>>(
     options: {
-      defaults?: { [K in keyof T]?: T[K] };
+      defaults?: T;
       context?: Record<string, string | number | boolean | null | undefined>;
     } & Partial<ConnectOptions> = {}
   ): Promise<Replane<T>> {
