@@ -58,7 +58,7 @@
     "@testing-library/svelte": "^5.2.6",
     "@types/node": "^22.19.3",
     "bumpp": "^10.1.0",
-    "jsdom": "^27.3.0",
+    "jsdom": "^28.1.0",
     "svelte": "^5.0.0",
     "svelte-check": "^4.1.4",
     "typescript": "^5.4.0",
