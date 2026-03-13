@@ -46,7 +46,7 @@ export interface ReplaneContextWithOptionsProps<T extends object = Record<string
   /**
    * Default values to use before connection is established.
    */
-  defaults?: { [K in keyof T]?: T[K] };
+  defaults?: T;
   /**
    * Optional snapshot from server-side rendering.
    * When provided, the client will be restored from the snapshot synchronously
