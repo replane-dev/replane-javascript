@@ -839,6 +839,34 @@ describe("Configs API", () => {
         expect.objectContaining({ method: "PUT" })
       );
     });
+
+    it("includes baseVersion in the request body when provided", async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({ id: "config-1", version: 3 }));
+
+      await admin.configs.update({
+        projectId: "proj-1",
+        configName: "my-config",
+        description: "Updated",
+        editors: [],
+        baseVersion: 2,
+        base: { value: false, schema: null, overrides: [] },
+        variants: [],
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/projects/proj-1/configs/my-config"),
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({
+            description: "Updated",
+            editors: [],
+            baseVersion: 2,
+            base: { value: false, schema: null, overrides: [] },
+            variants: [],
+          }),
+        })
+      );
+    });
   });
 
   describe("delete", () => {

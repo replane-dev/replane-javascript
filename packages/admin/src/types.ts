@@ -259,6 +259,7 @@ export interface UpdateConfigRequest {
   configName: string;
   description: string;
   editors: string[];
+  baseVersion?: number;
   base: ConfigBase;
   variants: ConfigVariant[];
 }

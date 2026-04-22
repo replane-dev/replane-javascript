@@ -9,7 +9,7 @@
  */
 
 import { describe, it, beforeAll, afterAll, afterEach, expect } from "vitest";
-import { ReplaneAdmin, type ConfigValue, type Override } from "@replanejs/admin";
+import { ReplaneAdmin, ReplaneAdminError, type ConfigValue, type Override } from "@replanejs/admin";
 import { Replane, ReplaneError, ReplaneErrorCode } from "@replanejs/sdk";
 import type { ReplaneContext } from "@replanejs/sdk";
 import type { TestSuiteOptions, TestContext } from "./types";
@@ -165,6 +165,7 @@ function createTestContext(
       value: ConfigValue,
       configOptions?: {
         description?: string;
+        baseVersion?: number;
         overrides?: Override[];
       }
     ): Promise<void> {
@@ -173,6 +174,9 @@ function createTestContext(
         configName: name,
         description: configOptions?.description ?? "",
         editors: [],
+        ...(configOptions?.baseVersion !== undefined
+          ? { baseVersion: configOptions.baseVersion }
+          : {}),
         base: {
           value,
           schema: null,
@@ -1596,6 +1600,47 @@ export function testSuite(options: TestSuiteOptions): void {
           expect(client.get("delete-me")).toBe("exists");
 
           client.disconnect();
+        });
+      });
+
+      describe("Admin Config Versioning", () => {
+        it("should update a config when baseVersion matches", async () => {
+          const configName = uniqueId("base-version-config");
+
+          await ctx.createConfig(configName, "initial");
+
+          const config = await admin.configs.get({ projectId, configName });
+
+          await ctx.updateConfig(configName, "updated", {
+            baseVersion: config.version,
+          });
+
+          const client = trackClient(await ctx.createClient<Record<string, string>>({}));
+          expect(client.get(configName)).toBe("updated");
+          client.disconnect();
+        });
+
+        it("should reject stale baseVersion updates", async () => {
+          const configName = uniqueId("stale-base-version-config");
+
+          await ctx.createConfig(configName, "initial");
+
+          const config = await admin.configs.get({ projectId, configName });
+
+          await ctx.updateConfig(configName, "fresh", {
+            baseVersion: config.version,
+          });
+
+          await expect(
+            ctx.updateConfig(configName, "stale", {
+              baseVersion: config.version,
+            })
+          ).rejects.toSatisfy(
+            (error: unknown) =>
+              error instanceof ReplaneAdminError &&
+              error.status === 400 &&
+              error.message.includes("Config was edited by another user")
+          );
         });
       });
 

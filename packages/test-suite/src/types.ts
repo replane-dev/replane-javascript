@@ -71,6 +71,7 @@ export interface TestContext {
     value: ConfigValue,
     options?: {
       description?: string;
+      baseVersion?: number;
       overrides?: Override[];
     }
   ): Promise<void>;
