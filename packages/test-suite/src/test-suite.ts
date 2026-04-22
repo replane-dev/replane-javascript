@@ -1605,7 +1605,7 @@ export function testSuite(options: TestSuiteOptions): void {
 
       describe("Admin Config Versioning", () => {
         it("should update a config when baseVersion matches", async () => {
-          const configName = uniqueId("base-version-config");
+          const configName = uniqueId("base-version-config-v1");
 
           await ctx.createConfig(configName, "initial");
 
