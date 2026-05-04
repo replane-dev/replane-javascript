@@ -2,7 +2,6 @@
 <p align="center">Dynamic configuration for Svelte and SvelteKit applications.</p>
 
 <p align="center">
-  <a href="https://cloud.replane.dev"><img src="https://img.shields.io/badge/Try-Replane%20Cloud-blue" alt="Replane Cloud"></a>
   <a href="https://www.npmjs.com/package/@replanejs/svelte"><img src="https://img.shields.io/npm/v/@replanejs/svelte" alt="npm"></a>
   <a href="https://github.com/replane-dev/replane-javascript/blob/main/LICENSE"><img src="https://img.shields.io/github/license/replane-dev/replane-javascript" alt="License"></a>
   <a href="https://github.com/orgs/replane-dev/discussions"><img src="https://img.shields.io/badge/discussions-join-blue?logo=github" alt="Community"></a>
@@ -40,7 +39,7 @@ npm install @replanejs/svelte
 
   const replane = new Replane();
   await replane.connect({
-    baseUrl: 'https://cloud.replane.dev', // or your self-hosted URL
+    baseUrl: 'https://replane.example.com',
     sdkKey: 'your-sdk-key',
   });
 </script>
@@ -168,7 +167,7 @@ Can be used in several ways:
 
   const replane = new Replane();
   await replane.connect({
-    baseUrl: 'https://cloud.replane.dev', // or your self-hosted URL
+    baseUrl: 'https://replane.example.com',
     sdkKey: 'your-sdk-key',
   });
 </script>

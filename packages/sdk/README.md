@@ -2,7 +2,6 @@
 <p align="center">Dynamic configuration for Node.js, Deno, Bun, and browsers.</p>
 
 <p align="center">
-  <a href="https://cloud.replane.dev"><img src="https://img.shields.io/badge/Try-Replane%20Cloud-blue" alt="Replane Cloud"></a>
   <a href="https://www.npmjs.com/package/@replanejs/sdk"><img src="https://img.shields.io/npm/v/@replanejs/sdk" alt="npm"></a>
   <a href="https://github.com/replane-dev/replane-javascript/blob/main/LICENSE"><img src="https://img.shields.io/github/license/replane-dev/replane-javascript" alt="License"></a>
   <a href="https://github.com/orgs/replane-dev/discussions"><img src="https://img.shields.io/badge/discussions-join-blue?logo=github" alt="Community"></a>
@@ -74,7 +73,7 @@ const replane = new Replane<Configs>({
 // Connect to the server
 await replane.connect({
   sdkKey: process.env.REPLANE_SDK_KEY!,
-  baseUrl: "https://cloud.replane.dev", // or your self-hosted URL
+  baseUrl: "https://replane.example.com",
 });
 
 // Get a config value (knows about latest updates via SSE)
@@ -171,7 +170,7 @@ interface Configs {
 const replane = new Replane<Configs>();
 await replane.connect({
   sdkKey: "your-sdk-key",
-  baseUrl: "https://cloud.replane.dev", // or your self-hosted URL
+  baseUrl: "https://replane.example.com",
 });
 
 // Get value without context - TypeScript knows this is boolean
@@ -211,7 +210,7 @@ interface Configs {
 const replane = new Replane<Configs>();
 await replane.connect({
   sdkKey: "your-sdk-key",
-  baseUrl: "https://cloud.replane.dev", // or your self-hosted URL
+  baseUrl: "https://replane.example.com",
 });
 
 // Subscribe to a specific config

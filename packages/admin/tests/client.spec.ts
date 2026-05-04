@@ -36,7 +36,7 @@ function noContentResponse(): Response {
 describe("ReplaneAdmin - Initialization", () => {
   it("creates client with required options", () => {
     const admin = new ReplaneAdmin({
-      baseUrl: "https://app.replane.dev",
+      baseUrl: "https://replane.example.com",
       apiKey: "rpa_test_key",
     });
 
@@ -56,14 +56,14 @@ describe("ReplaneAdmin - Initialization", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const admin = new ReplaneAdmin({
-      baseUrl: "https://app.replane.dev",
+      baseUrl: "https://replane.example.com",
       apiKey: "rpa_test_key",
     });
 
     await admin.projects.list();
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "https://app.replane.dev/api/admin/v1/projects",
+      "https://replane.example.com/api/admin/v1/projects",
       expect.any(Object)
     );
 
@@ -77,14 +77,14 @@ describe("ReplaneAdmin - Initialization", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const admin = new ReplaneAdmin({
-      baseUrl: "https://app.replane.dev/",
+      baseUrl: "https://replane.example.com/",
       apiKey: "rpa_test_key",
     });
 
     await admin.projects.list();
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "https://app.replane.dev/api/admin/v1/projects",
+      "https://replane.example.com/api/admin/v1/projects",
       expect.any(Object)
     );
 
@@ -98,7 +98,7 @@ describe("ReplaneAdmin - Initialization", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const admin = new ReplaneAdmin({
-      baseUrl: "https://app.replane.dev",
+      baseUrl: "https://replane.example.com",
       apiKey: "rpa_test_key",
     });
 
@@ -123,7 +123,7 @@ describe("ReplaneAdmin - Initialization", () => {
     vi.stubGlobal("fetch", mockFetch);
 
     const admin = new ReplaneAdmin({
-      baseUrl: "https://app.replane.dev",
+      baseUrl: "https://replane.example.com",
       apiKey: "rpa_test_key",
       agent: "my-custom-agent/1.0.0",
     });
@@ -163,7 +163,7 @@ describe("ReplaneAdmin - Authentication", () => {
     mockFetch.mockResolvedValueOnce(jsonResponse({ projects: [] }));
 
     const admin = new ReplaneAdmin({
-      baseUrl: "https://app.replane.dev",
+      baseUrl: "https://replane.example.com",
       apiKey: "rpa_my_secret_key",
     });
 
@@ -200,7 +200,7 @@ describe("ReplaneAdmin - Error Handling", () => {
     mockFetch.mockResolvedValueOnce(errorResponse("Invalid API key", 401));
 
     const admin = new ReplaneAdmin({
-      baseUrl: "https://app.replane.dev",
+      baseUrl: "https://replane.example.com",
       apiKey: "rpa_invalid_key",
     });
 
@@ -220,7 +220,7 @@ describe("ReplaneAdmin - Error Handling", () => {
     mockFetch.mockResolvedValueOnce(errorResponse("Forbidden", 403));
 
     const admin = new ReplaneAdmin({
-      baseUrl: "https://app.replane.dev",
+      baseUrl: "https://replane.example.com",
       apiKey: "rpa_test_key",
     });
 
@@ -240,7 +240,7 @@ describe("ReplaneAdmin - Error Handling", () => {
     mockFetch.mockResolvedValueOnce(errorResponse("Project not found", 404));
 
     const admin = new ReplaneAdmin({
-      baseUrl: "https://app.replane.dev",
+      baseUrl: "https://replane.example.com",
       apiKey: "rpa_test_key",
     });
 
@@ -260,7 +260,7 @@ describe("ReplaneAdmin - Error Handling", () => {
     mockFetch.mockResolvedValueOnce(errorResponse("Internal server error", 500));
 
     const admin = new ReplaneAdmin({
-      baseUrl: "https://app.replane.dev",
+      baseUrl: "https://replane.example.com",
       apiKey: "rpa_test_key",
     });
 
@@ -280,7 +280,7 @@ describe("ReplaneAdmin - Error Handling", () => {
     mockFetch.mockResolvedValueOnce(new Response("Bad Gateway", { status: 502 }));
 
     const admin = new ReplaneAdmin({
-      baseUrl: "https://app.replane.dev",
+      baseUrl: "https://replane.example.com",
       apiKey: "rpa_test_key",
     });
 
@@ -308,7 +308,7 @@ describe("Workspaces API", () => {
   beforeEach(() => {
     mockFetch = createFetchMock();
     vi.stubGlobal("fetch", mockFetch);
-    admin = new ReplaneAdmin({ baseUrl: "https://test.replane.dev", apiKey: "rpa_test_key" });
+    admin = new ReplaneAdmin({ baseUrl: "https://test.replane.example.com", apiKey: "rpa_test_key" });
   });
 
   afterEach(() => {
@@ -457,7 +457,7 @@ describe("Projects API", () => {
   beforeEach(() => {
     mockFetch = createFetchMock();
     vi.stubGlobal("fetch", mockFetch);
-    admin = new ReplaneAdmin({ baseUrl: "https://test.replane.dev", apiKey: "rpa_test_key" });
+    admin = new ReplaneAdmin({ baseUrl: "https://test.replane.example.com", apiKey: "rpa_test_key" });
   });
 
   afterEach(() => {
@@ -650,7 +650,7 @@ describe("Configs API", () => {
   beforeEach(() => {
     mockFetch = createFetchMock();
     vi.stubGlobal("fetch", mockFetch);
-    admin = new ReplaneAdmin({ baseUrl: "https://test.replane.dev", apiKey: "rpa_test_key" });
+    admin = new ReplaneAdmin({ baseUrl: "https://test.replane.example.com", apiKey: "rpa_test_key" });
   });
 
   afterEach(() => {
@@ -894,7 +894,7 @@ describe("Environments API", () => {
   beforeEach(() => {
     mockFetch = createFetchMock();
     vi.stubGlobal("fetch", mockFetch);
-    admin = new ReplaneAdmin({ baseUrl: "https://test.replane.dev", apiKey: "rpa_test_key" });
+    admin = new ReplaneAdmin({ baseUrl: "https://test.replane.example.com", apiKey: "rpa_test_key" });
   });
 
   afterEach(() => {
@@ -944,7 +944,7 @@ describe("SDK Keys API", () => {
   beforeEach(() => {
     mockFetch = createFetchMock();
     vi.stubGlobal("fetch", mockFetch);
-    admin = new ReplaneAdmin({ baseUrl: "https://test.replane.dev", apiKey: "rpa_test_key" });
+    admin = new ReplaneAdmin({ baseUrl: "https://test.replane.example.com", apiKey: "rpa_test_key" });
   });
 
   afterEach(() => {
@@ -1081,7 +1081,7 @@ describe("Members API", () => {
   beforeEach(() => {
     mockFetch = createFetchMock();
     vi.stubGlobal("fetch", mockFetch);
-    admin = new ReplaneAdmin({ baseUrl: "https://test.replane.dev", apiKey: "rpa_test_key" });
+    admin = new ReplaneAdmin({ baseUrl: "https://test.replane.example.com", apiKey: "rpa_test_key" });
   });
 
   afterEach(() => {

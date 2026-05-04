@@ -61,7 +61,7 @@ export class ReplaneAdminError extends Error {
  * import { ReplaneAdmin } from "@replanejs/admin";
  *
  * const admin = new ReplaneAdmin({
- *   baseUrl: "https://app.replane.dev",
+ *   baseUrl: "https://replane.example.com",
  *   apiKey: "rpa_...",
  * });
  *

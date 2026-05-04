@@ -7,7 +7,7 @@ import type { AppConfigs } from "./configs";
 
 // Environment variables (in a real app, use import.meta.env)
 const sdkKey = import.meta.env.VITE_REPLANE_SDK_KEY || "demo-sdk-key";
-const baseUrl = import.meta.env.VITE_REPLANE_BASE_URL || "https://app.replane.dev";
+const baseUrl = import.meta.env.VITE_REPLANE_BASE_URL || "https://replane.example.com";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

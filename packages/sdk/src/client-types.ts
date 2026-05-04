@@ -94,7 +94,7 @@ export interface ConnectOptions {
   /**
    * Base URL of the Replane instance (no trailing slash).
    * @example
-   * "https://app.replane.dev"
+   * "https://replane.example.com"
    *
    * @example
    * "https://replane.yourdomain.com"

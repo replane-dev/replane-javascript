@@ -2,7 +2,6 @@
 <p align="center">Dynamic configuration for Next.js applications with SSR support.</p>
 
 <p align="center">
-  <a href="https://cloud.replane.dev"><img src="https://img.shields.io/badge/Try-Replane%20Cloud-blue" alt="Replane Cloud"></a>
   <a href="https://www.npmjs.com/package/@replanejs/next"><img src="https://img.shields.io/npm/v/@replanejs/next" alt="npm"></a>
   <a href="https://github.com/replane-dev/replane-javascript/blob/main/LICENSE"><img src="https://img.shields.io/github/license/replane-dev/replane-javascript" alt="License"></a>
   <a href="https://github.com/orgs/replane-dev/discussions"><img src="https://img.shields.io/badge/discussions-join-blue?logo=github" alt="Community"></a>

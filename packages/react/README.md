@@ -2,7 +2,6 @@
 <p align="center">Dynamic configuration for React applications.</p>
 
 <p align="center">
-  <a href="https://cloud.replane.dev"><img src="https://img.shields.io/badge/Try-Replane%20Cloud-blue" alt="Replane Cloud"></a>
   <a href="https://www.npmjs.com/package/@replanejs/react"><img src="https://img.shields.io/npm/v/@replanejs/react" alt="npm"></a>
   <a href="https://github.com/replane-dev/replane-javascript/blob/main/LICENSE"><img src="https://img.shields.io/github/license/replane-dev/replane-javascript" alt="License"></a>
   <a href="https://github.com/orgs/replane-dev/discussions"><img src="https://img.shields.io/badge/discussions-join-blue?logo=github" alt="Community"></a>
@@ -49,7 +48,7 @@ function App() {
   return (
     <ReplaneProvider
       connection={{
-        baseUrl: "https://cloud.replane.dev", // or your self-hosted URL
+        baseUrl: "https://replane.example.com",
         sdkKey: "your-sdk-key",
       }}
       loader={<div>Loading...</div>}
@@ -148,7 +147,7 @@ Integrates with React Suspense for loading states:
   <Suspense fallback={<LoadingSpinner />}>
     <ReplaneProvider
       connection={{
-        baseUrl: "https://cloud.replane.dev", // or your self-hosted URL
+        baseUrl: "https://replane.example.com",
         sdkKey: "your-sdk-key",
       }}
       suspense

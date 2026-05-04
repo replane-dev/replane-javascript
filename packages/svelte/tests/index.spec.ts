@@ -71,7 +71,7 @@ function createMockClient(configs: Record<string, unknown> = {}): Replane<any> &
 }
 
 const defaultConnection: ConnectOptions = {
-  baseUrl: "https://test.replane.dev",
+  baseUrl: "https://test.replane.example.com",
   sdkKey: "rp_test_key",
 };
 

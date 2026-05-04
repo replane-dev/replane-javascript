@@ -355,7 +355,7 @@ export interface ReplaneAdminOptions {
 
   /**
    * Base URL for Replane instance
-   * @example "https://app.replane.dev"
+   * @example "https://replane.example.com"
    */
   baseUrl: string;
 

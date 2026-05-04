@@ -103,7 +103,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 }
 
 const defaultConnection: ConnectOptions = {
-  baseUrl: "https://test.replane.dev",
+  baseUrl: "https://test.replane.example.com",
   sdkKey: "rp_test_key",
 };
 
@@ -980,7 +980,7 @@ describe("ReplaneProvider with suspense", () => {
 
     // Second render with different sdkKey
     const differentConnection: ConnectOptions = {
-      baseUrl: "https://test.replane.dev",
+      baseUrl: "https://test.replane.example.com",
       sdkKey: "rp_different_key",
     };
 

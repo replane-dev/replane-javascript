@@ -45,7 +45,7 @@ function asReplaneHandle<T extends object>(replane: Replane<T>): ReplaneHandle<T
  *
  * // Connect for real-time updates
  * await client.connect({
- *   baseUrl: 'https://app.replane.dev',
+ *   baseUrl: 'https://replane.example.com',
  *   sdkKey: 'your-sdk-key'
  * });
  * ```
@@ -165,7 +165,7 @@ class ReplaneImpl<T extends object = Record<string, unknown>> {
    * @example
    * ```typescript
    * await client.connect({
-   *   baseUrl: 'https://app.replane.dev',
+   *   baseUrl: 'https://replane.example.com',
    *   sdkKey: 'rp_xxx'
    * });
    * ```

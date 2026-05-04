@@ -2,7 +2,6 @@
 <p align="center">Dynamic configuration for JavaScript and TypeScript applications.</p>
 
 <p align="center">
-  <a href="https://cloud.replane.dev"><img src="https://img.shields.io/badge/Try-Replane%20Cloud-blue" alt="Replane Cloud"></a>
   <a href="https://github.com/replane-dev/replane-javascript/actions"><img src="https://github.com/replane-dev/replane-javascript/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/replane-dev/replane-javascript/blob/main/LICENSE"><img src="https://img.shields.io/github/license/replane-dev/replane-javascript" alt="License"></a>
   <a href="https://github.com/orgs/replane-dev/discussions"><img src="https://img.shields.io/badge/discussions-join-blue?logo=github" alt="Community"></a>
@@ -48,7 +47,7 @@ import { Replane } from "@replanejs/sdk";
 const replane = new Replane();
 await replane.connect({
   sdkKey: process.env.REPLANE_SDK_KEY!,
-  baseUrl: "https://cloud.replane.dev", // or your self-hosted URL
+  baseUrl: "https://replane.example.com",
 });
 
 const featureEnabled = replane.get("my-feature");
@@ -67,7 +66,7 @@ function App() {
   return (
     <ReplaneProvider
       options={{
-        baseUrl: "https://cloud.replane.dev", // or your self-hosted URL
+        baseUrl: "https://replane.example.com",
         sdkKey: process.env.REPLANE_SDK_KEY!,
       }}
     >
@@ -135,7 +134,7 @@ npm install @replanejs/svelte
 
 <ReplaneContext
   options={{
-    baseUrl: "https://cloud.replane.dev", // or your self-hosted URL
+    baseUrl: "https://replane.example.com",
     sdkKey: "your-sdk-key",
   }}
 >
